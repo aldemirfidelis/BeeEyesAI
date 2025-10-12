@@ -20,87 +20,152 @@ export default function BeeEyes({ expression = "neutral", className = "" }: BeeE
     return () => clearInterval(blinkInterval);
   }, []);
 
-  const getEyeStyle = () => {
+  const getEyeShape = () => {
+    if (blinking) return "h-1";
+    
     switch (expression) {
       case "happy":
-        return { scaleY: 0.7, y: 2 };
+        return "h-8";
       case "excited":
-        return { scale: 1.2, rotate: 0 };
-      case "curious":
-        return { x: 8, y: -3 };
+        return "h-14";
       case "sleepy":
-        return { scaleY: 0.3, y: 6 };
-      case "celebrating":
-        return { scale: 1.3, rotate: [0, -5, 5, -5, 0] };
+        return "h-6";
       default:
-        return {};
+        return "h-12";
     }
   };
 
-  const getPupilStyle = () => {
+  const getPupilPosition = () => {
     switch (expression) {
-      case "happy":
-      case "celebrating":
-        return "bg-primary";
-      case "excited":
-        return "bg-chart-1";
       case "curious":
-        return "bg-chart-2";
-      case "sleepy":
-        return "bg-muted-foreground";
+        return "translate-x-2 -translate-y-1";
+      case "happy":
+        return "translate-y-1";
+      case "excited":
+        return "translate-y-0";
       default:
-        return "bg-foreground";
+        return "";
+    }
+  };
+
+  const getShinePosition = () => {
+    switch (expression) {
+      case "celebrating":
+      case "excited":
+        return "top-2 left-2";
+      default:
+        return "top-3 left-3";
     }
   };
 
   return (
-    <div className={`relative flex items-center justify-center gap-4 ${className}`}>
+    <div className={`relative flex items-center justify-center gap-6 ${className}`}>
       <motion.div
         className="relative"
-        animate={expression === "celebrating" ? { rotate: [0, -10, 10, -10, 0] } : {}}
-        transition={{ duration: 0.5, repeat: expression === "celebrating" ? Infinity : 0 }}
+        animate={expression === "celebrating" ? { rotate: [0, -8, 8, -8, 0], y: [0, -4, 0] } : {}}
+        transition={{ duration: 0.6, repeat: expression === "celebrating" ? Infinity : 0 }}
       >
-        <motion.div
-          className="relative w-12 h-16 bg-primary/20 rounded-full border-2 border-primary/40"
-          animate={blinking ? { scaleY: 0.1 } : getEyeStyle()}
-          transition={{ duration: 0.2 }}
-        >
+        <div className="relative w-16 h-16 flex items-center justify-center">
           <motion.div
-            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full ${getPupilStyle()}`}
-            animate={blinking ? { scaleY: 0 } : {}}
-          />
+            className={`relative w-14 bg-foreground transition-all ${getEyeShape()}`}
+            style={{
+              clipPath: blinking 
+                ? "polygon(0 50%, 100% 50%, 100% 50%, 0 50%)"
+                : "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+              imageRendering: "pixelated",
+            }}
+          >
+            {!blinking && (
+              <>
+                <motion.div
+                  className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 bg-primary transition-transform ${getPupilPosition()}`}
+                  style={{
+                    clipPath: "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
+                    imageRendering: "pixelated",
+                  }}
+                />
+                <div
+                  className={`absolute ${getShinePosition()} w-3 h-3 bg-background`}
+                  style={{
+                    clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 100%)",
+                    imageRendering: "pixelated",
+                  }}
+                />
+              </>
+            )}
+          </motion.div>
+          
           {expression === "celebrating" && (
-            <motion.div
-              className="absolute -top-2 -right-2 w-3 h-3 bg-primary rounded-full"
-              animate={{ scale: [0, 1.5, 0], opacity: [0, 1, 0] }}
-              transition={{ duration: 0.8, repeat: Infinity }}
-            />
+            <>
+              <motion.div
+                className="absolute -top-1 -right-1 w-2 h-2 bg-primary"
+                style={{ imageRendering: "pixelated" }}
+                animate={{ scale: [0, 1, 0], opacity: [0, 1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity }}
+              />
+              <motion.div
+                className="absolute -top-2 right-2 w-1.5 h-1.5 bg-chart-1"
+                style={{ imageRendering: "pixelated" }}
+                animate={{ scale: [0, 1, 0], opacity: [0, 1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
+              />
+            </>
           )}
-        </motion.div>
+        </div>
       </motion.div>
 
       <motion.div
         className="relative"
-        animate={expression === "celebrating" ? { rotate: [0, 10, -10, 10, 0] } : {}}
-        transition={{ duration: 0.5, repeat: expression === "celebrating" ? Infinity : 0 }}
+        animate={expression === "celebrating" ? { rotate: [0, 8, -8, 8, 0], y: [0, -4, 0] } : {}}
+        transition={{ duration: 0.6, repeat: expression === "celebrating" ? Infinity : 0, delay: 0.1 }}
       >
-        <motion.div
-          className="relative w-12 h-16 bg-primary/20 rounded-full border-2 border-primary/40"
-          animate={blinking ? { scaleY: 0.1 } : getEyeStyle()}
-          transition={{ duration: 0.2 }}
-        >
+        <div className="relative w-16 h-16 flex items-center justify-center">
           <motion.div
-            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full ${getPupilStyle()}`}
-            animate={blinking ? { scaleY: 0 } : {}}
-          />
+            className={`relative w-14 bg-foreground transition-all ${getEyeShape()}`}
+            style={{
+              clipPath: blinking 
+                ? "polygon(0 50%, 100% 50%, 100% 50%, 0 50%)"
+                : "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+              imageRendering: "pixelated",
+            }}
+          >
+            {!blinking && (
+              <>
+                <motion.div
+                  className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-7 h-7 bg-primary transition-transform ${getPupilPosition()}`}
+                  style={{
+                    clipPath: "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
+                    imageRendering: "pixelated",
+                  }}
+                />
+                <div
+                  className={`absolute ${getShinePosition()} w-3 h-3 bg-background`}
+                  style={{
+                    clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 100%)",
+                    imageRendering: "pixelated",
+                  }}
+                />
+              </>
+            )}
+          </motion.div>
+          
           {expression === "celebrating" && (
-            <motion.div
-              className="absolute -top-2 -left-2 w-3 h-3 bg-primary rounded-full"
-              animate={{ scale: [0, 1.5, 0], opacity: [0, 1, 0] }}
-              transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
-            />
+            <>
+              <motion.div
+                className="absolute -top-1 -left-1 w-2 h-2 bg-primary"
+                style={{ imageRendering: "pixelated" }}
+                animate={{ scale: [0, 1, 0], opacity: [0, 1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity, delay: 0.3 }}
+              />
+              <motion.div
+                className="absolute -top-2 left-2 w-1.5 h-1.5 bg-chart-1"
+                style={{ imageRendering: "pixelated" }}
+                animate={{ scale: [0, 1, 0], opacity: [0, 1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity, delay: 0.5 }}
+              />
+            </>
           )}
-        </motion.div>
+        </div>
       </motion.div>
     </div>
   );
