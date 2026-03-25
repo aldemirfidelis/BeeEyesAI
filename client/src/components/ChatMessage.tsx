@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Bot, User } from "lucide-react";
+import { User } from "lucide-react";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -24,7 +24,7 @@ export default function ChatMessage({ role, content, timestamp }: ChatMessagePro
         {isUser ? (
           <User className="w-4 h-4 text-primary-foreground" />
         ) : (
-          <Bot className="w-4 h-4 text-secondary-foreground" />
+          <span className="text-base leading-none">🐝</span>
         )}
       </div>
       <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[80%]`}>

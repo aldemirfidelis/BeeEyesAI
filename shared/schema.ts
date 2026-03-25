@@ -10,7 +10,21 @@ export const users = pgTable("users", {
   level: integer("level").notNull().default(1),
   xp: integer("xp").notNull().default(0),
   currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  totalMessagesCount: integer("total_messages_count").notNull().default(0),
+  personalityProfile: text("personality_profile"),
+  lastActiveAt: timestamp("last_active_at").defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userPersonality = pgTable("user_personality", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  traits: text("traits").notNull().default("{}"),
+  communicationStyle: text("communication_style").notNull().default("friendly"),
+  interests: text("interests").notNull().default("[]"),
+  recentTopics: text("recent_topics").notNull().default("[]"),
+  lastUpdatedAt: timestamp("last_updated_at").notNull().defaultNow(),
 });
 
 export const messages = pgTable("messages", {
@@ -18,6 +32,7 @@ export const messages = pgTable("messages", {
   userId: varchar("user_id").notNull(),
   role: text("role").notNull(),
   content: text("content").notNull(),
+  metadata: text("metadata"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -49,6 +64,7 @@ export const achievements = pgTable("achievements", {
   unlockedAt: timestamp("unlocked_at").notNull().defaultNow(),
 });
 
+// Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -76,8 +92,16 @@ export const insertAchievementSchema = createInsertSchema(achievements).omit({
   unlockedAt: true,
 });
 
+export const insertUserPersonalitySchema = createInsertSchema(userPersonality).omit({
+  id: true,
+  lastUpdatedAt: true,
+});
+
+// Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type UserPersonality = typeof userPersonality.$inferSelect;
+export type InsertUserPersonality = z.infer<typeof insertUserPersonalitySchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Mission = typeof missions.$inferSelect;
@@ -86,3 +110,8 @@ export type MoodEntry = typeof moodEntries.$inferSelect;
 export type InsertMoodEntry = z.infer<typeof insertMoodEntrySchema>;
 export type Achievement = typeof achievements.$inferSelect;
 export type InsertAchievement = z.infer<typeof insertAchievementSchema>;
+
+// Level calculation helper
+export function xpForLevel(level: number): number {
+  return level * 100 + (level - 1) * 50;
+}

@@ -1,0 +1,18 @@
+# Use este .htaccess dentro da pasta da SPA (ex.: public_html/bee-eyes/)
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Arquivos/diretórios reais passam direto
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Fallback da SPA para index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+AddType text/javascript .js
+AddType text/css .css
+

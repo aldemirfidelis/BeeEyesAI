@@ -13,6 +13,7 @@ export default function MissionCardExample() {
         xpReward={20}
         completed={completed}
         onToggle={() => setCompleted(!completed)}
+        onDelete={() => {}}
       />
     </div>
   );

@@ -58,6 +58,39 @@ export default function BeeEyes({ expression = "neutral", className = "" }: BeeE
     }
   };
 
+  const getBrowRotation = (side: "left" | "right") => {
+    if (blinking) return side === "left" ? -5 : 5;
+    switch (expression) {
+      case "happy":
+        return side === "left" ? -14 : 14;
+      case "excited":
+        return side === "left" ? -22 : 22;
+      case "curious":
+        return side === "left" ? -28 : 6;
+      case "sleepy":
+        return side === "left" ? 14 : -14;
+      case "celebrating":
+        return side === "left" ? -30 : 30;
+      default:
+        return 0;
+    }
+  };
+
+  const getBrowY = (side: "left" | "right") => {
+    switch (expression) {
+      case "excited":
+        return -5;
+      case "celebrating":
+        return -6;
+      case "curious":
+        return side === "left" ? -5 : 0;
+      case "sleepy":
+        return 3;
+      default:
+        return 0;
+    }
+  };
+
   return (
     <div className={`relative flex items-center justify-center gap-6 ${className}`}>
       <motion.div
@@ -66,10 +99,20 @@ export default function BeeEyes({ expression = "neutral", className = "" }: BeeE
         transition={{ duration: 0.6, repeat: expression === "celebrating" ? Infinity : 0 }}
       >
         <div className="relative w-16 h-16 flex items-center justify-center">
+          {/* Sobrancelha esquerda */}
+          <motion.div
+            className="absolute w-9 h-2.5 bg-foreground"
+            style={{ top: -10, imageRendering: "pixelated" }}
+            animate={{
+              rotate: getBrowRotation("left"),
+              y: getBrowY("left"),
+            }}
+            transition={{ duration: 0.25 }}
+          />
           <motion.div
             className={`relative w-14 bg-foreground transition-all ${getEyeShape()}`}
             style={{
-              clipPath: blinking 
+              clipPath: blinking
                 ? "polygon(0 50%, 100% 50%, 100% 50%, 0 50%)"
                 : "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
               imageRendering: "pixelated",
@@ -94,7 +137,7 @@ export default function BeeEyes({ expression = "neutral", className = "" }: BeeE
               </>
             )}
           </motion.div>
-          
+
           {expression === "celebrating" && (
             <>
               <motion.div
@@ -120,10 +163,20 @@ export default function BeeEyes({ expression = "neutral", className = "" }: BeeE
         transition={{ duration: 0.6, repeat: expression === "celebrating" ? Infinity : 0, delay: 0.1 }}
       >
         <div className="relative w-16 h-16 flex items-center justify-center">
+          {/* Sobrancelha direita */}
+          <motion.div
+            className="absolute w-9 h-2.5 bg-foreground"
+            style={{ top: -10, imageRendering: "pixelated" }}
+            animate={{
+              rotate: getBrowRotation("right"),
+              y: getBrowY("right"),
+            }}
+            transition={{ duration: 0.25 }}
+          />
           <motion.div
             className={`relative w-14 bg-foreground transition-all ${getEyeShape()}`}
             style={{
-              clipPath: blinking 
+              clipPath: blinking
                 ? "polygon(0 50%, 100% 50%, 100% 50%, 0 50%)"
                 : "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
               imageRendering: "pixelated",
@@ -148,7 +201,7 @@ export default function BeeEyes({ expression = "neutral", className = "" }: BeeE
               </>
             )}
           </motion.div>
-          
+
           {expression === "celebrating" && (
             <>
               <motion.div

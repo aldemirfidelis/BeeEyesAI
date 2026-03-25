@@ -4,6 +4,8 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
+  // Base relativa para funcionar em subpastas (ex.: /bee-eyes/)
+  base: './',
   plugins: [
     react(),
     runtimeErrorOverlay(),

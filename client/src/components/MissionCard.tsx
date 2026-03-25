@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Target, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Target, Zap, X } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface MissionCardProps {
@@ -11,6 +12,7 @@ interface MissionCardProps {
   xpReward: number;
   completed: boolean;
   onToggle: (id: string) => void;
+  onDelete: (id: string, title: string) => void;
 }
 
 export default function MissionCard({
@@ -20,6 +22,7 @@ export default function MissionCard({
   xpReward,
   completed,
   onToggle,
+  onDelete,
 }: MissionCardProps) {
   return (
     <motion.div
@@ -52,6 +55,15 @@ export default function MissionCard({
               </Badge>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-6 h-6 text-muted-foreground hover:text-destructive flex-shrink-0"
+            onClick={() => onDelete(id, title)}
+            data-testid={`button-delete-mission-${id}`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </Card>
     </motion.div>
