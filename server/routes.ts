@@ -30,6 +30,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  app.post("/api/auth/social", async (req: Request, res: Response) => {
+    const { provider, accessToken } = req.body;
+
+    if (provider === "google") {
+      let googleUser: { sub: string; name: string; email: string; picture: string } | null = null;
+      try {
+        const r = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        googleUser = await r.json();
+      } catch {
+        return res.status(401).json({ message: "Token do Google inválido" });
+      }
+
+      if (!googleUser?.sub) return res.status(401).json({ message: "Token do Google inválido" });
+
+      let user = await storage.getUserByGoogleId(googleUser.sub);
+
+      if (!user) {
+        const base = (googleUser.name || "user").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15) || "user";
+        let username = base;
+        let attempt = 0;
+        while (await storage.getUserByUsername(username)) {
+          username = `${base}${++attempt}`;
+        }
+        user = await storage.createUser({
+          username,
+          password: await hashPassword(crypto.randomUUID()),
+          googleId: googleUser.sub,
+          displayName: googleUser.name,
+        });
+      }
+
+      const token = signToken(user.id);
+      return res.json({ token, user: { id: user.id, username: user.username, level: user.level, xp: user.xp, currentStreak: user.currentStreak } });
+    }
+
+    return res.status(400).json({ message: "Provider não suportado" });
+  });
+
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     const { username, password } = req.body;
     if (!username || !password) {
