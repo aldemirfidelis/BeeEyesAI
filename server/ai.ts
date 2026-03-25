@@ -385,6 +385,53 @@ export async function generateProactiveMessage(
   }
 }
 
+// ── Mission Celebration ───────────────────────────────────────────────────────
+
+export async function generateMissionCelebration(
+  user: User,
+  personality: UserPersonality,
+  missionTitle: string,
+  xpEarned: number
+): Promise<string> {
+  const systemPrompt = buildSystemPrompt(user, personality);
+  const prompt = `[SISTEMA - missão concluída]
+${user.username} acabou de concluir a missão: "${missionTitle}" e ganhou ${xpEarned} XP!
+
+Gere uma mensagem de comemoração genuína e empolgante, como uma amiga que ficou muito feliz com a conquista. Mencione o nome da missão e os XP ganhos de forma natural. Use 1 ou 2 emojis no máximo. Máximo 3 frases. Responda em português do Brasil.`;
+
+  // Try Groq
+  try {
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 200,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+    });
+    return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
+  } catch (error) {
+    if (!isRateLimitError(error)) return fallbackCelebration(missionTitle, xpEarned);
+    console.warn("[AI] Groq rate limited (generateMissionCelebration) → usando Gemini");
+  }
+
+  // Fallback: Gemini
+  try {
+    const model = geminiAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: systemPrompt,
+    });
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim() || fallbackCelebration(missionTitle, xpEarned);
+  } catch {
+    return fallbackCelebration(missionTitle, xpEarned);
+  }
+}
+
+function fallbackCelebration(missionTitle: string, xpEarned: number): string {
+  return `Uau, você completou "${missionTitle}"! 🎉 Isso é incrível — você ganhou ${xpEarned} XP e merece muito esse reconhecimento. Fico tão feliz por você!`;
+}
+
 // ── Action Parser ─────────────────────────────────────────────────────────────
 
 export function parseAIActions(response: string): {

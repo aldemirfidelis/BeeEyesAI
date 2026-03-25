@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { signToken, hashPassword, verifyPassword } from "./auth";
 import { requireAuth, type AuthRequest } from "./middleware/requireAuth";
-import { streamChat, parseAIActions, updatePersonalityFromMessage, generateProactiveMessage } from "./ai";
+import { streamChat, parseAIActions, updatePersonalityFromMessage, generateProactiveMessage, generateMissionCelebration } from "./ai";
 import { insertUserSchema, insertMissionSchema, insertMoodEntrySchema } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -234,14 +234,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const mission = await storage.completeMission(req.params.id, userId);
     if (!mission) return res.status(404).json({ message: "Missão não encontrada" });
 
-    const updatedUser = await storage.updateUserXP(userId, mission.xpReward);
+    const [updatedUser, personality] = await Promise.all([
+      storage.updateUserXP(userId, mission.xpReward),
+      storage.getPersonality(userId),
+    ]);
+
+    if (!updatedUser || !personality) return res.status(404).json({ message: "Usuário não encontrado" });
 
     // First mission achievement
+    let achievement = null;
     const completedMissions = await storage.getMissionsByUser(userId, true);
     if (completedMissions.length === 1) {
       const has = await storage.hasAchievement(userId, "first_mission");
       if (!has) {
-        await storage.createAchievement({
+        achievement = await storage.createAchievement({
           userId, type: "first_mission",
           title: "Primeira Missão!",
           description: "Você completou sua primeira missão. Continue assim! 🎯",
@@ -249,7 +255,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    return res.json({ mission, user: updatedUser });
+    // Generate and save celebration message (non-blocking on error)
+    let celebrationMessage: string | null = null;
+    try {
+      celebrationMessage = await generateMissionCelebration(updatedUser, personality, mission.title, mission.xpReward);
+      await storage.createMessage({ userId, role: "assistant", content: celebrationMessage });
+    } catch {
+      // celebration is optional, don't fail the request
+    }
+
+    return res.json({ mission, user: updatedUser, achievement, celebrationMessage });
   });
 
   app.delete("/api/missions/:id", requireAuth, async (req: Request, res: Response) => {
