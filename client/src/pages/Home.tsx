@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Plus, Calendar, TrendingUp, Settings, LogIn, MessageCircle } from "lucide-react";
+import { Send, Plus, Calendar, TrendingUp, Settings, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
@@ -66,6 +66,8 @@ export default function Home() {
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [authShowPassword, setAuthShowPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,6 +121,7 @@ export default function Home() {
 
   const handleAuth = async () => {
     setAuthError("");
+    setAuthLoading(true);
     const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
     try {
       const res = await fetch(endpoint, {
@@ -131,17 +134,26 @@ export default function Home() {
       setToken(data.token);
       setTokenState(data.token);
       setUser(data.user);
-      // Welcome message
       setMessages([{
         id: "welcome",
         role: "assistant",
-        content: `Olá ${data.user.username}! Eu sou o BeeEyes 🐝, seu melhor amigo AI. Como posso te ajudar hoje?`,
+        content: `Olá ${data.user.username}! Eu sou a BeeEyes 🐝, sua melhor amiga AI. Como posso te ajudar hoje?`,
         timestamp: new Date(),
       }]);
     } catch {
       setAuthError("Erro de conexão");
+    } finally {
+      setAuthLoading(false);
     }
   };
+
+  function pwStrength(pw: string) {
+    if (!pw) return null;
+    if (pw.length < 6) return { label: "Fraca", color: "#E53E3E", w: "25%" };
+    if (pw.length < 10) return { label: "Média", color: "#F5A623", w: "55%" };
+    if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: "Forte", color: "#4CAF50", w: "100%" };
+    return { label: "Boa", color: "#4CAF50", w: "80%" };
+  }
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading || !token) return;
@@ -305,43 +317,181 @@ export default function Home() {
 
   // Auth screen
   if (!token) {
+    const strength = authMode === "register" ? pwStrength(authPassword) : null;
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Card className="p-8 w-full max-w-sm space-y-4">
-          <div className="text-center space-y-2">
-            <BeeEyes expression="happy" />
-            <h1 className="font-bold text-2xl text-primary mt-4">bee-eyes</h1>
-            <p className="text-sm text-muted-foreground">Seu assistente pessoal 🐝</p>
-          </div>
+      <div className="flex h-screen overflow-hidden bg-white">
 
-          <div className="space-y-3">
-            <Input
-              placeholder="Usuário"
-              value={authUsername}
-              onChange={(e) => setAuthUsername(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-            />
-            <Input
-              type="password"
-              placeholder="Senha"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-            />
-            {authError && <p className="text-sm text-destructive">{authError}</p>}
-            <Button className="w-full" onClick={handleAuth}>
-              <LogIn className="w-4 h-4 mr-2" />
-              {authMode === "login" ? "Entrar" : "Criar conta"}
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full text-sm"
-              onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}
+        {/* ── Left hero (desktop only) ── */}
+        <div className="hidden md:flex md:w-[42%] flex-col items-center justify-center relative overflow-hidden"
+          style={{ background: "linear-gradient(160deg, #FFF8E7 0%, #FFE566 50%, #F5C842 100%)" }}>
+          {/* Decorative hexagons */}
+          <svg className="absolute top-0 right-0 opacity-10" width={200} height={200} viewBox="0 0 200 200">
+            <path d="M50 10 L90 10 L110 45 L90 80 L50 80 L30 45 Z" fill="#D4A017" />
+            <path d="M110 60 L150 60 L170 95 L150 130 L110 130 L90 95 Z" fill="#D4A017" />
+            <path d="M20 110 L60 110 L80 145 L60 180 L20 180 L0 145 Z" fill="#D4A017" />
+          </svg>
+          <svg className="absolute bottom-0 left-0 opacity-10" width={160} height={160} viewBox="0 0 160 160">
+            <path d="M60 10 L100 10 L120 45 L100 80 L60 80 L40 45 Z" fill="#D4A017" />
+            <path d="M10 70 L50 70 L70 105 L50 140 L10 140 L-10 105 Z" fill="#D4A017" />
+          </svg>
+
+          <motion.div animate={{ y: [-12, 0, -12] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}>
+            <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
+          </motion.div>
+
+          <motion.div className="text-center mt-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <h1 className="text-4xl font-black text-gray-900 tracking-tight">bee-eyes</h1>
+            <p className="text-sm mt-2 font-medium" style={{ color: "#7A5500" }}>
+              {authMode === "register" ? "Comece sua jornada hoje 🚀" : "Sua melhor amiga com IA 🐝"}
+            </p>
+          </motion.div>
+
+          <motion.div className="flex gap-2 mt-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+            {["Chat inteligente", "Missões diárias", "Memória pessoal"].map((f) => (
+              <span key={f} className="text-xs px-3 py-1 rounded-full bg-black/10 text-gray-800 font-medium">{f}</span>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* ── Right form ── */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-y-auto bg-white">
+          {/* Mobile: BeeEyes */}
+          <motion.div className="md:hidden mb-6" animate={{ y: [-8, 0, -8] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
+            <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
+            <p className="text-center text-lg font-black text-gray-900 mt-3">bee-eyes</p>
+          </motion.div>
+
+          <motion.div
+            key={authMode}
+            className="w-full max-w-sm"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Header */}
+            <div className="mb-7">
+              <h2 className="text-2xl font-black text-gray-900">
+                {authMode === "login" ? "Olá de novo! 👋" : "Criar conta 🎉"}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {authMode === "login" ? "Entre para continuar sua jornada" : "É rápido, grátis e a BeeEyes te espera!"}
+              </p>
+            </div>
+
+            {/* Social buttons */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button
+                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => alert("Login com Google disponível no app mobile. Acesse via HTTPS para ativar no web.")}
+              >
+                <svg width={18} height={18} viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Google
+              </button>
+              <button
+                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+                onClick={() => alert("Login com Apple disponível no app iOS.")}
+              >
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.39.07 2.35.74 3.17.79 1.2-.24 2.35-.93 3.64-.84 1.55.12 2.72.72 3.48 1.84-3.2 1.91-2.44 6.12.72 7.28-.57 1.46-1.3 2.9-3.01 3.81zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+                Apple
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-muted-foreground">ou continue com usuário</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            {/* Inputs */}
+            <div className="space-y-4 mb-5">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Usuário</label>
+                <Input
+                  placeholder="seu_nome_aqui"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                  className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Senha</label>
+                <div className="relative">
+                  <Input
+                    type={authShowPassword ? "text" : "password"}
+                    placeholder={authMode === "register" ? "mínimo 6 caracteres" : "••••••••"}
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                    className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base pr-12"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    onClick={() => setAuthShowPassword(!authShowPassword)}
+                  >
+                    {authShowPassword ? (
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22" strokeLinecap="round"/></svg>
+                    ) : (
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx={12} cy={12} r={3}/></svg>
+                    )}
+                  </button>
+                </div>
+                {/* Password strength */}
+                {strength && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-1 rounded-full transition-all duration-300" style={{ width: strength.w, backgroundColor: strength.color }} />
+                    </div>
+                    <span className="text-xs font-semibold" style={{ color: strength.color }}>{strength.label}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {authError && (
+              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-destructive mb-4 text-center bg-red-50 py-2 px-3 rounded-lg">
+                {authError}
+              </motion.p>
+            )}
+
+            {/* Submit */}
+            <button
+              onClick={handleAuth}
+              disabled={authLoading}
+              className="w-full h-13 py-4 rounded-xl font-black text-gray-900 text-base transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 shadow-lg shadow-yellow-200"
+              style={{ background: "linear-gradient(90deg, #FFD700, #F5C842, #E8B800)" }}
             >
-              {authMode === "login" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entre"}
-            </Button>
-          </div>
-        </Card>
+              {authLoading ? "Aguarde..." : authMode === "login" ? "Entrar  →" : "Criar conta  🐝"}
+            </button>
+
+            {authMode === "register" && (
+              <p className="text-center text-xs text-muted-foreground mt-3">
+                Ao criar uma conta você concorda com os{" "}
+                <span className="text-yellow-600 font-semibold cursor-pointer hover:underline">Termos de Uso</span>
+              </p>
+            )}
+
+            {/* Toggle */}
+            <button
+              className="w-full mt-5 text-sm text-muted-foreground hover:text-gray-800 transition-colors"
+              onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setAuthPassword(""); }}
+            >
+              {authMode === "login"
+                ? <>Não tem conta? <span className="font-bold text-yellow-600">Criar conta ↗</span></>
+                : <>Já tem conta? <span className="font-bold text-yellow-600">Entrar ↗</span></>
+              }
+            </button>
+          </motion.div>
+        </div>
       </div>
     );
   }
