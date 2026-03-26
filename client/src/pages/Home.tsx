@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Plus, Calendar, TrendingUp, Settings, MessageCircle } from "lucide-react";
+import { Send, Plus, Calendar, TrendingUp, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
@@ -305,6 +305,13 @@ export default function Home() {
       setIsLoading(false);
       inputRef.current?.focus();
     }
+  };
+
+  const handleLogout = () => {
+    clearToken();
+    setTokenState(null);
+    setUser(null);
+    setMessages([]);
   };
 
   const handleToggleMission = async (id: string) => {
@@ -708,8 +715,8 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1">
               <ThemeToggle />
-              <Button variant="ghost" size="icon" onClick={() => { clearToken(); setTokenState(null); setUser(null); setMessages([]); }}>
-                <Settings className="w-5 h-5" />
+              <Button variant="outline" onClick={handleLogout}>
+                Sair
               </Button>
             </div>
           </div>
