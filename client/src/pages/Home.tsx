@@ -173,6 +173,19 @@ export default function Home() {
         body: JSON.stringify({ content }),
       });
 
+      if (res.status === 429) {
+        const data = await res.json();
+        setMessages((prev) => [...prev, {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: data.message,
+          timestamp: new Date(),
+        }]);
+        setEyeExpression("neutral");
+        setIsLoading(false);
+        return;
+      }
+
       if (!res.ok) throw new Error("Erro na resposta");
 
       const reader = res.body!.getReader();
@@ -278,7 +291,7 @@ export default function Home() {
       const chatRes = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: `[SISTEMA] O usuário acabou de desistir e deletar a missão "${title}". Faça uma piada curta e bem-humorada sobre ele ter desistido, sem julgá-lo de verdade. Tom leve e carinhoso.` }),
+        body: JSON.stringify({ content: `[SISTEMA] O usuário acabou de desistir e deletar a missão "${title}". Faça uma piada curta e bem-humorada sobre ele ter desistido, sem julgá-lo de verdade. Tom leve e carinhoso.`, isSystem: true }),
       });
 
       if (!chatRes.ok) { setIsLoading(false); return; }

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { signToken, hashPassword, verifyPassword } from "./auth";
 import { requireAuth, type AuthRequest } from "./middleware/requireAuth";
 import { streamChat, parseAIActions, updatePersonalityFromMessage, generateProactiveMessage, generateMissionCelebration } from "./ai";
+import { checkRateLimit } from "./rateLimit";
 import { insertUserSchema, insertMissionSchema, insertMoodEntrySchema } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -116,10 +117,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/chat", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
-    const { content } = req.body;
+    const { content, isSystem = false } = req.body;
 
     if (!content?.trim()) {
       return res.status(400).json({ message: "Mensagem não pode ser vazia" });
+    }
+
+    // Rate limit (only real user messages, not system-triggered ones)
+    if (!isSystem) {
+      const rate = checkRateLimit(userId);
+      if (!rate.allowed) {
+        const minutes = Math.ceil(rate.resetInMs / 60000);
+        return res.status(429).json({
+          message: `Você enviou muitas mensagens. Aguarde ${minutes} minuto${minutes > 1 ? "s" : ""} para continuar. 🐝`,
+        });
+      }
     }
 
     const [user, personality, history] = await Promise.all([
@@ -132,9 +144,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
-    // Save user message
-    await storage.createMessage({ userId, role: "user", content });
-    await storage.incrementMessageCount(userId);
+    // Mensagens de sistema não são salvas nem contadas
+    if (!isSystem) {
+      await storage.createMessage({ userId, role: "user", content });
+      await storage.incrementMessageCount(userId);
+    }
 
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");

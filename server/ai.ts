@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import { type User, type UserPersonality, type Mission } from "../shared/schema";
 import { storage } from "./storage";
+import { personalityCache, memoryCache } from "./cache";
 
 // ── Clients ──────────────────────────────────────────────────────────────────
 
@@ -126,20 +127,30 @@ export async function analyzePersonality(
   userMessage: string,
   currentPersonality: UserPersonality
 ): Promise<Partial<{ communicationStyle: string; interests: string[]; topic: string }>> {
+  const cacheKey = `${userMessage.slice(0, 120)}|${currentPersonality.communicationStyle}`;
+  const cached = personalityCache.get(cacheKey);
+  if (cached) return cached;
+
   try {
-    return await analyzePersonalityGroq(userMessage, currentPersonality);
+    const result = await analyzePersonalityGroq(userMessage, currentPersonality);
+    personalityCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     if (!isRateLimitError(error)) return {};
     console.warn("[AI] Groq rate limited (analyzePersonality) → usando Gemini");
   }
   try {
-    return await analyzePersonalityGemini(userMessage, currentPersonality);
+    const result = await analyzePersonalityGemini(userMessage, currentPersonality);
+    personalityCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     if (!isRateLimitError(error)) return {};
     console.warn("[AI] Gemini rate limited (analyzePersonality) → usando Cerebras");
   }
   try {
-    return await analyzePersonalityCerebras(userMessage, currentPersonality);
+    const result = await analyzePersonalityCerebras(userMessage, currentPersonality);
+    personalityCache.set(cacheKey, result);
+    return result;
   } catch {
     return {};
   }
@@ -209,20 +220,30 @@ export async function extractMemories(
   assistantResponse: string,
   existingFacts: string[]
 ): Promise<string[]> {
+  const cacheKey = `${userMessage.slice(0, 120)}|${assistantResponse.slice(0, 80)}`;
+  const cached = memoryCache.get(cacheKey);
+  if (cached) return cached;
+
   try {
-    return await extractMemoriesGroq(userMessage, assistantResponse, existingFacts);
+    const result = await extractMemoriesGroq(userMessage, assistantResponse, existingFacts);
+    memoryCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     if (!isRateLimitError(error)) return [];
     console.warn("[AI] Groq rate limited (extractMemories) → usando Gemini");
   }
   try {
-    return await extractMemoriesGemini(userMessage, assistantResponse, existingFacts);
+    const result = await extractMemoriesGemini(userMessage, assistantResponse, existingFacts);
+    memoryCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     if (!isRateLimitError(error)) return [];
     console.warn("[AI] Gemini rate limited (extractMemories) → usando Cerebras");
   }
   try {
-    return await extractMemoriesCerebras(userMessage, assistantResponse, existingFacts);
+    const result = await extractMemoriesCerebras(userMessage, assistantResponse, existingFacts);
+    memoryCache.set(cacheKey, result);
+    return result;
   } catch {
     return [];
   }
