@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { type User, type UserPersonality, type Mission } from "../shared/schema";
 import { storage } from "./storage";
 
@@ -7,6 +8,10 @@ import { storage } from "./storage";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const geminiAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
+const cerebras = new OpenAI({
+  apiKey: process.env.CEREBRAS_API_KEY ?? "",
+  baseURL: "https://api.cerebras.ai/v1",
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +110,18 @@ async function analyzePersonalityGemini(
   return JSON.parse(text);
 }
 
+async function analyzePersonalityCerebras(
+  userMessage: string,
+  currentPersonality: UserPersonality
+): Promise<Partial<{ communicationStyle: string; interests: string[]; topic: string }>> {
+  const response = await cerebras.chat.completions.create({
+    model: "llama-3.3-70b",
+    max_tokens: 256,
+    messages: [{ role: "user", content: PERSONALITY_PROMPT(userMessage, currentPersonality.communicationStyle) }],
+  });
+  return JSON.parse((response.choices[0]?.message?.content ?? "{}"));
+}
+
 export async function analyzePersonality(
   userMessage: string,
   currentPersonality: UserPersonality
@@ -114,11 +131,17 @@ export async function analyzePersonality(
   } catch (error) {
     if (!isRateLimitError(error)) return {};
     console.warn("[AI] Groq rate limited (analyzePersonality) → usando Gemini");
-    try {
-      return await analyzePersonalityGemini(userMessage, currentPersonality);
-    } catch {
-      return {};
-    }
+  }
+  try {
+    return await analyzePersonalityGemini(userMessage, currentPersonality);
+  } catch (error) {
+    if (!isRateLimitError(error)) return {};
+    console.warn("[AI] Gemini rate limited (analyzePersonality) → usando Cerebras");
+  }
+  try {
+    return await analyzePersonalityCerebras(userMessage, currentPersonality);
+  } catch {
+    return {};
   }
 }
 
@@ -166,6 +189,21 @@ async function extractMemoriesGemini(
   return Array.isArray(parsed.newFacts) ? parsed.newFacts : [];
 }
 
+async function extractMemoriesCerebras(
+  userMessage: string,
+  assistantResponse: string,
+  existingFacts: string[]
+): Promise<string[]> {
+  const response = await cerebras.chat.completions.create({
+    model: "llama-3.3-70b",
+    max_tokens: 300,
+    messages: [{ role: "user", content: MEMORY_PROMPT(userMessage, assistantResponse, existingFacts) }],
+  });
+  const text = response.choices[0]?.message?.content ?? '{"newFacts": []}';
+  const parsed = JSON.parse(text);
+  return Array.isArray(parsed.newFacts) ? parsed.newFacts : [];
+}
+
 export async function extractMemories(
   userMessage: string,
   assistantResponse: string,
@@ -176,11 +214,17 @@ export async function extractMemories(
   } catch (error) {
     if (!isRateLimitError(error)) return [];
     console.warn("[AI] Groq rate limited (extractMemories) → usando Gemini");
-    try {
-      return await extractMemoriesGemini(userMessage, assistantResponse, existingFacts);
-    } catch {
-      return [];
-    }
+  }
+  try {
+    return await extractMemoriesGemini(userMessage, assistantResponse, existingFacts);
+  } catch (error) {
+    if (!isRateLimitError(error)) return [];
+    console.warn("[AI] Gemini rate limited (extractMemories) → usando Cerebras");
+  }
+  try {
+    return await extractMemoriesCerebras(userMessage, assistantResponse, existingFacts);
+  } catch {
+    return [];
   }
 }
 
@@ -297,6 +341,37 @@ async function streamChatGemini(
   return fullResponse;
 }
 
+async function streamChatCerebras(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  userMessage: string,
+  onChunk: (chunk: string) => void
+): Promise<string> {
+  const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
+  let fullResponse = "";
+
+  const stream = await cerebras.chat.completions.create({
+    model: "llama-3.3-70b",
+    max_tokens: 1024,
+    messages: [
+      { role: "system", content: buildSystemPrompt(user, personality) },
+      ...allMessages,
+    ],
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content ?? "";
+    if (text) {
+      fullResponse += text;
+      onChunk(text);
+    }
+  }
+
+  return fullResponse;
+}
+
 export async function streamChat(
   user: User,
   personality: UserPersonality,
@@ -309,8 +384,14 @@ export async function streamChat(
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] Groq rate limited (streamChat) → usando Gemini");
-    return await streamChatGemini(user, personality, history, userMessage, onChunk);
   }
+  try {
+    return await streamChatGemini(user, personality, history, userMessage, onChunk);
+  } catch (error) {
+    if (!isRateLimitError(error)) throw error;
+    console.warn("[AI] Gemini rate limited (streamChat) → usando Cerebras");
+  }
+  return await streamChatCerebras(user, personality, history, userMessage, onChunk);
 }
 
 // ── Proactive Message ─────────────────────────────────────────────────────────
@@ -380,6 +461,22 @@ export async function generateProactiveMessage(
     });
     const result = await model.generateContent(userPrompt);
     return result.response.text().trim() ?? null;
+  } catch (error) {
+    if (!isRateLimitError(error)) return null;
+    console.warn("[AI] Gemini rate limited (generateProactiveMessage) → usando Cerebras");
+  }
+
+  // Fallback: Cerebras
+  try {
+    const response = await cerebras.chat.completions.create({
+      model: "llama-3.3-70b",
+      max_tokens: 150,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    });
+    return response.choices[0]?.message?.content?.trim() ?? null;
   } catch {
     return null;
   }
@@ -423,6 +520,22 @@ Gere uma mensagem de comemoração genuína e empolgante, como uma amiga que fic
     });
     const result = await model.generateContent(prompt);
     return result.response.text().trim() || fallbackCelebration(missionTitle, xpEarned);
+  } catch (error) {
+    if (!isRateLimitError(error)) return fallbackCelebration(missionTitle, xpEarned);
+    console.warn("[AI] Gemini rate limited (generateMissionCelebration) → usando Cerebras");
+  }
+
+  // Fallback: Cerebras
+  try {
+    const response = await cerebras.chat.completions.create({
+      model: "llama-3.3-70b",
+      max_tokens: 200,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+    });
+    return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
   } catch {
     return fallbackCelebration(missionTitle, xpEarned);
   }
