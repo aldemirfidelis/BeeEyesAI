@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   displayName: text("display_name"),
+  gender: text("gender"),   // "masculino" | "feminino" | "nao-binario" | "outro" | null
   googleId: text("google_id").unique(),
   level: integer("level").notNull().default(1),
   xp: integer("xp").notNull().default(0),

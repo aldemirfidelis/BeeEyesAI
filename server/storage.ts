@@ -16,7 +16,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
-  createUser(user: InsertUser & { googleId?: string; displayName?: string }): Promise<User>;
+  createUser(user: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User>;
   updateUserXP(userId: string, xpToAdd: number): Promise<User>;
   updateUserStreak(userId: string): Promise<User>;
   incrementMessageCount(userId: string): Promise<void>;
@@ -61,7 +61,7 @@ export class DrizzleStorage implements IStorage {
     return user;
   }
 
-  async createUser(insertUser: InsertUser & { googleId?: string; displayName?: string }): Promise<User> {
+  async createUser(insertUser: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     // Create default personality profile
     await db.insert(userPersonality).values({ userId: user.id });

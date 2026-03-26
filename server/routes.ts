@@ -21,13 +21,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(409).json({ message: "Nome de usuário já existe" });
     }
 
+    const { displayName, gender } = req.body as { displayName?: string; gender?: string };
     const hashedPassword = await hashPassword(parsed.data.password);
-    const user = await storage.createUser({ ...parsed.data, password: hashedPassword });
+    const user = await storage.createUser({
+      ...parsed.data,
+      password: hashedPassword,
+      displayName: displayName?.trim() || undefined,
+      gender: gender || undefined,
+    });
     const token = signToken(user.id);
 
     return res.status(201).json({
       token,
-      user: { id: user.id, username: user.username, level: user.level, xp: user.xp, currentStreak: user.currentStreak },
+      user: { id: user.id, username: user.username, displayName: user.displayName, gender: user.gender, level: user.level, xp: user.xp, currentStreak: user.currentStreak },
     });
   });
 

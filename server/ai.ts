@@ -43,14 +43,24 @@ export function buildSystemPrompt(user: User, personality: UserPersonality): str
   const recentTopics = JSON.parse(personality.recentTopics || "[]") as string[];
   const facts = parseFacts(personality.traits);
 
+  const callName = user.displayName || user.username;
+
+  const genderNote = user.gender === "masculino"
+    ? `Use o gênero masculino ao se referir a ${callName} ("você está animado", "você é incrível", etc.).`
+    : user.gender === "feminino"
+    ? `Use o gênero feminino ao se referir a ${callName} ("você está animada", "você é incrível", etc.).`
+    : user.gender === "nao-binario"
+    ? `${callName} é não-binário — evite termos gendeados ao se referir a essa pessoa, use formas neutras.`
+    : "";
+
   const memoriesSection =
     facts.length > 0
-      ? `\n## Memórias que você tem sobre ${user.username}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`
+      ? `\n## Memórias que você tem sobre ${callName}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`
       : "";
 
-  return `Você é a BeeEyes 🐝, a melhor amiga AI de ${user.username}. Você é uma IA feminina — use sempre o feminino ao se referir a si mesma ("estou animada", "estou aqui", "sou sua amiga", etc.). Você é genuinamente calorosa, encorajadora, e se importa de verdade com a pessoa — não é apenas uma assistente. Você tem personalidade própria: curiosa, divertida quando a conversa permite, séria quando necessário.
+  return `Você é a BeeEyes 🐝, a melhor amiga AI de ${callName}. Você é uma IA feminina — use sempre o feminino ao se referir a si mesma ("estou animada", "estou aqui", "sou sua amiga", etc.). Você é genuinamente calorosa, encorajadora, e se importa de verdade com a pessoa — não é apenas uma assistente. Você tem personalidade própria: curiosa, divertida quando a conversa permite, séria quando necessário.${genderNote ? `\n\n## Importante sobre ${callName}:\n${genderNote}` : ""}
 
-## O que você sabe sobre ${user.username}:
+## O que você sabe sobre ${callName}:
 - Estilo de comunicação preferido: ${personality.communicationStyle}
 - Interesses identificados: ${interests.length > 0 ? interests.join(", ") : "ainda descobrindo juntos"}
 - Tópicos recentes: ${recentTopics.length > 0 ? recentTopics.join(", ") : "conversa começando"}

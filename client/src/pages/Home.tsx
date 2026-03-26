@@ -65,9 +65,12 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authDisplayName, setAuthDisplayName] = useState("");
+  const [authGender, setAuthGender] = useState("");
   const [authError, setAuthError] = useState("");
   const [authShowPassword, setAuthShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,27 +122,76 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [token]);
 
+  // Load Google GIS script once
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    document.head.appendChild(script);
+    return () => { document.head.removeChild(script); };
+  }, []);
+
+  const handleGoogleLogin = () => {
+    const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setAuthError("Configure VITE_GOOGLE_CLIENT_ID no .env para ativar o login com Google.");
+      return;
+    }
+    setGoogleLoading(true);
+    const google = (window as any).google;
+    if (!google) { setAuthError("Google não carregado. Tente novamente."); setGoogleLoading(false); return; }
+    google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: "openid email profile",
+      callback: async (response: any) => {
+        if (!response.access_token) { setGoogleLoading(false); return; }
+        try {
+          const res = await fetch("/api/auth/social", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider: "google", accessToken: response.access_token }),
+          });
+          const data = await res.json();
+          if (!res.ok) { setAuthError(data.message || "Erro com Google"); return; }
+          finishAuth(data);
+        } catch { setAuthError("Erro de conexão com Google"); }
+        finally { setGoogleLoading(false); }
+      },
+      error_callback: () => setGoogleLoading(false),
+    }).requestAccessToken();
+  };
+
+  const finishAuth = (data: any) => {
+    setToken(data.token);
+    setTokenState(data.token);
+    setUser(data.user);
+    const name = data.user.displayName || data.user.username;
+    setMessages([{
+      id: "welcome",
+      role: "assistant",
+      content: `Olá ${name}! Eu sou a BeeEyes 🐝, sua melhor amiga AI. Como posso te ajudar hoje?`,
+      timestamp: new Date(),
+    }]);
+  };
+
   const handleAuth = async () => {
     setAuthError("");
     setAuthLoading(true);
     const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
     try {
+      const body: any = { username: authUsername, password: authPassword };
+      if (authMode === "register") {
+        if (authDisplayName.trim()) body.displayName = authDisplayName.trim();
+        if (authGender) body.gender = authGender;
+      }
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: authUsername, password: authPassword }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) { setAuthError(data.message || "Erro"); return; }
-      setToken(data.token);
-      setTokenState(data.token);
-      setUser(data.user);
-      setMessages([{
-        id: "welcome",
-        role: "assistant",
-        content: `Olá ${data.user.username}! Eu sou a BeeEyes 🐝, sua melhor amiga AI. Como posso te ajudar hoje?`,
-        timestamp: new Date(),
-      }]);
+      finishAuth(data);
     } catch {
       setAuthError("Erro de conexão");
     } finally {
@@ -394,25 +446,32 @@ export default function Home() {
             {/* Social buttons */}
             <div className="grid grid-cols-2 gap-3 mb-6">
               <button
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                onClick={() => alert("Login com Google disponível no app mobile. Acesse via HTTPS para ativar no web.")}
+                disabled={googleLoading}
+                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                onClick={handleGoogleLogin}
               >
-                <svg width={18} height={18} viewBox="0 0 24 24">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                Google
+                {googleLoading ? (
+                  <span className="text-xs text-gray-500">Aguarde...</span>
+                ) : (
+                  <>
+                    <svg width={18} height={18} viewBox="0 0 24 24">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    Google
+                  </>
+                )}
               </button>
               <button
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
-                onClick={() => alert("Login com Apple disponível no app iOS.")}
+                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-semibold text-gray-400 cursor-not-allowed"
+                title="Requer conta Apple Developer — disponível em breve"
               >
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.39.07 2.35.74 3.17.79 1.2-.24 2.35-.93 3.64-.84 1.55.12 2.72.72 3.48 1.84-3.2 1.91-2.44 6.12.72 7.28-.57 1.46-1.3 2.9-3.01 3.81zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
                 </svg>
-                Apple
+                Apple (em breve)
               </button>
             </div>
 
@@ -425,6 +484,8 @@ export default function Home() {
 
             {/* Inputs */}
             <div className="space-y-4 mb-5">
+
+              {/* Nome de usuário */}
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Usuário</label>
                 <Input
@@ -435,6 +496,52 @@ export default function Home() {
                   className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
                 />
               </div>
+
+              {/* Campos extras só no cadastro */}
+              {authMode === "register" && (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
+                      Como você quer ser chamado(a)? <span className="text-gray-400 font-normal">(opcional)</span>
+                    </label>
+                    <Input
+                      placeholder="Ex: João, Juju, Xande..."
+                      value={authDisplayName}
+                      onChange={(e) => setAuthDisplayName(e.target.value)}
+                      className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 mb-2 block">
+                      Gênero <span className="text-gray-400 font-normal">(opcional)</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: "masculino", label: "♂ Masculino" },
+                        { value: "feminino",  label: "♀ Feminino" },
+                        { value: "nao-binario", label: "⚧ Não-binário" },
+                        { value: "outro", label: "✦ Outro" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setAuthGender(authGender === opt.value ? "" : opt.value)}
+                          className={`py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
+                            authGender === opt.value
+                              ? "border-yellow-400 bg-yellow-50 text-yellow-700"
+                              : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Senha */}
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Senha</label>
                 <div className="relative">
@@ -458,7 +565,6 @@ export default function Home() {
                     )}
                   </button>
                 </div>
-                {/* Password strength */}
                 {strength && (
                   <div className="flex items-center gap-2 mt-2">
                     <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -496,7 +602,7 @@ export default function Home() {
             {/* Toggle */}
             <button
               className="w-full mt-5 text-sm text-muted-foreground hover:text-gray-800 transition-colors"
-              onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setAuthPassword(""); }}
+              onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setAuthPassword(""); setAuthDisplayName(""); setAuthGender(""); }}
             >
               {authMode === "login"
                 ? <>Não tem conta? <span className="font-bold text-yellow-600">Criar conta ↗</span></>
