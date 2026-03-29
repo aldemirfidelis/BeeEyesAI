@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 
 interface Message {
   id: string;
@@ -102,6 +103,9 @@ const SENTIMENT_EMOJI: Record<string, string> = {
 const getToken = () => localStorage.getItem("bee_token");
 const setToken = (t: string) => localStorage.setItem("bee_token", t);
 const clearToken = () => localStorage.removeItem("bee_token");
+const getProfilePhoto = () => localStorage.getItem("bee_profile_photo");
+const setProfilePhoto = (url: string) => localStorage.setItem("bee_profile_photo", url);
+const clearProfilePhoto = () => localStorage.removeItem("bee_profile_photo");
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
@@ -130,7 +134,11 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed" | "settings">("chat");
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
+  const [photoInput, setPhotoInput] = useState("");
+  const [settingsMessage, setSettingsMessage] = useState("");
 
   // Feed state
   const [feed, setFeed] = useState<FeedPost[]>([]);
@@ -168,6 +176,19 @@ export default function Home() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
+
+  useEffect(() => {
+    const initialTheme = resolveInitialTheme();
+    applyTheme(initialTheme);
+    setThemeMode(initialTheme);
+    const savedPhoto = getProfilePhoto() || "";
+    setProfilePhotoUrl(savedPhoto);
+    setPhotoInput(savedPhoto);
+
+    return onThemeChange((nextTheme) => {
+      setThemeMode(nextTheme);
+    });
+  }, []);
 
   // Load user data when token is set
   useEffect(() => {
@@ -471,6 +492,30 @@ export default function Home() {
     setTokenState(null);
     setUser(null);
     setMessages([]);
+  };
+
+  const handleSaveProfilePhoto = () => {
+    const trimmed = photoInput.trim();
+    if (!trimmed) {
+      setSettingsMessage("Informe uma URL valida para a foto de perfil.");
+      return;
+    }
+    setProfilePhoto(trimmed);
+    setProfilePhotoUrl(trimmed);
+    setSettingsMessage("Foto de perfil atualizada com sucesso.");
+  };
+
+  const handleRemoveProfilePhoto = () => {
+    clearProfilePhoto();
+    setProfilePhotoUrl("");
+    setPhotoInput("");
+    setSettingsMessage("Foto de perfil removida.");
+  };
+
+  const handleThemeSelect = (mode: ThemeMode) => {
+    applyTheme(mode);
+    setThemeMode(readTheme());
+    setSettingsMessage(`Tema ${mode === "dark" ? "escuro" : "claro"} aplicado.`);
   };
 
   const handleToggleMission = async (id: string) => {
@@ -837,6 +882,10 @@ export default function Home() {
             <Globe className="w-4 h-4 mr-2" />
             Feed
           </TabsTrigger>
+          <TabsTrigger value="settings" className="flex-1">
+            <Settings className="w-4 h-4 mr-2" />
+            Configuracoes
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3 mt-0">
@@ -1119,6 +1168,86 @@ export default function Home() {
             </AnimatePresence>
           </div>
         </TabsContent>
+
+        <TabsContent value="settings" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Configuracoes</h2>
+              <Button size="sm" variant="outline" onClick={() => setSettingsMessage("")}>
+                Limpar aviso
+              </Button>
+            </div>
+
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold">Foto de perfil</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {profilePhotoUrl ? (
+                  <img
+                    src={profilePhotoUrl}
+                    alt="Foto de perfil"
+                    className="w-14 h-14 rounded-full object-cover border"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-lg font-black text-primary-foreground">
+                    {(user?.username || "?")[0].toUpperCase()}
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground">
+                  Cole uma URL para colocar ou trocar sua foto de perfil.
+                </div>
+              </div>
+              <Input
+                value={photoInput}
+                onChange={(e) => setPhotoInput(e.target.value)}
+                placeholder="https://exemplo.com/minha-foto.jpg"
+              />
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={handleSaveProfilePhoto}>
+                  Salvar foto
+                </Button>
+                <Button className="flex-1" variant="outline" onClick={handleRemoveProfilePhoto}>
+                  Remover
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                {themeMode === "dark" ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
+                <p className="text-sm font-semibold">Aparencia</p>
+              </div>
+              <p className="text-xs text-muted-foreground">Alterne entre modo claro e modo escuro.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={themeMode === "light" ? "default" : "outline"}
+                  onClick={() => handleThemeSelect("light")}
+                >
+                  Modo claro
+                </Button>
+                <Button
+                  variant={themeMode === "dark" ? "default" : "outline"}
+                  onClick={() => handleThemeSelect("dark")}
+                >
+                  Modo escuro
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="p-4 space-y-2">
+              <p className="text-sm font-semibold">Outras configuracoes</p>
+              <p className="text-xs text-muted-foreground">Notificacoes personalizadas (em breve)</p>
+              <p className="text-xs text-muted-foreground">Privacidade e seguranca (em breve)</p>
+              <p className="text-xs text-muted-foreground">Idioma e acessibilidade (em breve)</p>
+            </Card>
+
+            {settingsMessage && (
+              <p className="text-xs rounded-lg border border-primary/40 bg-primary/10 p-2 text-primary">{settingsMessage}</p>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
     </>
   );
@@ -1132,9 +1261,26 @@ export default function Home() {
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
               <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
+              <button
+                type="button"
+                onClick={() => setMobileTab("settings")}
+                className="w-9 h-9 rounded-full border border-border overflow-hidden bg-primary/20 flex items-center justify-center shrink-0"
+                aria-label="Abrir configuracoes de perfil"
+              >
+                {profilePhotoUrl ? (
+                  <img src={profilePhotoUrl} alt="Foto de perfil" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs font-bold">
+                    {(user?.username || "?")[0].toUpperCase()}
+                  </span>
+                )}
+              </button>
               {user && <StreakDisplay streak={user.currentStreak} />}
             </div>
             <div className="flex items-center gap-1">
+              <Button variant="outline" onClick={() => setMobileTab("settings")}>
+                Configuracoes
+              </Button>
               <ThemeToggle />
               <Button variant="outline" onClick={handleLogout}>
                 Sair
@@ -1228,6 +1374,13 @@ export default function Home() {
         >
           <Users className="w-5 h-5" />
           Amigos
+        </button>
+        <button
+          onClick={() => setMobileTab("settings")}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "settings" ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <Settings className="w-5 h-5" />
+          Config.
         </button>
       </nav>
 
