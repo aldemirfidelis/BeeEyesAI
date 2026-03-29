@@ -134,6 +134,20 @@ interface DMMessage {
   createdAt: string;
 }
 
+interface NewsItem {
+  title: string;
+  link: string;
+  source: string;
+}
+
+interface ChatFeedSummaryPost {
+  id: string;
+  content: string;
+  createdAt: string;
+  likesCount: number;
+  author: { username: string; displayName: string | null; level: number };
+}
+
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
   neutral: "😐", excited: "🎉", proud: "🏆",
@@ -174,7 +188,7 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed" | "inbox" | "communities">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "inbox" | "communities">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
@@ -359,10 +373,18 @@ export default function Home() {
     setSelectedFriend(null);
     try {
       const res = await fetch(`/api/users/${friendId}/profile`, { headers: authHeaders() });
-      if (res.ok) setSelectedFriend(await res.json());
-      fetch(`/api/users/${friendId}/visit`, { method: "POST", headers: authHeaders() }).catch(() => {});
-    } catch { /* ignore */ }
-    finally { setFriendProfileLoading(false); }
+      if (res.ok) {
+        setSelectedFriend(await res.json());
+        fetch(`/api/users/${friendId}/visit`, { method: "POST", headers: authHeaders() }).catch(() => {});
+      } else {
+        // mantém modal aberto com estado vazio para não fechar abruptamente
+        setSelectedFriend({ user: { id: friendId, username: "—", displayName: null, level: 1, xp: 0, currentStreak: 0, lastActiveAt: null }, recentPosts: [], interests: [], activeMissionsCount: 0 });
+      }
+    } catch {
+      setSelectedFriend({ user: { id: friendId, username: "—", displayName: null, level: 1, xp: 0, currentStreak: 0, lastActiveAt: null }, recentPosts: [], interests: [], activeMissionsCount: 0 });
+    } finally {
+      setFriendProfileLoading(false);
+    }
   };
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -407,6 +429,15 @@ export default function Home() {
         fromName?: string;
       };
       return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getMessageMeta = (metadata?: string | null) => {
+    if (!metadata) return null;
+    try {
+      return JSON.parse(metadata);
     } catch {
       return null;
     }
@@ -569,7 +600,6 @@ export default function Home() {
   }, [token]);
 
   useEffect(() => {
-    if (mobileTab === "feed") loadFeed();
     if (mobileTab === "friends") loadFriends();
     if (mobileTab === "inbox") {
       loadDMConversations();
@@ -707,9 +737,28 @@ export default function Home() {
     if (!inputValue.trim() || isLoading || !token) return;
 
     const content = inputValue.trim();
+    const slashCommand = content.toLowerCase();
     const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
     setInputValue("");
+
+    if (slashCommand === "/feed") {
+      handleFeedCommand();
+      return;
+    }
+    if (slashCommand === "/missões" || slashCommand === "/missoes") {
+      handleMissionsCommand();
+      return;
+    }
+    if (slashCommand === "/notícias" || slashCommand === "/noticias") {
+      handleNewsCommand();
+      return;
+    }
+    if (slashCommand === "/compartilhar") {
+      handleShareCommand();
+      return;
+    }
+
     setEyeExpression("curious");
     setIsLoading(true);
     setStreamingText("");
@@ -985,6 +1034,72 @@ export default function Home() {
     } catch { /* ignore */ }
   };
 
+  const injectAssistantMessage = (content: string, metadata?: object) => {
+    const msg = {
+      id: `cmd-${Date.now()}`,
+      role: "assistant" as const,
+      content,
+      timestamp: new Date(),
+      metadata: metadata ? JSON.stringify(metadata) : undefined,
+    };
+    setMessages((prev) => [...prev, msg]);
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
+
+  const handleNewsCommand = async () => {
+    injectAssistantMessage("Buscando notícias para você... 📰");
+    try {
+      const res = await fetch("/api/news", { headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      const { items, query } = await res.json();
+      if (items.length === 0) {
+        injectAssistantMessage("Não encontrei notícias agora. Tente novamente em breve.");
+        return;
+      }
+      injectAssistantMessage(`📰 Notícias de hoje — sobre **${query}**`, { type: "news", items });
+    } catch {
+      injectAssistantMessage("Não consegui buscar notícias agora. Tente novamente.");
+    }
+  };
+
+  const handleFeedCommand = async () => {
+    injectAssistantMessage("Carregando o feed dos seus amigos... 📣");
+    try {
+      const res = await fetch("/api/feed", { headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      const posts = await res.json();
+      setFeed(posts);
+      if (posts.length === 0) {
+        injectAssistantMessage("Seu feed está vazio. Conecte-se com mais pessoas para ver as novidades delas!");
+        return;
+      }
+      injectAssistantMessage(`📣 Feed dos seus amigos — ${posts.length} publicações recentes`, { type: "feed_summary", posts: posts.slice(0, 5) });
+    } catch {
+      injectAssistantMessage("Não consegui carregar o feed agora.");
+    }
+  };
+
+  const handleMissionsCommand = () => {
+    const active = missions.filter((m) => !m.completed);
+    const done = missions.filter((m) => m.completed);
+    if (missions.length === 0) {
+      injectAssistantMessage("Você ainda não tem missões. Crie uma na aba Missões ou me peça uma sugestão!");
+      return;
+    }
+    const lines = [
+      `🎯 Suas missões (${active.length} ativas, ${done.length} concluídas):`,
+      ...active.map((m) => `▸ ${m.title} — ${m.xpReward} XP`),
+      ...(done.length > 0 ? [`\n✅ Concluídas: ${done.map((m) => m.title).join(", ")}`] : []),
+    ];
+    injectAssistantMessage(lines.join("\n"));
+  };
+
+  const [showInlinePost, setShowInlinePost] = useState(false);
+
+  const handleShareCommand = () => {
+    setShowInlinePost((v) => !v);
+  };
+
   const handleConnect = async (targetUserId: string) => {
     if (connectingIds.has(targetUserId)) return;
     setConnectingIds((prev) => new Set(prev).add(targetUserId));
@@ -1223,7 +1338,6 @@ export default function Home() {
         onValueChange={(v) => {
           setMobileTab(v as any);
           if (v === "friends") loadFriends();
-          if (v === "feed") loadFeed();
           if (v === "inbox") {
             loadDMConversations();
             loadConversationSuggestions();
@@ -1241,10 +1355,6 @@ export default function Home() {
           <TabsTrigger value="friends" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
             <Users className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Amigos</span>
-          </TabsTrigger>
-          <TabsTrigger value="feed" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
-            <Globe className="w-4 h-4" />
-            <span className="text-[10px] leading-tight">Feed</span>
           </TabsTrigger>
           <TabsTrigger value="inbox" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
             <MessageSquare className="w-4 h-4" />
@@ -1424,145 +1534,6 @@ export default function Home() {
           </div>
         </TabsContent>
 
-        <TabsContent value="feed" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
-          <div className="space-y-4">
-            {/* Post input toggle */}
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold">Feed Social</h2>
-              <Button size="sm" variant="outline" onClick={() => setShowPostInput((v) => !v)}>
-                <Plus className="w-4 h-4 mr-1" />
-                {showPostInput ? "Cancelar" : "Publicar"}
-              </Button>
-            </div>
-
-            {/* New post form */}
-            {showPostInput && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-                <Card className="p-3 space-y-2 border-primary/40">
-                  <Textarea
-                    placeholder="Compartilhe um momento, conquista ou pensamento..."
-                    value={postText}
-                    onChange={(e) => setPostText(e.target.value)}
-                    maxLength={500}
-                    rows={3}
-                    className="resize-none text-sm"
-                    autoFocus
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{postText.length}/500</span>
-                    <Button
-                      size="sm"
-                      onClick={handleCreatePost}
-                      disabled={!postText.trim() || isPosting}
-                    >
-                      {isPosting ? "Publicando..." : "Publicar 🐝"}
-                    </Button>
-                  </div>
-                </Card>
-              </motion.div>
-            )}
-
-            {/* Connection suggestions */}
-            {suggestions.length > 0 && (
-              <Card className="p-3 space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                  <UserPlus className="w-3 h-3" /> Sugestões de conexão
-                </p>
-                {suggestions.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
-                      {(s.displayName || s.username)[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{s.displayName || s.username}</p>
-                      {s.commonInterests.length > 0 && (
-                        <p className="text-xs text-muted-foreground truncate">{s.commonInterests.slice(0, 2).join(" · ")}</p>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7 px-2 shrink-0"
-                      onClick={() => handleConnect(s.id)}
-                      disabled={connectingIds.has(s.id)}
-                    >
-                      Conectar
-                    </Button>
-                  </div>
-                ))}
-              </Card>
-            )}
-
-            {/* Feed posts */}
-            {feedLoading && (
-              <p className="text-sm text-muted-foreground text-center py-4">Carregando feed...</p>
-            )}
-
-            {!feedLoading && feed.length === 0 && (
-              <div className="text-center py-8 space-y-2">
-                <p className="text-2xl">🌐</p>
-                <p className="text-sm font-semibold">Feed vazio</p>
-                <p className="text-xs text-muted-foreground">Publique algo ou conecte-se com outros usuários.</p>
-              </div>
-            )}
-
-            <AnimatePresence>
-              {feed.map((post) => {
-                const authorName = post.author.displayName || post.author.username;
-                const sentimentEmoji = post.sentiment ? (SENTIMENT_EMOJI[post.sentiment] ?? "💭") : null;
-                return (
-                  <motion.div
-                    key={post.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <Card className="p-3 space-y-2">
-                      {/* Author */}
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-sm font-bold shrink-0">
-                          {authorName[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-semibold truncate">{authorName}</span>
-                            <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {post.author.level}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
-                        </div>
-                        {sentimentEmoji && (
-                          <div className="text-right">
-                            <span className="text-lg">{sentimentEmoji}</span>
-                            {post.sentimentLabel && <p className="text-xs text-muted-foreground">{post.sentimentLabel}</p>}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <p className="text-sm leading-relaxed">{post.content}</p>
-
-                      {/* AI comment */}
-                      {post.aiComment && (
-                        <div className="bg-primary/10 border-l-2 border-primary rounded-r p-2">
-                          <p className="text-xs font-semibold text-primary mb-0.5">🐝 BeeEyes</p>
-                          <p className="text-xs text-foreground">{post.aiComment}</p>
-                        </div>
-                      )}
-
-                      {/* Like */}
-                      <button
-                        onClick={() => handleLikePost(post.id)}
-                        className={`flex items-center gap-1 text-xs font-semibold transition-colors ${post.liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${post.liked ? "fill-current" : ""}`} />
-                        {post.likesCount}
-                      </button>
-                    </Card>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        </TabsContent>
 
         <TabsContent value="inbox" className="flex-1 overflow-hidden min-h-0 p-0 mt-0">
           <div className="h-full flex min-h-0 overflow-hidden">
@@ -1929,30 +1900,86 @@ export default function Home() {
                   timestamp={message.timestamp}
                   actions={(() => {
                     if (message.role !== "assistant") return null;
-                    const meta = getConnectionRequestMeta(message.metadata);
+                    const meta = getMessageMeta(message.metadata);
                     if (!meta) return null;
-                    const isBusy = processingConnectionRequestId === meta.connectionId;
-                    return (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs"
-                          disabled={!!processingConnectionRequestId}
-                          onClick={() => handleConnectionDecision(message.id, meta.connectionId, "accept")}
-                        >
-                          {isBusy ? "Processando..." : "Aceitar"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs"
-                          disabled={!!processingConnectionRequestId}
-                          onClick={() => handleConnectionDecision(message.id, meta.connectionId, "reject")}
-                        >
-                          Recusar
-                        </Button>
-                      </div>
-                    );
+
+                    if (meta.type === "connection_request" && meta.connectionId) {
+                      const connectionMeta = getConnectionRequestMeta(message.metadata);
+                      if (!connectionMeta) return null;
+                      const isBusy = processingConnectionRequestId === connectionMeta.connectionId;
+                      return (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={!!processingConnectionRequestId}
+                            onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "accept")}
+                          >
+                            {isBusy ? "Processando..." : "Aceitar"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            disabled={!!processingConnectionRequestId}
+                            onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "reject")}
+                          >
+                            Recusar
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    if (meta.type === "news" && Array.isArray(meta.items)) {
+                      return (
+                        <div className="space-y-2">
+                          {(meta.items as NewsItem[]).map((item, index) => (
+                            <a
+                              key={`${item.link}-${index}`}
+                              href={item.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block rounded-2xl border border-border bg-card/70 px-4 py-3 hover:bg-card transition-colors"
+                            >
+                              <p className="text-sm font-semibold leading-snug">{item.title}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Fonte: {item.source || "Google News"}
+                              </p>
+                            </a>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    if (meta.type === "feed_summary" && Array.isArray(meta.posts)) {
+                      return (
+                        <div className="space-y-2">
+                          {(meta.posts as ChatFeedSummaryPost[]).map((post) => (
+                            <div key={post.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold">
+                                  {post.author.displayName || post.author.username}
+                                </p>
+                                <span className="text-xs text-muted-foreground">
+                                  {timeAgo(post.createdAt)}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm whitespace-pre-wrap">{post.content}</p>
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                Nv {post.author.level} · {post.likesCount} curtidas
+                              </p>
+                            </div>
+                          ))}
+                          <div className="flex justify-end">
+                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowInlinePost(true)}>
+                              Compartilhar algo
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return null;
                   })()}
                 />
               ))}
@@ -1969,6 +1996,44 @@ export default function Home() {
           </div>
 
           <div className="border-t p-3 md:p-4 bg-card/50 backdrop-blur-sm shrink-0 pb-safe">
+            {showInlinePost && (
+              <div className="max-w-4xl mx-auto mb-3 rounded-2xl border border-border bg-background/80 p-3 space-y-3">
+                <Textarea
+                  value={postText}
+                  onChange={(e) => setPostText(e.target.value)}
+                  placeholder="Compartilhe uma atualização rápida com seus amigos..."
+                  className="min-h-[88px] resize-none text-sm"
+                  maxLength={500}
+                />
+                <div className="flex justify-between gap-2">
+                  <Button variant="ghost" className="text-xs" onClick={() => setShowInlinePost(false)}>
+                    Fechar
+                  </Button>
+                  <Button className="text-xs" disabled={!postText.trim() || isPosting} onClick={handleCreatePost}>
+                    {isPosting ? "Publicando..." : "Publicar"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2">
+              {[
+                { label: "/feed", onClick: handleFeedCommand },
+                { label: "/missões", onClick: handleMissionsCommand },
+                { label: "/notícias", onClick: handleNewsCommand },
+                { label: "/compartilhar", onClick: handleShareCommand },
+              ].map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={action.onClick}
+                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-2 max-w-4xl mx-auto">
               <Input
                 ref={inputRef}
@@ -2010,13 +2075,6 @@ export default function Home() {
         >
           <MessageCircle className="w-5 h-5" />
           Chat
-        </button>
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "feed" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <Globe className="w-5 h-5" />
-          Feed
         </button>
         <button
           onClick={() => { setShowSettingsScreen(false); setMobileTab("missions"); }}
@@ -2284,4 +2342,3 @@ export default function Home() {
     </div>
   );
 }
-

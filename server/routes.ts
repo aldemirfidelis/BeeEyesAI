@@ -453,6 +453,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── NEWS ──────────────────────────────────────────────────────────────────
+
+  app.get("/api/news", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const personality = await storage.getPersonality(userId);
+    const rawInterests: string[] = JSON.parse(personality?.interests || "[]");
+    const query = rawInterests.slice(0, 2).join(" ") || "tecnologia Brasil";
+
+    try {
+      const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=BR&ceid=BR:pt-BR`;
+      const rssRes = await fetch(rssUrl, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
+      if (!rssRes.ok) throw new Error("rss failed");
+      const xml = await rssRes.text();
+
+      const items: { title: string; link: string; source: string }[] = [];
+      const matches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
+      for (const m of matches) {
+        const block = m[1];
+        const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ?? block.match(/<title>(.*?)<\/title>/)?.[1] ?? "").trim();
+        const link = (block.match(/<link>(.*?)<\/link>/)?.[1] ?? "").trim();
+        const source = (block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] ?? "").trim();
+        if (title && link) items.push({ title, link, source });
+        if (items.length >= 5) break;
+      }
+
+      return res.json({ items, query });
+    } catch {
+      return res.json({ items: [], query });
+    }
+  });
+
   // ── CONNECTIONS ───────────────────────────────────────────────────────────
 
   app.get("/api/connections/suggestions", requireAuth, async (req: Request, res: Response) => {
@@ -625,8 +656,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:userId/profile", requireAuth, async (req: Request, res: Response) => {
     const profile = await storage.getUserPublicProfile(req.params.userId);
     if (!profile) return res.status(404).json({ message: "Usuário não encontrado" });
-    const summarizedInterests = await summarizeInterestsForProfile(profile.interests);
-    return res.json({ ...profile, interests: summarizedInterests });
+    let interests = profile.interests;
+    try {
+      interests = await summarizeInterestsForProfile(profile.interests);
+    } catch { /* retorna interesses brutos se IA falhar */ }
+    return res.json({ ...profile, interests });
   });
 
   app.post("/api/users/:userId/visit", requireAuth, async (req: Request, res: Response) => {
