@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import BeeEyes from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import MissionCard from "@/components/MissionCard";
@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Send, Plus, Calendar, TrendingUp, MessageCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Send, Plus, Calendar, TrendingUp, MessageCircle, Globe, UserPlus, Heart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
@@ -37,6 +38,32 @@ interface User {
   currentStreak: number;
 }
 
+interface FeedPost {
+  id: string;
+  userId: string;
+  content: string;
+  sentiment: string | null;
+  sentimentLabel: string | null;
+  aiComment: string | null;
+  createdAt: string;
+  author: { id: string; username: string; displayName: string | null; level: number };
+  likesCount: number;
+  liked: boolean;
+}
+
+interface ConnectionSuggestion {
+  id: string;
+  username: string;
+  displayName: string | null;
+  level: number;
+  commonInterests: string[];
+}
+
+const SENTIMENT_EMOJI: Record<string, string> = {
+  happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
+  neutral: "😐", excited: "🎉", proud: "🏆",
+};
+
 // Simple token storage
 const getToken = () => localStorage.getItem("bee_token");
 const setToken = (t: string) => localStorage.setItem("bee_token", t);
@@ -45,6 +72,16 @@ const clearToken = () => localStorage.removeItem("bee_token");
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
 }
 
 export default function Home() {
@@ -59,7 +96,16 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "mood">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "mood" | "feed">("chat");
+
+  // Feed state
+  const [feed, setFeed] = useState<FeedPost[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [postText, setPostText] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+  const [showPostInput, setShowPostInput] = useState(false);
+  const [suggestions, setSuggestions] = useState<ConnectionSuggestion[]>([]);
+  const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
 
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -96,10 +142,28 @@ export default function Home() {
       .then(setMissions);
   }, [token]);
 
+  // Load feed when user switches to feed tab
+  const loadFeed = useCallback(async () => {
+    if (!token) return;
+    setFeedLoading(true);
+    try {
+      const [feedRes, suggestionsRes] = await Promise.all([
+        fetch("/api/feed", { headers: authHeaders() }),
+        fetch("/api/connections/suggestions?limit=3", { headers: authHeaders() }),
+      ]);
+      if (feedRes.ok) setFeed(await feedRes.json());
+      if (suggestionsRes.ok) setSuggestions(await suggestionsRes.json());
+    } catch { /* ignore */ }
+    finally { setFeedLoading(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (mobileTab === "feed") loadFeed();
+  }, [mobileTab, loadFeed]);
+
   // Proactive messages polling
   useEffect(() => {
     if (!token) return;
-
     const poll = async () => {
       try {
         const res = await fetch("/api/proactive", { headers: authHeaders() });
@@ -117,8 +181,7 @@ export default function Home() {
         }
       } catch { /* ignore */ }
     };
-
-    const interval = setInterval(poll, 3 * 60 * 1000); // poll every 3 min
+    const interval = setInterval(poll, 3 * 60 * 1000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -270,8 +333,6 @@ export default function Home() {
               }]);
               setStreamingText("");
               setEyeExpression("happy");
-
-              // Refresh user XP/level
               fetch("/api/me", { headers: authHeaders() })
                 .then((r) => r.json()).then(setUser).catch(() => {});
             } else if (event.type === "mission_created") {
@@ -342,7 +403,6 @@ export default function Home() {
       if (!res.ok) return;
       setMissions((prev) => prev.filter((m) => m.id !== id));
 
-      // Ask AI to react with a joke about giving up
       setEyeExpression("curious");
       setIsLoading(true);
       setStreamingText("");
@@ -387,6 +447,51 @@ export default function Home() {
     else setEyeExpression("neutral");
   };
 
+  const handleCreatePost = async () => {
+    if (!postText.trim() || isPosting) return;
+    setIsPosting(true);
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content: postText.trim() }),
+      });
+      if (!res.ok) return;
+      setPostText("");
+      setShowPostInput(false);
+      await loadFeed();
+    } catch { /* ignore */ }
+    finally { setIsPosting(false); }
+  };
+
+  const handleLikePost = async (postId: string) => {
+    try {
+      const res = await fetch(`/api/posts/${postId}/like`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setFeed((prev) => prev.map((p) => p.id === postId ? { ...p, liked: data.liked, likesCount: data.likesCount } : p));
+    } catch { /* ignore */ }
+  };
+
+  const handleConnect = async (targetUserId: string) => {
+    if (connectingIds.has(targetUserId)) return;
+    setConnectingIds((prev) => new Set(prev).add(targetUserId));
+    try {
+      await fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ targetUserId }),
+      });
+      setSuggestions((prev) => prev.filter((s) => s.id !== targetUserId));
+    } catch { /* ignore */ }
+    finally {
+      setConnectingIds((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; });
+    }
+  };
+
   // Auth screen
   if (!token) {
     const strength = authMode === "register" ? pwStrength(authPassword) : null;
@@ -396,7 +501,6 @@ export default function Home() {
         {/* ── Left hero (desktop only) ── */}
         <div className="hidden md:flex md:w-[42%] flex-col items-center justify-center relative overflow-hidden"
           style={{ background: "linear-gradient(160deg, #FFF8E7 0%, #FFE566 50%, #F5C842 100%)" }}>
-          {/* Decorative hexagons */}
           <svg className="absolute top-0 right-0 opacity-10" width={200} height={200} viewBox="0 0 200 200">
             <path d="M50 10 L90 10 L110 45 L90 80 L50 80 L30 45 Z" fill="#D4A017" />
             <path d="M110 60 L150 60 L170 95 L150 130 L110 130 L90 95 Z" fill="#D4A017" />
@@ -419,7 +523,7 @@ export default function Home() {
           </motion.div>
 
           <motion.div className="flex gap-2 mt-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-            {["Chat inteligente", "Missões diárias", "Memória pessoal"].map((f) => (
+            {["Chat inteligente", "Feed social", "Missões diárias"].map((f) => (
               <span key={f} className="text-xs px-3 py-1 rounded-full bg-black/10 text-gray-800 font-medium">{f}</span>
             ))}
           </motion.div>
@@ -427,7 +531,6 @@ export default function Home() {
 
         {/* ── Right form ── */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-y-auto bg-white">
-          {/* Mobile: BeeEyes */}
           <motion.div className="md:hidden mb-6" animate={{ y: [-8, 0, -8] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
             <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
             <p className="text-center text-lg font-black text-gray-900 mt-3">bee-eyes</p>
@@ -440,7 +543,6 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Header */}
             <div className="mb-7">
               <h2 className="text-2xl font-black text-gray-900">
                 {authMode === "login" ? "Olá de novo! 👋" : "Criar conta 🎉"}
@@ -472,83 +574,63 @@ export default function Home() {
                 )}
               </button>
               <button
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-sm font-semibold text-gray-400 cursor-not-allowed"
-                title="Requer conta Apple Developer — disponível em breve"
+                disabled
+                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-400 cursor-not-allowed opacity-50"
               >
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.39.07 2.35.74 3.17.79 1.2-.24 2.35-.93 3.64-.84 1.55.12 2.72.72 3.48 1.84-3.2 1.91-2.44 6.12.72 7.28-.57 1.46-1.3 2.9-3.01 3.81zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
                 </svg>
-                Apple (em breve)
+                Apple
               </button>
             </div>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3 mb-6">
               <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-muted-foreground">ou continue com usuário</span>
+              <span className="text-xs text-gray-400 font-medium">ou com e-mail</span>
               <div className="flex-1 h-px bg-gray-200" />
             </div>
 
-            {/* Inputs */}
-            <div className="space-y-4 mb-5">
-
-              {/* Nome de usuário */}
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Usuário</label>
-                <Input
-                  placeholder="seu_nome_aqui"
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                  className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
-                />
-              </div>
-
-              {/* Campos extras só no cadastro */}
+            <div className="space-y-4 mb-6">
               {authMode === "register" && (
                 <>
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">
-                      Como você quer ser chamado(a)? <span className="text-gray-400 font-normal">(opcional)</span>
-                    </label>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Nome de exibição (opcional)</label>
                     <Input
-                      placeholder="Ex: João, Juju, Xande..."
+                      placeholder="Como você quer ser chamado?"
                       value={authDisplayName}
                       onChange={(e) => setAuthDisplayName(e.target.value)}
                       className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
                     />
                   </div>
-
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 mb-2 block">
-                      Gênero <span className="text-gray-400 font-normal">(opcional)</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { value: "masculino", label: "♂ Masculino" },
-                        { value: "feminino",  label: "♀ Feminino" },
-                        { value: "nao-binario", label: "⚧ Não-binário" },
-                        { value: "outro", label: "✦ Outro" },
-                      ].map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setAuthGender(authGender === opt.value ? "" : opt.value)}
-                          className={`py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
-                            authGender === opt.value
-                              ? "border-yellow-400 bg-yellow-50 text-yellow-700"
-                              : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Gênero (opcional)</label>
+                    <select
+                      value={authGender}
+                      onChange={(e) => setAuthGender(e.target.value)}
+                      className="w-full h-12 px-3 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base text-gray-800 outline-none"
+                    >
+                      <option value="">Prefiro não informar</option>
+                      <option value="masculino">Masculino</option>
+                      <option value="feminino">Feminino</option>
+                      <option value="nao-binario">Não-binário</option>
+                      <option value="outro">Outro</option>
+                    </select>
                   </div>
                 </>
               )}
 
-              {/* Senha */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Usuário</label>
+                <Input
+                  placeholder="seu_usuario"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                  className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
+                  autoCapitalize="none"
+                />
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Senha</label>
                 <div className="relative">
@@ -589,7 +671,6 @@ export default function Home() {
               </motion.p>
             )}
 
-            {/* Submit */}
             <button
               onClick={handleAuth}
               disabled={authLoading}
@@ -606,7 +687,6 @@ export default function Home() {
               </p>
             )}
 
-            {/* Toggle */}
             <button
               className="w-full mt-5 text-sm text-muted-foreground hover:text-gray-800 transition-colors"
               onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setAuthPassword(""); setAuthDisplayName(""); setAuthGender(""); }}
@@ -631,15 +711,20 @@ export default function Home() {
       <Tabs
         value={mobileTab === "chat" ? "missions" : mobileTab}
         className="flex-1 flex flex-col min-h-0"
+        onValueChange={(v) => setMobileTab(v as any)}
       >
         <TabsList className="mx-4 mt-4 md:flex hidden">
-          <TabsTrigger value="missions" className="flex-1" data-testid="tab-missions">
+          <TabsTrigger value="missions" className="flex-1">
             <TrendingUp className="w-4 h-4 mr-2" />
             Missões
           </TabsTrigger>
-          <TabsTrigger value="mood" className="flex-1" data-testid="tab-mood">
+          <TabsTrigger value="mood" className="flex-1">
             <Calendar className="w-4 h-4 mr-2" />
             Humor
+          </TabsTrigger>
+          <TabsTrigger value="feed" className="flex-1" onClick={loadFeed}>
+            <Globe className="w-4 h-4 mr-2" />
+            Feed
           </TabsTrigger>
         </TabsList>
 
@@ -696,6 +781,146 @@ export default function Home() {
                 </Card>
               </motion.div>
             )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="feed" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
+          <div className="space-y-4">
+            {/* Post input toggle */}
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Feed Social</h2>
+              <Button size="sm" variant="outline" onClick={() => setShowPostInput((v) => !v)}>
+                <Plus className="w-4 h-4 mr-1" />
+                {showPostInput ? "Cancelar" : "Publicar"}
+              </Button>
+            </div>
+
+            {/* New post form */}
+            {showPostInput && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                <Card className="p-3 space-y-2 border-primary/40">
+                  <Textarea
+                    placeholder="Compartilhe um momento, conquista ou pensamento..."
+                    value={postText}
+                    onChange={(e) => setPostText(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className="resize-none text-sm"
+                    autoFocus
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{postText.length}/500</span>
+                    <Button
+                      size="sm"
+                      onClick={handleCreatePost}
+                      disabled={!postText.trim() || isPosting}
+                    >
+                      {isPosting ? "Publicando..." : "Publicar 🐝"}
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Connection suggestions */}
+            {suggestions.length > 0 && (
+              <Card className="p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                  <UserPlus className="w-3 h-3" /> Sugestões de conexão
+                </p>
+                {suggestions.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
+                      {(s.displayName || s.username)[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{s.displayName || s.username}</p>
+                      {s.commonInterests.length > 0 && (
+                        <p className="text-xs text-muted-foreground truncate">{s.commonInterests.slice(0, 2).join(" · ")}</p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 px-2 shrink-0"
+                      onClick={() => handleConnect(s.id)}
+                      disabled={connectingIds.has(s.id)}
+                    >
+                      Conectar
+                    </Button>
+                  </div>
+                ))}
+              </Card>
+            )}
+
+            {/* Feed posts */}
+            {feedLoading && (
+              <p className="text-sm text-muted-foreground text-center py-4">Carregando feed...</p>
+            )}
+
+            {!feedLoading && feed.length === 0 && (
+              <div className="text-center py-8 space-y-2">
+                <p className="text-2xl">🌐</p>
+                <p className="text-sm font-semibold">Feed vazio</p>
+                <p className="text-xs text-muted-foreground">Publique algo ou conecte-se com outros usuários.</p>
+              </div>
+            )}
+
+            <AnimatePresence>
+              {feed.map((post) => {
+                const authorName = post.author.displayName || post.author.username;
+                const sentimentEmoji = post.sentiment ? (SENTIMENT_EMOJI[post.sentiment] ?? "💭") : null;
+                return (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <Card className="p-3 space-y-2">
+                      {/* Author */}
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-sm font-bold shrink-0">
+                          {authorName[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-semibold truncate">{authorName}</span>
+                            <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {post.author.level}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
+                        </div>
+                        {sentimentEmoji && (
+                          <div className="text-right">
+                            <span className="text-lg">{sentimentEmoji}</span>
+                            {post.sentimentLabel && <p className="text-xs text-muted-foreground">{post.sentimentLabel}</p>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <p className="text-sm leading-relaxed">{post.content}</p>
+
+                      {/* AI comment */}
+                      {post.aiComment && (
+                        <div className="bg-primary/10 border-l-2 border-primary rounded-r p-2">
+                          <p className="text-xs font-semibold text-primary mb-0.5">🐝 BeeEyes</p>
+                          <p className="text-xs text-foreground">{post.aiComment}</p>
+                        </div>
+                      )}
+
+                      {/* Like */}
+                      <button
+                        onClick={() => handleLikePost(post.id)}
+                        className={`flex items-center gap-1 text-xs font-semibold transition-colors ${post.liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${post.liked ? "fill-current" : ""}`} />
+                        {post.likesCount}
+                      </button>
+                    </Card>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         </TabsContent>
       </Tabs>
@@ -786,6 +1011,13 @@ export default function Home() {
         >
           <MessageCircle className="w-5 h-5" />
           Chat
+        </button>
+        <button
+          onClick={() => { setMobileTab("feed"); loadFeed(); }}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "feed" ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <Globe className="w-5 h-5" />
+          Feed
         </button>
         <button
           onClick={() => setMobileTab("missions")}

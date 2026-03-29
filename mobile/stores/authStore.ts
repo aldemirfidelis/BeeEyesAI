@@ -28,12 +28,21 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user }),
 
   logout: async () => {
-    await SecureStore.deleteItemAsync("bee_token");
-    set({ token: null, user: null });
+    try {
+      await SecureStore.deleteItemAsync("bee_token");
+    } finally {
+      set({ token: null, user: null });
+    }
   },
 
   initialize: async () => {
-    const token = await SecureStore.getItemAsync("bee_token");
-    set({ token: token ?? null, isLoading: false });
+    try {
+      const token = await SecureStore.getItemAsync("bee_token");
+      set({ token: token ?? null });
+    } catch {
+      set({ token: null, user: null });
+    } finally {
+      set({ isLoading: false });
+    }
   },
 }));

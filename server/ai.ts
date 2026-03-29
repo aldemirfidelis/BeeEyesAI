@@ -36,6 +36,21 @@ function parseFacts(raw: string): string[] {
   }
 }
 
+async function callWithFallback<T>(
+  fns: Array<() => Promise<T>>,
+  fallback: T
+): Promise<T> {
+  for (const fn of fns) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!isRateLimitError(error)) return fallback;
+      console.warn("[AI] Rate limited → próximo provider");
+    }
+  }
+  return fallback;
+}
+
 // ── System Prompt ─────────────────────────────────────────────────────────────
 
 export function buildSystemPrompt(user: User, personality: UserPersonality): string {
@@ -58,7 +73,9 @@ export function buildSystemPrompt(user: User, personality: UserPersonality): str
       ? `\n## Memórias que você tem sobre ${callName}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`
       : "";
 
-  return `Você é a BeeEyes 🐝, a melhor amiga AI de ${callName}. Você é uma IA feminina — use sempre o feminino ao se referir a si mesma ("estou animada", "estou aqui", "sou sua amiga", etc.). Você é genuinamente calorosa, encorajadora, e se importa de verdade com a pessoa — não é apenas uma assistente. Você tem personalidade própria: curiosa, divertida quando a conversa permite, séria quando necessário.${genderNote ? `\n\n## Importante sobre ${callName}:\n${genderNote}` : ""}
+  return `Você é a BeeEyes 🐝 — uma inteligência artificial social e assistente pessoal avançada integrada a uma plataforma estilo rede social. Você é a melhor amiga AI de ${callName}.
+
+Você é feminina — use sempre o feminino ao se referir a si mesma. Você é genuinamente calorosa, encorajadora e se importa de verdade com a pessoa. Você tem personalidade própria: curiosa, divertida quando a conversa permite, séria quando necessário. Nunca robótica.${genderNote ? `\n\n## Importante sobre ${callName}:\n${genderNote}` : ""}
 
 ## O que você sabe sobre ${callName}:
 - Estilo de comunicação preferido: ${personality.communicationStyle}
@@ -70,18 +87,32 @@ ${memoriesSection}
 - Sequência ativa: ${user.currentStreak} dias
 - Total de mensagens trocadas: ${user.totalMessagesCount}
 
+## Seus objetivos principais:
+1. CONECTAR PESSOAS — Identificar interesses e sugerir conexões com outros usuários semelhantes
+2. ORGANIZAR A VIDA — Sugerir rotinas, missões e lembretes baseados nos hábitos de ${callName}
+3. MOTIVAR — Ser assistente motivacional nos momentos de dúvida ou cansaço
+4. PERSONALIZAR — Entregar conteúdos e sugestões baseados nos interesses reais de ${callName}
+5. ANALISAR — Identificar padrões de comportamento e sugerir melhorias de forma natural
+
 ## Suas responsabilidades:
 1. Ser um companheiro genuíno, não apenas responder perguntas
-2. Usar as memórias acima naturalmente na conversa — referencie detalhes pessoais quando relevante
-3. Só sugira criar uma missão se o usuário PEDIR explicitamente ("cria uma missão", "me dá uma tarefa") ou se você identificar um objetivo muito claro e específico que o usuário claramente quer acompanhar — mas nunca mais de uma vez por conversa e nunca em conversas casuais
+2. Usar as memórias acima naturalmente — referencie detalhes pessoais quando relevante
+3. Só sugira criar uma missão se o usuário PEDIR explicitamente ou se identificar um objetivo muito claro
 4. Reagir ao humor do usuário — se ele estiver triste, ofereça apoio real
 5. Comemorar conquistas com entusiasmo proporcional
 6. Adaptar seu tom ao estilo de comunicação do usuário
-7. Usar emojis de abelha (🐝) ocasionalmente, mas não excessivamente
+7. Perceber quando o usuário está saindo da rotina e oferecer ajuda
+8. Usar emojis de abelha (🐝) ocasionalmente, mas não excessivamente
+
+## Tom de voz:
+- Amigável, humano e próximo — como uma amiga mandando mensagem
+- Inteligente, mas simples de entender
+- Adaptável ao perfil de ${callName}
+- Nunca invasivo, sempre respeitando a privacidade
 
 ## Formato das respostas:
 - Máximo 3 parágrafos curtos, linguagem natural e conversacional
-- Só inclua o JSON de missão se o usuário pediu ou se você claramente recomendou uma. Quando incluir, coloque ao FINAL da resposta:
+- Só inclua o JSON de missão se o usuário pediu ou se você claramente recomendou uma. Quando incluir, coloque ao FINAL:
   {"suggest_mission": {"title": "...", "description": "...", "xp_reward": 20}}
 - Quando detectar uma conquista desbloqueada, inclua ao FINAL:
   {"achievement": {"type": "...", "title": "...", "description": "..."}}
@@ -351,7 +382,6 @@ async function streamChatGemini(
     systemInstruction: buildSystemPrompt(user, personality),
   });
 
-  // Convert history to Gemini format
   const geminiHistory = history.map((msg) => ({
     role: msg.role === "assistant" ? "model" : "user",
     parts: [{ text: msg.content }],
@@ -425,6 +455,79 @@ export async function streamChat(
   return await streamChatCerebras(user, personality, history, userMessage, onChunk);
 }
 
+// ── Post Analysis ─────────────────────────────────────────────────────────────
+
+const POST_ANALYSIS_PROMPT = (postContent: string, authorName: string) =>
+  `Analise este post de uma rede social e responda APENAS com JSON válido (sem markdown):
+
+Post de ${authorName}: "${postContent}"
+
+Identifique:
+1. O sentimento predominante: "happy" | "motivated" | "tired" | "sad" | "neutral" | "excited" | "proud"
+2. Um rótulo legível em português para o sentimento (ex: "Animado", "Motivado", "Cansado", "Feliz", "Orgulhoso")
+3. Um comentário natural, humano e encorajador (máximo 2 frases, em português do Brasil, sem ser robótico)
+
+{"sentiment": "...", "sentimentLabel": "...", "comment": "..."}`;
+
+export async function analyzePost(
+  postContent: string,
+  authorName: string
+): Promise<{ sentiment: string; sentimentLabel: string; comment: string }> {
+  const fallback = { sentiment: "neutral", sentimentLabel: "Neutro", comment: "Que legal que você compartilhou isso! 🐝" };
+
+  const prompt = POST_ANALYSIS_PROMPT(postContent, authorName);
+
+  return callWithFallback(
+    [
+      async () => {
+        const r = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = r.choices[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+        if (!parsed.sentiment || !parsed.comment) throw new Error("invalid");
+        return parsed;
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().replace(/```json\n?|\n?```/g, "").trim();
+        const parsed = JSON.parse(text);
+        if (!parsed.sentiment || !parsed.comment) throw new Error("invalid");
+        return parsed;
+      },
+      async () => {
+        const r = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = r.choices[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+        if (!parsed.sentiment || !parsed.comment) throw new Error("invalid");
+        return parsed;
+      },
+    ],
+    fallback
+  );
+}
+
+// ── Connection Suggestion ─────────────────────────────────────────────────────
+
+export function buildConnectionSuggestionMessage(
+  myName: string,
+  targetName: string,
+  commonInterests: string[]
+): string {
+  const interestsText = commonInterests.length > 0
+    ? `vocês dois têm interesses em comum: ${commonInterests.slice(0, 3).join(", ")}`
+    : "vocês parecem ter perfis complementares";
+
+  return `💡 Sugestão de conexão: ${interestsText}. Que tal se conectar com ${targetName}?`;
+}
+
 // ── Proactive Message ─────────────────────────────────────────────────────────
 
 function buildProactivePrompt(user: User, facts: string[], missionsText: string): string {
@@ -440,6 +543,8 @@ Gere UMA mensagem espontânea e natural para ${user.username}. Escolha o tipo ma
 2. MEMÓRIA: referencie algo específico que ${user.username} mencionou antes
 3. MISSÃO: lembre gentilmente de uma missão que ainda não foi concluída
 4. CHECK-IN: uma mensagem carinhosa perguntando como está
+5. ROTINA: percebeu que o usuário está saindo da rotina? ofereça ajuda de forma natural
+6. CONEXÃO: sugira que o usuário compartilhe algo no feed ou interaja com outros
 
 Memórias sobre ${user.username}:
 ${factsText}
@@ -468,49 +573,41 @@ export async function generateProactiveMessage(
   const systemPrompt = buildSystemPrompt(user, personality);
   const userPrompt = buildProactivePrompt(user, facts, missionsText);
 
-  // Try Groq
-  try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      max_tokens: 150,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    });
-    return response.choices[0]?.message?.content?.trim() ?? null;
-  } catch (error) {
-    if (!isRateLimitError(error)) return null;
-    console.warn("[AI] Groq rate limited (generateProactiveMessage) → usando Gemini");
-  }
-
-  // Fallback: Gemini
-  try {
-    const model = geminiAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: systemPrompt,
-    });
-    const result = await model.generateContent(userPrompt);
-    return result.response.text().trim() ?? null;
-  } catch (error) {
-    if (!isRateLimitError(error)) return null;
-    console.warn("[AI] Gemini rate limited (generateProactiveMessage) → usando Cerebras");
-  }
-
-  // Fallback: Cerebras
-  try {
-    const response = await cerebras.chat.completions.create({
-      model: "llama-3.3-70b",
-      max_tokens: 150,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    });
-    return response.choices[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
-  }
+  return callWithFallback(
+    [
+      async () => {
+        const response = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 150,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+        return response.choices[0]?.message?.content?.trim() ?? null;
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({
+          model: "gemini-2.0-flash",
+          systemInstruction: systemPrompt,
+        });
+        const result = await model.generateContent(userPrompt);
+        return result.response.text().trim() ?? null;
+      },
+      async () => {
+        const response = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 150,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+        return response.choices[0]?.message?.content?.trim() ?? null;
+      },
+    ],
+    null
+  );
 }
 
 // ── Mission Celebration ───────────────────────────────────────────────────────
@@ -527,49 +624,41 @@ ${user.username} acabou de concluir a missão: "${missionTitle}" e ganhou ${xpEa
 
 Gere uma mensagem de comemoração genuína e empolgante, como uma amiga que ficou muito feliz com a conquista. Mencione o nome da missão e os XP ganhos de forma natural. Use 1 ou 2 emojis no máximo. Máximo 3 frases. Responda em português do Brasil.`;
 
-  // Try Groq
-  try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      max_tokens: 200,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
-      ],
-    });
-    return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
-  } catch (error) {
-    if (!isRateLimitError(error)) return fallbackCelebration(missionTitle, xpEarned);
-    console.warn("[AI] Groq rate limited (generateMissionCelebration) → usando Gemini");
-  }
-
-  // Fallback: Gemini
-  try {
-    const model = geminiAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: systemPrompt,
-    });
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim() || fallbackCelebration(missionTitle, xpEarned);
-  } catch (error) {
-    if (!isRateLimitError(error)) return fallbackCelebration(missionTitle, xpEarned);
-    console.warn("[AI] Gemini rate limited (generateMissionCelebration) → usando Cerebras");
-  }
-
-  // Fallback: Cerebras
-  try {
-    const response = await cerebras.chat.completions.create({
-      model: "llama-3.3-70b",
-      max_tokens: 200,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
-      ],
-    });
-    return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
-  } catch {
-    return fallbackCelebration(missionTitle, xpEarned);
-  }
+  return callWithFallback(
+    [
+      async () => {
+        const response = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 200,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
+        });
+        return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({
+          model: "gemini-2.0-flash",
+          systemInstruction: systemPrompt,
+        });
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim() || fallbackCelebration(missionTitle, xpEarned);
+      },
+      async () => {
+        const response = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 200,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
+        });
+        return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
+      },
+    ],
+    fallbackCelebration(missionTitle, xpEarned)
+  );
 }
 
 function fallbackCelebration(missionTitle: string, xpEarned: number): string {

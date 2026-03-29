@@ -58,6 +58,51 @@ function EyeIcon({ visible, color = "#888" }: { visible: boolean; color?: string
   );
 }
 
+function GoogleLoginButton({
+  enabled,
+  loading,
+  googleLoading,
+  onSuccess,
+}: {
+  enabled: boolean;
+  loading: boolean;
+  googleLoading: boolean;
+  onSuccess: (accessToken: string) => void;
+}) {
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    if (response?.type === "success") {
+      const accessToken = response.authentication?.access_token;
+      if (accessToken) {
+        onSuccess(accessToken);
+      }
+    }
+  }, [onSuccess, response]);
+
+  return (
+    <TouchableOpacity
+      style={styles.socialBtn}
+      onPress={() => promptAsync()}
+      disabled={!request || loading || googleLoading}
+      activeOpacity={0.8}
+    >
+      {googleLoading ? (
+        <Text style={styles.socialBtnText}>...</Text>
+      ) : (
+        <>
+          <GoogleIcon />
+          <Text style={styles.socialBtnText}>Google</Text>
+        </>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -77,18 +122,13 @@ export default function LoginScreen() {
   const floatStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value }] }));
 
   // Google OAuth
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const { access_token } = response.authentication!;
-      handleSocialLogin("google", access_token);
-    }
-  }, [response]);
+  const googleEnabled = Boolean(
+    Platform.select({
+      android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+      ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+      default: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    }),
+  );
 
   async function handleLogin() {
     if (!username.trim() || !password.trim()) {
@@ -212,21 +252,23 @@ export default function LoginScreen() {
 
           {/* Social buttons */}
           <Animated.View entering={FadeInDown.delay(480)} style={styles.socialRow}>
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={() => promptAsync()}
-              disabled={!request || loading || googleLoading}
-              activeOpacity={0.8}
-            >
-              {googleLoading ? (
-                <Text style={styles.socialBtnText}>...</Text>
-              ) : (
-                <>
-                  <GoogleIcon />
-                  <Text style={styles.socialBtnText}>Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {googleEnabled ? (
+              <GoogleLoginButton
+                enabled={googleEnabled}
+                loading={loading}
+                googleLoading={googleLoading}
+                onSuccess={(accessToken) => handleSocialLogin("google", accessToken)}
+              />
+            ) : (
+              <TouchableOpacity
+                style={[styles.socialBtn, styles.btnDisabled]}
+                onPress={() => Alert.alert("Google indisponível", "Configure EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID para ativar o login com Google.")}
+                activeOpacity={0.8}
+              >
+                <GoogleIcon />
+                <Text style={styles.socialBtnText}>Google</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[styles.socialBtn, styles.appleBtnStyle]}

@@ -1,13 +1,16 @@
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, sql, ne, notInArray, inArray } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, userPersonality, messages, missions, moodEntries, achievements,
+  posts, postLikes, userConnections,
   type User, type InsertUser,
   type UserPersonality, type InsertUserPersonality,
   type Message, type InsertMessage,
   type Mission, type InsertMission,
   type MoodEntry, type InsertMoodEntry,
   type Achievement, type InsertAchievement,
+  type Post, type InsertPost,
+  type UserConnection, type InsertConnection,
   xpForLevel,
 } from "../shared/schema";
 
@@ -20,6 +23,7 @@ export interface IStorage {
   updateUserXP(userId: string, xpToAdd: number): Promise<User>;
   updateUserStreak(userId: string): Promise<User>;
   incrementMessageCount(userId: string): Promise<void>;
+  getAllUsersExcept(userId: string): Promise<User[]>;
 
   // Personality
   getPersonality(userId: string): Promise<UserPersonality | undefined>;
@@ -43,6 +47,25 @@ export interface IStorage {
   getAchievementsByUser(userId: string): Promise<Achievement[]>;
   createAchievement(achievement: InsertAchievement): Promise<Achievement>;
   hasAchievement(userId: string, type: string): Promise<boolean>;
+
+  // Posts
+  createPost(post: InsertPost & { sentiment?: string; sentimentLabel?: string; aiComment?: string }): Promise<Post>;
+  getPostsByUser(userId: string, limit?: number): Promise<Post[]>;
+  getPostById(id: string): Promise<Post | undefined>;
+  updatePostAIComment(postId: string, aiComment: string, sentiment: string, sentimentLabel: string): Promise<void>;
+  getFeedForUser(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level"> })[]>;
+  likePost(postId: string, userId: string): Promise<void>;
+  unlikePost(postId: string, userId: string): Promise<void>;
+  hasLikedPost(postId: string, userId: string): Promise<boolean>;
+  getPostLikesCount(postId: string): Promise<number>;
+
+  // Connections
+  getConnectionStatus(userId: string, targetUserId: string): Promise<UserConnection | undefined>;
+  createConnection(data: InsertConnection): Promise<UserConnection>;
+  acceptConnection(id: string, userId: string): Promise<UserConnection | undefined>;
+  getConnectionsByUser(userId: string): Promise<UserConnection[]>;
+  getAcceptedConnectionIds(userId: string): Promise<string[]>;
+  getSuggestedConnections(userId: string, limit?: number): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -63,9 +86,12 @@ export class DrizzleStorage implements IStorage {
 
   async createUser(insertUser: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
-    // Create default personality profile
     await db.insert(userPersonality).values({ userId: user.id });
     return user;
+  }
+
+  async getAllUsersExcept(userId: string): Promise<User[]> {
+    return db.select().from(users).where(ne(users.id, userId));
   }
 
   async updateUserXP(userId: string, xpToAdd: number): Promise<User> {
@@ -75,7 +101,6 @@ export class DrizzleStorage implements IStorage {
     let newXP = user.xp + xpToAdd;
     let newLevel = user.level;
 
-    // Check for level up
     while (newXP >= xpForLevel(newLevel)) {
       newXP -= xpForLevel(newLevel);
       newLevel++;
@@ -102,10 +127,8 @@ export class DrizzleStorage implements IStorage {
       if (hoursSinceActive < 24) {
         // Same day, keep streak
       } else if (hoursSinceActive < 48) {
-        // Consecutive day — increment
         newStreak = user.currentStreak + 1;
       } else {
-        // Streak broken
         newStreak = 1;
       }
     } else {
@@ -229,6 +252,183 @@ export class DrizzleStorage implements IStorage {
       .from(achievements)
       .where(and(eq(achievements.userId, userId), eq(achievements.type, type)));
     return !!existing;
+  }
+
+  // ── Posts ─────────────────────────────────────────────────────────────────
+
+  async createPost(post: InsertPost & { sentiment?: string; sentimentLabel?: string; aiComment?: string }): Promise<Post> {
+    const [created] = await db.insert(posts).values(post).returning();
+    return created;
+  }
+
+  async getPostsByUser(userId: string, limit = 20): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .where(eq(posts.userId, userId))
+      .orderBy(desc(posts.createdAt))
+      .limit(limit);
+  }
+
+  async getPostById(id: string): Promise<Post | undefined> {
+    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    return post;
+  }
+
+  async updatePostAIComment(postId: string, aiComment: string, sentiment: string, sentimentLabel: string): Promise<void> {
+    await db
+      .update(posts)
+      .set({ aiComment, sentiment, sentimentLabel })
+      .where(eq(posts.id, postId));
+  }
+
+  async getFeedForUser(userId: string, limit = 30): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level"> })[]> {
+    const connectedIds = await this.getAcceptedConnectionIds(userId);
+    const feedUserIds = [userId, ...connectedIds];
+
+    const rows = await db
+      .select({
+        id: posts.id,
+        userId: posts.userId,
+        content: posts.content,
+        sentiment: posts.sentiment,
+        sentimentLabel: posts.sentimentLabel,
+        aiComment: posts.aiComment,
+        createdAt: posts.createdAt,
+        authorId: users.id,
+        authorUsername: users.username,
+        authorDisplayName: users.displayName,
+        authorLevel: users.level,
+      })
+      .from(posts)
+      .innerJoin(users, eq(posts.userId, users.id))
+      .where(inArray(posts.userId, feedUserIds))
+      .orderBy(desc(posts.createdAt))
+      .limit(limit);
+
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      content: r.content,
+      sentiment: r.sentiment,
+      sentimentLabel: r.sentimentLabel,
+      aiComment: r.aiComment,
+      createdAt: r.createdAt,
+      author: {
+        id: r.authorId,
+        username: r.authorUsername,
+        displayName: r.authorDisplayName,
+        level: r.authorLevel,
+      },
+    }));
+  }
+
+  async likePost(postId: string, userId: string): Promise<void> {
+    const already = await this.hasLikedPost(postId, userId);
+    if (!already) {
+      await db.insert(postLikes).values({ postId, userId });
+    }
+  }
+
+  async unlikePost(postId: string, userId: string): Promise<void> {
+    await db.delete(postLikes).where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)));
+  }
+
+  async hasLikedPost(postId: string, userId: string): Promise<boolean> {
+    const [row] = await db
+      .select()
+      .from(postLikes)
+      .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)));
+    return !!row;
+  }
+
+  async getPostLikesCount(postId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(postLikes)
+      .where(eq(postLikes.postId, postId));
+    return Number(result[0]?.count ?? 0);
+  }
+
+  // ── Connections ───────────────────────────────────────────────────────────
+
+  async getConnectionStatus(userId: string, targetUserId: string): Promise<UserConnection | undefined> {
+    const [row] = await db
+      .select()
+      .from(userConnections)
+      .where(
+        and(eq(userConnections.userId, userId), eq(userConnections.targetUserId, targetUserId))
+      );
+    return row;
+  }
+
+  async createConnection(data: InsertConnection): Promise<UserConnection> {
+    const [created] = await db.insert(userConnections).values(data).returning();
+    return created;
+  }
+
+  async acceptConnection(id: string, userId: string): Promise<UserConnection | undefined> {
+    const [updated] = await db
+      .update(userConnections)
+      .set({ status: "accepted" })
+      .where(and(eq(userConnections.id, id), eq(userConnections.targetUserId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async getConnectionsByUser(userId: string): Promise<UserConnection[]> {
+    return db
+      .select()
+      .from(userConnections)
+      .where(
+        and(
+          eq(userConnections.targetUserId, userId),
+          eq(userConnections.status, "pending")
+        )
+      )
+      .orderBy(desc(userConnections.createdAt));
+  }
+
+  async getAcceptedConnectionIds(userId: string): Promise<string[]> {
+    const rows = await db
+      .select()
+      .from(userConnections)
+      .where(
+        and(eq(userConnections.status, "accepted"))
+      );
+
+    return rows
+      .filter((r) => r.userId === userId || r.targetUserId === userId)
+      .map((r) => (r.userId === userId ? r.targetUserId : r.userId));
+  }
+
+  async getSuggestedConnections(userId: string, limit = 5): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]> {
+    const connectedIds = await this.getAcceptedConnectionIds(userId);
+    const myPersonality = await this.getPersonality(userId);
+    const myInterests: string[] = JSON.parse(myPersonality?.interests || "[]");
+
+    const excludeIds = [userId, ...connectedIds];
+
+    const allUsers = await db
+      .select()
+      .from(users)
+      .where(notInArray(users.id, excludeIds))
+      .limit(50);
+
+    const withPersonality = await Promise.all(
+      allUsers.map(async (u) => {
+        const personality = await this.getPersonality(u.id);
+        const theirInterests: string[] = JSON.parse(personality?.interests || "[]");
+        const commonInterests = myInterests.filter((i) =>
+          theirInterests.some((t) => t.toLowerCase().includes(i.toLowerCase()) || i.toLowerCase().includes(t.toLowerCase()))
+        );
+        return { ...u, personality, commonInterests };
+      })
+    );
+
+    return withPersonality
+      .sort((a, b) => b.commonInterests.length - a.commonInterests.length)
+      .slice(0, limit);
   }
 }
 

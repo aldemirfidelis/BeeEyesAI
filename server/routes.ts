@@ -3,7 +3,11 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { signToken, hashPassword, verifyPassword } from "./auth";
 import { requireAuth, type AuthRequest } from "./middleware/requireAuth";
-import { streamChat, parseAIActions, updatePersonalityFromMessage, generateProactiveMessage, generateMissionCelebration } from "./ai";
+import {
+  streamChat, parseAIActions, updatePersonalityFromMessage,
+  generateProactiveMessage, generateMissionCelebration,
+  analyzePost, buildConnectionSuggestionMessage,
+} from "./ai";
 import { checkRateLimit } from "./rateLimit";
 import { insertUserSchema, insertMissionSchema, insertMoodEntrySchema } from "../shared/schema";
 
@@ -129,7 +133,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ message: "Mensagem não pode ser vazia" });
     }
 
-    // Rate limit (only real user messages, not system-triggered ones)
     if (!isSystem) {
       const rate = checkRateLimit(userId);
       if (!rate.allowed) {
@@ -150,13 +153,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
-    // Mensagens de sistema não são salvas nem contadas
     if (!isSystem) {
       await storage.createMessage({ userId, role: "user", content });
       await storage.incrementMessageCount(userId);
     }
 
-    // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -180,7 +181,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const { cleanText, suggestedMission, achievement } = parseAIActions(fullResponse);
 
-    // Save clean assistant message
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
 
     if (suggestedMission) {
@@ -201,7 +201,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    // First message achievement
     storage.hasAchievement(userId, "first_message").then(async (has) => {
       if (!has) {
         const unlocked = await storage.createAchievement({
@@ -213,7 +212,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }).catch(() => {});
 
-    // Async updates (don't block response)
     storage.updateUserStreak(userId).catch(() => {});
     updatePersonalityFromMessage(userId, content, cleanText).catch(() => {});
 
@@ -232,10 +230,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lastMsg = recentMessages[recentMessages.length - 1];
       const minutesSinceLast = (Date.now() - new Date(lastMsg.createdAt).getTime()) / 60000;
 
-      // Don't interrupt active conversations
       if (minutesSinceLast < 15) return res.json({ message: null });
 
-      // Respect cooldown between proactive messages (90 min)
       const lastProactive = [...recentMessages].reverse().find((m) => {
         try { return JSON.parse(m.metadata || "{}").proactive === true; } catch { return false; }
       });
@@ -245,7 +241,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    // Random chance so it doesn't feel mechanical (~40% per poll cycle)
     if (Math.random() > 0.4) return res.json({ message: null });
 
     const [user, personality, missions] = await Promise.all([
@@ -301,7 +296,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     if (!updatedUser || !personality) return res.status(404).json({ message: "Usuário não encontrado" });
 
-    // First mission achievement
     let achievement = null;
     const completedMissions = await storage.getMissionsByUser(userId, true);
     if (completedMissions.length === 1) {
@@ -315,13 +309,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    // Generate and save celebration message (non-blocking on error)
     let celebrationMessage: string | null = null;
     try {
       celebrationMessage = await generateMissionCelebration(updatedUser, personality, mission.title, mission.xpReward);
       await storage.createMessage({ userId, role: "assistant", content: celebrationMessage });
     } catch {
-      // celebration is optional, don't fail the request
+      // celebration is optional
     }
 
     return res.json({ mission, user: updatedUser, achievement, celebrationMessage });
@@ -359,6 +352,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userId = (req as AuthRequest).userId;
     const list = await storage.getAchievementsByUser(userId);
     return res.json(list);
+  });
+
+  // ── FEED (Social) ─────────────────────────────────────────────────────────
+
+  app.get("/api/feed", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const limit = parseInt(req.query.limit as string) || 30;
+    const feed = await storage.getFeedForUser(userId, limit);
+
+    // Enrich each post with likes count and whether the current user liked it
+    const enriched = await Promise.all(
+      feed.map(async (post) => {
+        const [likesCount, liked] = await Promise.all([
+          storage.getPostLikesCount(post.id),
+          storage.hasLikedPost(post.id, userId),
+        ]);
+        return { ...post, likesCount, liked };
+      })
+    );
+
+    return res.json(enriched);
+  });
+
+  // ── POSTS ─────────────────────────────────────────────────────────────────
+
+  app.get("/api/posts", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const myPosts = await storage.getPostsByUser(userId, limit);
+
+    const enriched = await Promise.all(
+      myPosts.map(async (post) => {
+        const [likesCount, liked] = await Promise.all([
+          storage.getPostLikesCount(post.id),
+          storage.hasLikedPost(post.id, userId),
+        ]);
+        return { ...post, likesCount, liked };
+      })
+    );
+
+    return res.json(enriched);
+  });
+
+  app.post("/api/posts", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { content } = req.body;
+
+    if (!content?.trim()) {
+      return res.status(400).json({ message: "Conteúdo não pode ser vazio" });
+    }
+
+    if (content.trim().length > 500) {
+      return res.status(400).json({ message: "Post muito longo (máximo 500 caracteres)" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ message: "Usuário não encontrado" });
+
+    const post = await storage.createPost({ userId, content: content.trim() });
+
+    // Analyze post sentiment and generate AI comment asynchronously
+    analyzePost(content.trim(), user.displayName || user.username)
+      .then(({ sentiment, sentimentLabel, comment }) =>
+        storage.updatePostAIComment(post.id, comment, sentiment, sentimentLabel)
+      )
+      .catch(() => {});
+
+    // Award XP for first post
+    storage.hasAchievement(userId, "first_post").then(async (has) => {
+      if (!has) {
+        await storage.createAchievement({
+          userId, type: "first_post",
+          title: "Primeira Publicação!",
+          description: "Você compartilhou seu primeiro momento na comunidade 🌟",
+        });
+        await storage.updateUserXP(userId, 15);
+      }
+    }).catch(() => {});
+
+    return res.status(201).json(post);
+  });
+
+  app.post("/api/posts/:id/like", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const postId = req.params.id;
+
+    const post = await storage.getPostById(postId);
+    if (!post) return res.status(404).json({ message: "Post não encontrado" });
+
+    const alreadyLiked = await storage.hasLikedPost(postId, userId);
+    if (alreadyLiked) {
+      await storage.unlikePost(postId, userId);
+      const likesCount = await storage.getPostLikesCount(postId);
+      return res.json({ liked: false, likesCount });
+    } else {
+      await storage.likePost(postId, userId);
+      const likesCount = await storage.getPostLikesCount(postId);
+      return res.json({ liked: true, likesCount });
+    }
+  });
+
+  // ── CONNECTIONS ───────────────────────────────────────────────────────────
+
+  app.get("/api/connections/suggestions", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const limit = parseInt(req.query.limit as string) || 5;
+
+    const suggestions = await storage.getSuggestedConnections(userId, limit);
+
+    const result = suggestions.map((u) => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+      level: u.level,
+      commonInterests: u.commonInterests,
+      suggestionMessage: buildConnectionSuggestionMessage(
+        "",
+        u.displayName || u.username,
+        u.commonInterests
+      ),
+    }));
+
+    return res.json(result);
+  });
+
+  app.get("/api/connections", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const pending = await storage.getConnectionsByUser(userId);
+    return res.json(pending);
+  });
+
+  app.post("/api/connections", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { targetUserId } = req.body;
+
+    if (!targetUserId || targetUserId === userId) {
+      return res.status(400).json({ message: "Usuário inválido" });
+    }
+
+    const target = await storage.getUser(targetUserId);
+    if (!target) return res.status(404).json({ message: "Usuário não encontrado" });
+
+    const existing = await storage.getConnectionStatus(userId, targetUserId);
+    if (existing) return res.status(409).json({ message: "Solicitação já enviada" });
+
+    const connection = await storage.createConnection({ userId, targetUserId });
+    return res.status(201).json(connection);
+  });
+
+  app.put("/api/connections/:id/accept", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const connection = await storage.acceptConnection(req.params.id, userId);
+    if (!connection) return res.status(404).json({ message: "Solicitação não encontrada" });
+    return res.json(connection);
   });
 
   const httpServer = createServer(app);

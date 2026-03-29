@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la d:/Projetos/BeeEyesAI/mobile/app/\\\\\\(auth\\\\\\)/)",
+      "Bash(ls d:/Projetos/BeeEyesAI/*.example)"
+    ]
+  }
+}

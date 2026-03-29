@@ -67,6 +67,33 @@ export const achievements = pgTable("achievements", {
   unlockedAt: timestamp("unlocked_at").notNull().defaultNow(),
 });
 
+// ── Social Features ───────────────────────────────────────────────────────────
+
+export const posts = pgTable("posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  sentiment: text("sentiment"),          // "happy" | "motivated" | "tired" | "sad" | "neutral"
+  sentimentLabel: text("sentiment_label"), // label legível em pt-BR
+  aiComment: text("ai_comment"),         // comentário automático da BeeEyes
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const postLikes = pgTable("post_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const userConnections = pgTable("user_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  targetUserId: varchar("target_user_id").notNull(),
+  status: text("status").notNull().default("pending"), // "pending" | "accepted"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -100,6 +127,20 @@ export const insertUserPersonalitySchema = createInsertSchema(userPersonality).o
   lastUpdatedAt: true,
 });
 
+export const insertPostSchema = createInsertSchema(posts).omit({
+  id: true,
+  createdAt: true,
+  sentiment: true,
+  sentimentLabel: true,
+  aiComment: true,
+});
+
+export const insertConnectionSchema = createInsertSchema(userConnections).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -113,6 +154,10 @@ export type MoodEntry = typeof moodEntries.$inferSelect;
 export type InsertMoodEntry = z.infer<typeof insertMoodEntrySchema>;
 export type Achievement = typeof achievements.$inferSelect;
 export type InsertAchievement = z.infer<typeof insertAchievementSchema>;
+export type Post = typeof posts.$inferSelect;
+export type InsertPost = z.infer<typeof insertPostSchema>;
+export type UserConnection = typeof userConnections.$inferSelect;
+export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 
 // Level calculation helper
 export function xpForLevel(level: number): number {
