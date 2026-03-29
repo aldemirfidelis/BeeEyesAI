@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
+import FeedPostCard from "@/components/FeedPostCard";
 
 interface Message {
   id: string;
@@ -145,7 +146,12 @@ interface ChatFeedSummaryPost {
   content: string;
   createdAt: string;
   likesCount: number;
-  author: { username: string; displayName: string | null; level: number };
+  liked: boolean;
+  commentsCount: number;
+  aiComment?: string | null;
+  sentimentLabel?: string | null;
+  sentiment?: string | null;
+  author: { id: string; username: string; displayName: string | null; level: number };
 }
 
 interface NetworkDigestMeta {
@@ -2015,20 +2021,12 @@ export default function Home() {
                       return (
                         <div className="space-y-2">
                           {(meta.posts as ChatFeedSummaryPost[]).map((post) => (
-                            <div key={post.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-semibold">
-                                  {post.author.displayName || post.author.username}
-                                </p>
-                                <span className="text-xs text-muted-foreground">
-                                  {timeAgo(post.createdAt)}
-                                </span>
-                              </div>
-                              <p className="mt-2 text-sm whitespace-pre-wrap">{post.content}</p>
-                              <p className="mt-2 text-xs text-muted-foreground">
-                                Nv {post.author.level} · {post.likesCount} curtidas
-                              </p>
-                            </div>
+                            <FeedPostCard
+                              key={post.id}
+                              post={{ ...post, commentsCount: post.commentsCount ?? 0 }}
+                              authHeaders={authHeaders}
+                              timeAgo={timeAgo}
+                            />
                           ))}
                           <div className="flex justify-end">
                             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowInlinePost(true)}>
@@ -2047,14 +2045,12 @@ export default function Home() {
                             <div className="space-y-2">
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feed</p>
                               {digest.feedPosts.map((post) => (
-                                <div key={post.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-semibold">{post.author.displayName || post.author.username}</p>
-                                    <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
-                                  </div>
-                                  <p className="mt-2 text-sm whitespace-pre-wrap">{post.content}</p>
-                                  <p className="mt-2 text-xs text-muted-foreground">Nv {post.author.level} · {post.likesCount} curtidas</p>
-                                </div>
+                                <FeedPostCard
+                                  key={post.id}
+                                  post={{ ...post, commentsCount: (post as any).commentsCount ?? 0 }}
+                                  authHeaders={authHeaders}
+                                  timeAgo={timeAgo}
+                                />
                               ))}
                             </div>
                           )}

@@ -86,6 +86,21 @@ export const postLikes = pgTable("post_likes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const postComments = pgTable("post_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const commentLikes = pgTable("comment_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  commentId: varchar("comment_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const userConnections = pgTable("user_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -185,6 +200,7 @@ export const insertDirectMessageSchema = createInsertSchema(directMessages).omit
 
 export const insertCommunitySchema = createInsertSchema(communities).omit({ id: true, createdAt: true, membersCount: true });
 export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, createdAt: true });
+export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true });
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -210,6 +226,9 @@ export type InsertCommunity = typeof communities.$inferInsert;
 export type CommunityMember = typeof communityMembers.$inferSelect;
 export type CommunityPost = typeof communityPosts.$inferSelect;
 export type InsertCommunityPost = typeof communityPosts.$inferInsert;
+export type PostComment = typeof postComments.$inferSelect;
+export type InsertPostComment = typeof postComments.$inferInsert;
+export type CommentLike = typeof commentLikes.$inferSelect;
 
 // Level calculation helper
 export function xpForLevel(level: number): number {

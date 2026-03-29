@@ -364,11 +364,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Enrich each post with likes count and whether the current user liked it
     const enriched = await Promise.all(
       feed.map(async (post) => {
-        const [likesCount, liked] = await Promise.all([
+        const [likesCount, liked, commentsCount] = await Promise.all([
           storage.getPostLikesCount(post.id),
           storage.hasLikedPost(post.id, userId),
+          storage.getCommentCount(post.id),
         ]);
-        return { ...post, likesCount, liked };
+        return { ...post, likesCount, liked, commentsCount };
       })
     );
 
@@ -482,6 +483,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch {
       return res.json({ items: [], query });
     }
+  });
+
+  // ── POST COMMENTS ─────────────────────────────────────────────────────────
+
+  app.get("/api/posts/:id/comments", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const comments = await storage.getCommentsForPost(req.params.id, userId);
+    return res.json(comments);
+  });
+
+  app.post("/api/posts/:id/comments", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: "Comentário vazio" });
+    const comment = await storage.createPostComment({ postId: req.params.id, userId, content: content.trim() });
+    return res.status(201).json(comment);
+  });
+
+  app.post("/api/comments/:id/like", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const result = await storage.toggleCommentLike(req.params.id, userId);
+    return res.json(result);
   });
 
   // ── CONNECTIONS ───────────────────────────────────────────────────────────

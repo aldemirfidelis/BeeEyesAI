@@ -4,6 +4,7 @@ import {
   users, userPersonality, messages, missions, moodEntries, achievements,
   posts, postLikes, userConnections, directMessages,
   communities, communityMembers, communityPosts,
+  postComments, commentLikes,
   type User, type InsertUser,
   type UserPersonality, type InsertUserPersonality,
   type Message, type InsertMessage,
@@ -15,6 +16,7 @@ import {
   type DirectMessage, type InsertDirectMessage,
   type Community, type InsertCommunity,
   type CommunityPost, type InsertCommunityPost,
+  type PostComment, type InsertPostComment,
   xpForLevel,
 } from "../shared/schema";
 
@@ -94,6 +96,12 @@ export interface IStorage {
     lastMessageFromMe: boolean;
     unreadCount: number;
   }>>;
+
+  // Comments
+  getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]>;
+  createPostComment(data: InsertPostComment): Promise<PostComment>;
+  getCommentCount(postId: string): Promise<number>;
+  toggleCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
 
   // Communities
   getCommunities(userId: string, search?: string): Promise<(Community & { isMember: boolean })[]>;
@@ -752,6 +760,79 @@ export class DrizzleStorage implements IStorage {
     const memberships = await db.select({ communityId: communityMembers.communityId }).from(communityMembers).where(eq(communityMembers.userId, userId));
     if (memberships.length === 0) return [];
     return db.select().from(communities).where(inArray(communities.id, memberships.map((m) => m.communityId))).orderBy(desc(communities.membersCount));
+  }
+
+  // ── Comments ──────────────────────────────────────────────────────────────
+
+  async getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]> {
+    const rows = await db
+      .select({
+        id: postComments.id,
+        postId: postComments.postId,
+        userId: postComments.userId,
+        content: postComments.content,
+        createdAt: postComments.createdAt,
+        username: users.username,
+        displayName: users.displayName,
+      })
+      .from(postComments)
+      .innerJoin(users, eq(postComments.userId, users.id))
+      .where(eq(postComments.postId, postId))
+      .orderBy(postComments.createdAt);
+
+    if (rows.length === 0) return [];
+
+    const commentIds = rows.map((r) => r.id);
+    const allLikes = await db
+      .select({ commentId: commentLikes.commentId, userId: commentLikes.userId })
+      .from(commentLikes)
+      .where(inArray(commentLikes.commentId, commentIds));
+
+    const likeCountMap = new Map<string, number>();
+    const userLikedSet = new Set<string>();
+    for (const l of allLikes) {
+      likeCountMap.set(l.commentId, (likeCountMap.get(l.commentId) ?? 0) + 1);
+      if (l.userId === userId) userLikedSet.add(l.commentId);
+    }
+
+    return rows.map((r) => ({
+      ...r,
+      likesCount: likeCountMap.get(r.id) ?? 0,
+      liked: userLikedSet.has(r.id),
+    }));
+  }
+
+  async createPostComment(data: InsertPostComment): Promise<PostComment> {
+    const [comment] = await db.insert(postComments).values(data).returning();
+    return comment;
+  }
+
+  async getCommentCount(postId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(postComments)
+      .where(eq(postComments.postId, postId));
+    return Number(result[0]?.count ?? 0);
+  }
+
+  async toggleCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }> {
+    const [existing] = await db
+      .select()
+      .from(commentLikes)
+      .where(and(eq(commentLikes.commentId, commentId), eq(commentLikes.userId, userId)));
+
+    if (existing) {
+      await db.delete(commentLikes).where(and(eq(commentLikes.commentId, commentId), eq(commentLikes.userId, userId)));
+    } else {
+      await db.insert(commentLikes).values({ commentId, userId });
+    }
+
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(commentLikes)
+      .where(eq(commentLikes.commentId, commentId));
+
+    return { liked: !existing, likesCount: Number(result[0]?.count ?? 0) };
   }
 }
 
