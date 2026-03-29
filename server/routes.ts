@@ -789,7 +789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/communities/:id/posts", requireAuth, async (req: Request, res: Response) => {
-    const posts = await storage.getCommunityPosts(req.params.id);
+    const userId = (req as AuthRequest).userId;
+    const posts = await storage.getCommunityPosts(req.params.id, userId);
     return res.json(posts);
   });
 
@@ -806,7 +807,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ...post,
       username: author?.username ?? "usuário",
       displayName: author?.displayName ?? null,
+      likesCount: 0,
+      liked: false,
+      commentsCount: 0,
     });
+  });
+
+  app.post("/api/communities/posts/:postId/like", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const result = await storage.toggleCommunityPostLike(req.params.postId, userId);
+    return res.json(result);
+  });
+
+  app.get("/api/communities/posts/:postId/comments", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const comments = await storage.getCommunityPostComments(req.params.postId, userId);
+    return res.json(comments);
+  });
+
+  app.post("/api/communities/posts/:postId/comments", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: "Comentário vazio" });
+    const comment = await storage.createCommunityPostComment({ postId: req.params.postId, userId, content: content.trim() });
+    const author = await storage.getUser(userId);
+    return res.status(201).json({ ...comment, username: author?.username ?? "usuário", displayName: author?.displayName ?? null, likesCount: 0, liked: false });
+  });
+
+  app.post("/api/communities/comments/:commentId/like", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const result = await storage.toggleCommunityCommentLike(req.params.commentId, userId);
+    return res.json(result);
+  });
+
+  // Recommend: share a community post to the main feed
+  app.post("/api/communities/posts/:postId/recommend", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { communityName, communityEmoji } = req.body;
+    const [communityPost] = await storage.getCommunityPosts("", userId).then(() => [null]).catch(() => [null]);
+    // fetch the post directly
+    const allPosts = await storage.getCommunityPosts(req.body.communityId || "", userId);
+    const original = allPosts.find((p) => p.id === req.params.postId);
+    const content = original
+      ? `${communityEmoji || "📌"} Recomendado de **${communityName || "comunidade"}**:\n\n"${original.content}"`
+      : req.body.content
+        ? `${communityEmoji || "📌"} Recomendado de **${communityName || "comunidade"}**:\n\n"${req.body.content}"`
+        : null;
+    if (!content) return res.status(400).json({ message: "Conteúdo não encontrado" });
+    const post = await storage.createPost({ userId, content });
+    return res.status(201).json(post);
   });
 
   const httpServer = createServer(app);

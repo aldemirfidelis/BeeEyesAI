@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
+import CommunityPostCard from "@/components/CommunityPostCard";
 
 interface Message {
   id: string;
@@ -118,6 +119,9 @@ interface CommunityPost {
   createdAt: string;
   username: string;
   displayName: string | null;
+  likesCount: number;
+  liked: boolean;
+  commentsCount: number;
 }
 
 interface DMConversation {
@@ -1793,18 +1797,14 @@ export default function Home() {
                       <p className="text-center text-sm text-muted-foreground py-8">Nenhuma publicação ainda. Seja o primeiro!</p>
                     )}
                     {communityPosts.map((post) => (
-                      <div key={post.id} className="bg-secondary/30 rounded-xl p-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
-                            {(post.displayName || post.username || "?")[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold">{post.displayName || post.username || "Usuário"}</p>
-                            <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
-                          </div>
-                        </div>
-                        <p className="text-sm leading-relaxed">{post.content}</p>
-                      </div>
+                      <CommunityPostCard
+                        key={post.id}
+                        post={{ ...post, likesCount: post.likesCount ?? 0, liked: post.liked ?? false, commentsCount: post.commentsCount ?? 0 }}
+                        communityName={selectedCommunity!.name}
+                        communityEmoji={selectedCommunity!.emoji}
+                        authHeaders={authHeaders}
+                        timeAgo={timeAgo}
+                      />
                     ))}
                   </div>
                 </div>

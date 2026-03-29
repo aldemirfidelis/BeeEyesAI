@@ -145,6 +145,28 @@ export const communityPosts = pgTable("community_posts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const communityPostLikes = pgTable("community_post_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityPostComments = pgTable("community_post_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityPostCommentLikes = pgTable("community_post_comment_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  commentId: varchar("comment_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -200,6 +222,7 @@ export const insertDirectMessageSchema = createInsertSchema(directMessages).omit
 
 export const insertCommunitySchema = createInsertSchema(communities).omit({ id: true, createdAt: true, membersCount: true });
 export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, createdAt: true });
+export const insertCommunityPostCommentSchema = createInsertSchema(communityPostComments).omit({ id: true, createdAt: true });
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true });
 
 // Types
@@ -229,6 +252,8 @@ export type InsertCommunityPost = typeof communityPosts.$inferInsert;
 export type PostComment = typeof postComments.$inferSelect;
 export type InsertPostComment = typeof postComments.$inferInsert;
 export type CommentLike = typeof commentLikes.$inferSelect;
+export type CommunityPostComment = typeof communityPostComments.$inferSelect;
+export type InsertCommunityPostComment = typeof communityPostComments.$inferInsert;
 
 // Level calculation helper
 export function xpForLevel(level: number): number {
