@@ -1421,8 +1421,12 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="inbox" className="flex-1 overflow-hidden min-h-0 p-0 mt-0">
-          <div className="h-full flex min-h-0">
-            <div className={`w-full ${selectedDMUser ? "hidden md:flex" : "flex"} flex-col border-r min-h-0`}>
+          <div className="h-full flex min-h-0 overflow-hidden">
+            <div
+              className={`${
+                selectedDMUser ? "hidden md:flex md:w-[360px] lg:w-[400px]" : "flex w-full md:w-[360px] lg:w-[400px]"
+              } flex-col border-r min-h-0 bg-card/20`}
+            >
               <div className="p-3 border-b">
                 <h2 className="font-display text-lg font-semibold">Mensagens</h2>
                 <p className="text-xs text-muted-foreground">Converse com amigos conectados e pessoas com interesses em comum.</p>
@@ -1484,10 +1488,10 @@ export default function Home() {
               </div>
             </div>
 
-            <div className={`flex-1 ${selectedDMUser ? "flex" : "hidden md:flex"} flex-col min-h-0`}>
+            <div className={`flex-1 min-w-0 ${selectedDMUser ? "flex" : "hidden md:flex"} flex-col min-h-0`}>
               {selectedDMUser ? (
                 <>
-                  <div className="p-3 border-b flex items-center gap-2">
+                  <div className="p-3 border-b flex items-center gap-2 bg-card/40">
                     <Button size="sm" variant="ghost" className="md:hidden" onClick={() => setSelectedDMUser(null)}>
                       Voltar
                     </Button>
@@ -1516,14 +1520,20 @@ export default function Home() {
                     })}
                   </div>
 
-                  <div className="p-3 border-t flex items-end gap-2">
+                  <div className="p-3 border-t flex items-end gap-2 bg-card/40">
                     <Textarea
                       value={dmInput}
                       onChange={(e) => setDmInput(e.target.value)}
                       rows={2}
                       placeholder="Mensagem..."
-                      className="resize-none text-sm"
+                      className="flex-1 resize-none text-sm min-h-[52px] max-h-40"
                       maxLength={1500}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          sendDMMessage();
+                        }
+                      }}
                     />
                     <Button onClick={sendDMMessage} disabled={!dmInput.trim() || dmSending}>
                       Enviar
@@ -1547,7 +1557,11 @@ export default function Home() {
     <div className="flex flex-col md:flex-row h-[100dvh] bg-background">
 
       {/* ── Chat area ── */}
-      <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : "flex"}`}>
+      <div
+        className={`flex-1 flex flex-col min-h-0 ${
+          mobileTab === "chat" ? "flex" : mobileTab === "inbox" ? "hidden" : "hidden md:flex"
+        }`}
+      >
         <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
@@ -1656,10 +1670,15 @@ export default function Home() {
       </div>
 
       {/* ── Sidebar (desktop) ── */}
-      <aside className={`
-        md:w-96 md:border-l md:flex md:flex-col bg-card/30 backdrop-blur-sm
-        ${mobileTab !== "chat" ? "flex flex-col flex-1 min-h-0" : "hidden md:flex"}
-      `}>
+      <aside
+        className={`bg-card/30 backdrop-blur-sm min-h-0 ${
+          mobileTab === "chat"
+            ? "hidden md:flex md:w-96 md:border-l md:flex-col"
+            : mobileTab === "inbox"
+              ? "flex flex-1 min-w-0 flex-col"
+              : "flex flex-col flex-1 min-h-0 md:w-96 md:border-l md:flex"
+        }`}
+      >
         {sidebarContent}
       </aside>
 
