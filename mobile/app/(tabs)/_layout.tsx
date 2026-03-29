@@ -52,10 +52,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="friends"
+        options={{
+          title: "Amigos",
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👥" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="mood"
         options={{
-          title: "Humor",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💛" focused={focused} />,
+          href: null, // hidden from tab bar but route still exists
         }}
       />
       <Tabs.Screen

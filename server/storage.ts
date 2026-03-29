@@ -66,6 +66,15 @@ export interface IStorage {
   getConnectionsByUser(userId: string): Promise<UserConnection[]>;
   getAcceptedConnectionIds(userId: string): Promise<string[]>;
   getSuggestedConnections(userId: string, limit?: number): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]>;
+
+  // Friends
+  getFriends(userId: string): Promise<(Omit<User, "password"> & { personality: UserPersonality | null })[]>;
+  getUserPublicProfile(userId: string): Promise<{
+    user: Omit<User, "password">;
+    recentPosts: Post[];
+    interests: string[];
+    activeMissionsCount: number;
+  } | null>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -438,6 +447,55 @@ export class DrizzleStorage implements IStorage {
     return withPersonality
       .sort((a, b) => b.commonInterests.length - a.commonInterests.length)
       .slice(0, limit);
+  }
+
+  // ── Friends ───────────────────────────────────────────────────────────────
+
+  async getFriends(userId: string): Promise<(Omit<User, "password"> & { personality: UserPersonality | null })[]> {
+    const connectedIds = await this.getAcceptedConnectionIds(userId);
+    if (connectedIds.length === 0) return [];
+
+    const friendUsers = await db
+      .select()
+      .from(users)
+      .where(inArray(users.id, connectedIds));
+
+    const personalities = await db
+      .select()
+      .from(userPersonality)
+      .where(inArray(userPersonality.userId, connectedIds));
+
+    const personalityMap = new Map(personalities.map((p) => [p.userId, p]));
+
+    return friendUsers.map(({ password: _pw, ...u }) => ({
+      ...u,
+      personality: personalityMap.get(u.id) ?? null,
+    }));
+  }
+
+  async getUserPublicProfile(userId: string): Promise<{
+    user: Omit<User, "password">;
+    recentPosts: Post[];
+    interests: string[];
+    activeMissionsCount: number;
+  } | null> {
+    const user = await this.getUser(userId);
+    if (!user) return null;
+
+    const [recentPosts, personality, activeMissions] = await Promise.all([
+      this.getPostsByUser(userId, 5),
+      this.getPersonality(userId),
+      this.getMissionsByUser(userId, false),
+    ]);
+
+    const { password: _pw, ...safeUser } = user;
+
+    return {
+      user: safeUser,
+      recentPosts,
+      interests: JSON.parse(personality?.interests || "[]"),
+      activeMissionsCount: activeMissions.length,
+    };
   }
 }
 

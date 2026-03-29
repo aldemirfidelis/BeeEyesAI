@@ -665,6 +665,47 @@ function fallbackCelebration(missionTitle: string, xpEarned: number): string {
   return `Uau, você completou "${missionTitle}"! 🎉 Isso é incrível — você ganhou ${xpEarned} XP e merece muito esse reconhecimento. Fico tão feliz por você!`;
 }
 
+// ── Visit Notification ────────────────────────────────────────────────────────
+
+export async function generateVisitNotification(
+  visitorName: string,
+  visitedUser: User,
+  visitedPersonality: UserPersonality
+): Promise<string> {
+  const systemPrompt = buildSystemPrompt(visitedUser, visitedPersonality);
+  const prompt = `[SISTEMA - visita ao perfil]
+${visitorName} acabou de visitar o perfil de ${visitedUser.displayName || visitedUser.username}.
+
+Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedUser.username} sobre a visita. Tom leve, curioso e amigável. Máximo 2 frases. Termine sugerindo que ela veja o perfil de ${visitorName} ou mande uma mensagem. Em português do Brasil.`;
+
+  return callWithFallback(
+    [
+      async () => {
+        const r = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 120,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? null;
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash", systemInstruction: systemPrompt });
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim() ?? null;
+      },
+      async () => {
+        const r = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 120,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? null;
+      },
+    ],
+    `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`
+  );
+}
+
 // ── Action Parser ─────────────────────────────────────────────────────────────
 
 export function parseAIActions(response: string): {

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, Calendar, TrendingUp, MessageCircle, Globe, UserPlus, Heart } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Message {
@@ -59,6 +59,31 @@ interface ConnectionSuggestion {
   commonInterests: string[];
 }
 
+interface Friend {
+  id: string;
+  username: string;
+  displayName: string | null;
+  level: number;
+  currentStreak: number;
+  lastActiveAt: string | null;
+  personality: { interests: string } | null;
+}
+
+interface FriendProfile {
+  user: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    level: number;
+    xp: number;
+    currentStreak: number;
+    lastActiveAt: string | null;
+  };
+  recentPosts: FeedPost[];
+  interests: string[];
+  activeMissionsCount: number;
+}
+
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
   neutral: "😐", excited: "🎉", proud: "🏆",
@@ -96,7 +121,7 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "mood" | "feed">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed">("chat");
 
   // Feed state
   const [feed, setFeed] = useState<FeedPost[]>([]);
@@ -106,6 +131,12 @@ export default function Home() {
   const [showPostInput, setShowPostInput] = useState(false);
   const [suggestions, setSuggestions] = useState<ConnectionSuggestion[]>([]);
   const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
+
+  // Friends state
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<FriendProfile | null>(null);
+  const [friendProfileLoading, setFriendProfileLoading] = useState(false);
 
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -142,6 +173,29 @@ export default function Home() {
       .then(setMissions);
   }, [token]);
 
+  // Load friends list
+  const loadFriends = useCallback(async () => {
+    if (!token) return;
+    setFriendsLoading(true);
+    try {
+      const res = await fetch("/api/friends", { headers: authHeaders() });
+      if (res.ok) setFriends(await res.json());
+    } catch { /* ignore */ }
+    finally { setFriendsLoading(false); }
+  }, [token]);
+
+  const openFriendProfile = async (friendId: string) => {
+    setFriendProfileLoading(true);
+    setSelectedFriend(null);
+    try {
+      const res = await fetch(`/api/users/${friendId}/profile`, { headers: authHeaders() });
+      if (res.ok) setSelectedFriend(await res.json());
+      // Fire visit notification (non-blocking)
+      fetch(`/api/users/${friendId}/visit`, { method: "POST", headers: authHeaders() }).catch(() => {});
+    } catch { /* ignore */ }
+    finally { setFriendProfileLoading(false); }
+  };
+
   // Load feed when user switches to feed tab
   const loadFeed = useCallback(async () => {
     if (!token) return;
@@ -159,7 +213,8 @@ export default function Home() {
 
   useEffect(() => {
     if (mobileTab === "feed") loadFeed();
-  }, [mobileTab, loadFeed]);
+    if (mobileTab === "friends") loadFriends();
+  }, [mobileTab, loadFeed, loadFriends]);
 
   // Proactive messages polling
   useEffect(() => {
@@ -720,18 +775,22 @@ export default function Home() {
       <Tabs
         value={mobileTab === "chat" ? "missions" : mobileTab}
         className="flex-1 flex flex-col min-h-0"
-        onValueChange={(v) => setMobileTab(v as any)}
+        onValueChange={(v) => {
+          setMobileTab(v as any);
+          if (v === "friends") loadFriends();
+          if (v === "feed") loadFeed();
+        }}
       >
         <TabsList className="mx-4 mt-4 md:flex hidden">
           <TabsTrigger value="missions" className="flex-1">
             <TrendingUp className="w-4 h-4 mr-2" />
             Missões
           </TabsTrigger>
-          <TabsTrigger value="mood" className="flex-1">
-            <Calendar className="w-4 h-4 mr-2" />
-            Humor
+          <TabsTrigger value="friends" className="flex-1">
+            <Users className="w-4 h-4 mr-2" />
+            Amigos
           </TabsTrigger>
-          <TabsTrigger value="feed" className="flex-1" onClick={loadFeed}>
+          <TabsTrigger value="feed" className="flex-1">
             <Globe className="w-4 h-4 mr-2" />
             Feed
           </TabsTrigger>
@@ -766,30 +825,60 @@ export default function Home() {
           </AnimatePresence>
         </TabsContent>
 
-        <TabsContent value="mood" className="flex-1 overflow-y-auto p-4 mt-0">
-          <div className="space-y-6">
-            <div>
-              <h2 className="font-display text-lg font-semibold mb-4">Como você está hoje?</h2>
-              <MoodSelector selectedMood={selectedMood} onSelectMood={handleMoodSelect} />
-            </div>
-            {selectedMood && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <Card className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                      🐝
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedMood >= 4
-                        ? "Que ótimo! Continue assim! 🎉"
-                        : selectedMood === 3
-                        ? "Tudo bem ter dias normais. Estou aqui para ajudar!"
-                        : "Sinto muito que não esteja se sentindo bem. Vamos trabalhar juntos para melhorar isso! 💪"}
-                    </p>
-                  </div>
-                </Card>
-              </motion.div>
+        <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
+          <div className="space-y-3">
+            <h2 className="font-display text-lg font-semibold">Meus Amigos</h2>
+
+            {friendsLoading && (
+              <p className="text-sm text-muted-foreground text-center py-6">Carregando amigos...</p>
             )}
+
+            {!friendsLoading && friends.length === 0 && (
+              <div className="text-center py-10 space-y-2">
+                <p className="text-3xl">👥</p>
+                <p className="text-sm font-semibold">Nenhum amigo ainda</p>
+                <p className="text-xs text-muted-foreground">Vá ao Feed e conecte-se com outras pessoas!</p>
+              </div>
+            )}
+
+            {friends.map((friend) => {
+              const name = friend.displayName || friend.username;
+              const interests: string[] = (() => { try { return JSON.parse(friend.personality?.interests || "[]"); } catch { return []; } })();
+              const lastActive = friend.lastActiveAt ? timeAgo(friend.lastActiveAt) : null;
+              return (
+                <button
+                  key={friend.id}
+                  className="w-full text-left"
+                  onClick={() => openFriendProfile(friend.id)}
+                >
+                  <Card className="p-3 hover:border-primary/50 transition-colors cursor-pointer group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-base font-bold shrink-0">
+                        {name[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm">{name}</span>
+                          <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {friend.level}</span>
+                          {friend.currentStreak > 0 && (
+                            <span className="text-xs text-orange-500 flex items-center gap-0.5">
+                              <Flame className="w-3 h-3" />{friend.currentStreak}d
+                            </span>
+                          )}
+                        </div>
+                        {interests.length > 0 && (
+                          <p className="text-xs text-muted-foreground truncate">{interests.slice(0, 3).join(" · ")}</p>
+                        )}
+                        {lastActive && (
+                          <p className="text-xs text-muted-foreground">Ativo {lastActive}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                    </div>
+                  </Card>
+                </button>
+              );
+            })}
           </div>
         </TabsContent>
 
@@ -1036,16 +1125,132 @@ export default function Home() {
           Missões
         </button>
         <button
-          onClick={() => setMobileTab("mood")}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "mood" ? "text-primary" : "text-muted-foreground"}`}
+          onClick={() => { setMobileTab("friends"); loadFriends(); }}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "friends" ? "text-primary" : "text-muted-foreground"}`}
         >
-          <Calendar className="w-5 h-5" />
-          Humor
+          <Users className="w-5 h-5" />
+          Amigos
         </button>
       </nav>
 
       {/* Spacer so content doesn't hide behind bottom nav on mobile */}
       <div className="md:hidden h-16 shrink-0" />
+
+      {/* ── Friend Profile Modal ── */}
+      <AnimatePresence>
+        {(friendProfileLoading || selectedFriend) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={() => setSelectedFriend(null)}
+          >
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-background border shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {friendProfileLoading && (
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-sm text-muted-foreground">Carregando perfil...</p>
+                </div>
+              )}
+
+              {selectedFriend && !friendProfileLoading && (() => {
+                const { user: f, recentPosts, interests, activeMissionsCount } = selectedFriend;
+                const name = f.displayName || f.username;
+                return (
+                  <div className="p-5 space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-2xl font-black">
+                          {name[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <h2 className="font-display text-xl font-bold">{name}</h2>
+                          <p className="text-sm text-muted-foreground">@{f.username}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedFriend(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-secondary/50 rounded-xl p-3 text-center">
+                        <Trophy className="w-4 h-4 mx-auto mb-1 text-primary" />
+                        <p className="text-sm font-bold">Nv {f.level}</p>
+                        <p className="text-xs text-muted-foreground">Nível</p>
+                      </div>
+                      <div className="bg-secondary/50 rounded-xl p-3 text-center">
+                        <Flame className="w-4 h-4 mx-auto mb-1 text-orange-500" />
+                        <p className="text-sm font-bold">{f.currentStreak}d</p>
+                        <p className="text-xs text-muted-foreground">Streak</p>
+                      </div>
+                      <div className="bg-secondary/50 rounded-xl p-3 text-center">
+                        <TrendingUp className="w-4 h-4 mx-auto mb-1 text-green-500" />
+                        <p className="text-sm font-bold">{activeMissionsCount}</p>
+                        <p className="text-xs text-muted-foreground">Missões</p>
+                      </div>
+                    </div>
+
+                    {/* Interests */}
+                    {interests.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">INTERESSES</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {interests.slice(0, 8).map((i) => (
+                            <span key={i} className="text-xs px-2 py-1 rounded-full bg-primary/15 text-primary font-medium">{i}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recent posts */}
+                    {recentPosts.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">PUBLICAÇÕES RECENTES</p>
+                        <div className="space-y-2">
+                          {recentPosts.map((post) => (
+                            <div key={post.id} className="bg-secondary/30 rounded-xl p-3 space-y-1.5">
+                              <p className="text-sm leading-relaxed">{post.content}</p>
+                              {post.aiComment && (
+                                <div className="border-l-2 border-primary pl-2">
+                                  <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                {post.sentimentLabel && (
+                                  <span className="text-xs text-muted-foreground">{post.sentimentLabel}</span>
+                                )}
+                                <span className="text-xs text-muted-foreground ml-auto">{timeAgo(post.createdAt)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {recentPosts.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">{name} ainda não publicou nada.</p>
+                    )}
+
+                    {f.lastActiveAt && (
+                      <p className="text-xs text-muted-foreground text-center">Último acesso: {timeAgo(f.lastActiveAt)}</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AchievementPopup
         title={achievementData.title}

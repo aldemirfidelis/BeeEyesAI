@@ -6,7 +6,7 @@ import { requireAuth, type AuthRequest } from "./middleware/requireAuth";
 import {
   streamChat, parseAIActions, updatePersonalityFromMessage,
   generateProactiveMessage, generateMissionCelebration,
-  analyzePost, buildConnectionSuggestionMessage,
+  analyzePost, buildConnectionSuggestionMessage, generateVisitNotification,
 } from "./ai";
 import { checkRateLimit } from "./rateLimit";
 import { insertUserSchema, insertMissionSchema, insertMoodEntrySchema } from "../shared/schema";
@@ -506,6 +506,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const connection = await storage.acceptConnection(req.params.id, userId);
     if (!connection) return res.status(404).json({ message: "Solicitação não encontrada" });
     return res.json(connection);
+  });
+
+  // ── FRIENDS ───────────────────────────────────────────────────────────────
+
+  app.get("/api/friends", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const friends = await storage.getFriends(userId);
+    return res.json(friends);
+  });
+
+  // ── USER PUBLIC PROFILE ───────────────────────────────────────────────────
+
+  app.get("/api/users/:userId/profile", requireAuth, async (req: Request, res: Response) => {
+    const profile = await storage.getUserPublicProfile(req.params.userId);
+    if (!profile) return res.status(404).json({ message: "Usuário não encontrado" });
+    return res.json(profile);
+  });
+
+  app.post("/api/users/:userId/visit", requireAuth, async (req: Request, res: Response) => {
+    const visitorId = (req as AuthRequest).userId;
+    const visitedId = req.params.userId;
+
+    if (visitorId === visitedId) return res.json({ ok: true });
+
+    const [visitor, visited, visitedPersonality] = await Promise.all([
+      storage.getUser(visitorId),
+      storage.getUser(visitedId),
+      storage.getPersonality(visitedId),
+    ]);
+
+    if (!visitor || !visited || !visitedPersonality) return res.json({ ok: true });
+
+    const visitorName = visitor.displayName || visitor.username;
+
+    // Generate and save notification to the visited user's chat (non-blocking)
+    generateVisitNotification(visitorName, visited, visitedPersonality)
+      .then((content) => storage.createMessage({
+        userId: visitedId,
+        role: "assistant",
+        content,
+        metadata: JSON.stringify({ proactive: true, visitFrom: visitorId }),
+      }))
+      .catch(() => {});
+
+    return res.json({ ok: true });
   });
 
   const httpServer = createServer(app);
