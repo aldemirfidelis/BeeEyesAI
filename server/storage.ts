@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, sql, ne, notInArray, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, userPersonality, messages, missions, moodEntries, achievements,
@@ -69,6 +69,7 @@ export interface IStorage {
 
   // Friends
   getFriends(userId: string): Promise<(Omit<User, "password"> & { personality: UserPersonality | null })[]>;
+  searchUsers(query: string, requesterId: string): Promise<(Omit<User, "password"> & { connectionStatus: "none" | "pending" | "accepted" })[]>;
   getUserPublicProfile(userId: string): Promise<{
     user: Omit<User, "password">;
     recentPosts: Post[];
@@ -471,6 +472,47 @@ export class DrizzleStorage implements IStorage {
       ...u,
       personality: personalityMap.get(u.id) ?? null,
     }));
+  }
+
+  async searchUsers(query: string, requesterId: string): Promise<(Omit<User, "password"> & { connectionStatus: "none" | "pending" | "accepted" })[]> {
+    if (!query.trim()) return [];
+
+    const results = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          ne(users.id, requesterId),
+          or(
+            ilike(users.username, `%${query.trim()}%`),
+            ilike(users.displayName, `%${query.trim()}%`)
+          )
+        )
+      )
+      .limit(20);
+
+    if (results.length === 0) return [];
+
+    // Fetch all connections involving the requester in one query
+    const allConnections = await db
+      .select()
+      .from(userConnections)
+      .where(
+        or(
+          eq(userConnections.userId, requesterId),
+          eq(userConnections.targetUserId, requesterId)
+        )
+      );
+
+    return results.map(({ password: _pw, ...u }) => {
+      const conn = allConnections.find(
+        (c) => (c.userId === requesterId && c.targetUserId === u.id) ||
+               (c.targetUserId === requesterId && c.userId === u.id)
+      );
+      const connectionStatus: "none" | "pending" | "accepted" =
+        !conn ? "none" : conn.status === "accepted" ? "accepted" : "pending";
+      return { ...u, connectionStatus };
+    });
   }
 
   async getUserPublicProfile(userId: string): Promise<{

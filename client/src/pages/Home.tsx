@@ -69,6 +69,15 @@ interface Friend {
   personality: { interests: string } | null;
 }
 
+interface SearchUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  level: number;
+  currentStreak: number;
+  connectionStatus: "none" | "pending" | "accepted";
+}
+
 interface FriendProfile {
   user: {
     id: string;
@@ -137,6 +146,10 @@ export default function Home() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<FriendProfile | null>(null);
   const [friendProfileLoading, setFriendProfileLoading] = useState(false);
+  const [friendSearch, setFriendSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchConnecting, setSearchConnecting] = useState<Set<string>>(new Set());
 
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -190,10 +203,40 @@ export default function Home() {
     try {
       const res = await fetch(`/api/users/${friendId}/profile`, { headers: authHeaders() });
       if (res.ok) setSelectedFriend(await res.json());
-      // Fire visit notification (non-blocking)
       fetch(`/api/users/${friendId}/visit`, { method: "POST", headers: authHeaders() }).catch(() => {});
     } catch { /* ignore */ }
     finally { setFriendProfileLoading(false); }
+  };
+
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleFriendSearch = (q: string) => {
+    setFriendSearch(q);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (!q.trim()) { setSearchResults([]); return; }
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+        if (res.ok) setSearchResults(await res.json());
+      } catch { /* ignore */ }
+      finally { setSearchLoading(false); }
+    }, 350);
+  };
+
+  const handleSearchConnect = async (targetUserId: string) => {
+    if (searchConnecting.has(targetUserId)) return;
+    setSearchConnecting((prev) => new Set(prev).add(targetUserId));
+    try {
+      await fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ targetUserId }),
+      });
+      setSearchResults((prev) =>
+        prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "pending" as const } : u)
+      );
+    } catch { /* ignore */ }
+    finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
 
   // Load feed when user switches to feed tab
@@ -827,58 +870,113 @@ export default function Home() {
 
         <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
           <div className="space-y-3">
-            <h2 className="font-display text-lg font-semibold">Meus Amigos</h2>
+            <h2 className="font-display text-lg font-semibold">Amigos</h2>
 
-            {friendsLoading && (
-              <p className="text-sm text-muted-foreground text-center py-6">Carregando amigos...</p>
-            )}
+            {/* Search bar */}
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx={11} cy={11} r={8}/><path d="m21 21-4.35-4.35"/></svg>
+              <input
+                type="text"
+                placeholder="Buscar pessoas no BeeEyes..."
+                value={friendSearch}
+                onChange={(e) => handleFriendSearch(e.target.value)}
+                className="w-full h-10 pl-9 pr-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
 
-            {!friendsLoading && friends.length === 0 && (
-              <div className="text-center py-10 space-y-2">
-                <p className="text-3xl">👥</p>
-                <p className="text-sm font-semibold">Nenhum amigo ainda</p>
-                <p className="text-xs text-muted-foreground">Vá ao Feed e conecte-se com outras pessoas!</p>
+            {/* Search results */}
+            {friendSearch.trim() && (
+              <div className="space-y-2">
+                {searchResults.length === 0 && !searchLoading && (
+                  <p className="text-xs text-muted-foreground text-center py-3">Nenhum usuário encontrado.</p>
+                )}
+                {searchResults.map((u) => {
+                  const name = u.displayName || u.username;
+                  return (
+                    <Card key={u.id} className="p-3">
+                      <div className="flex items-center gap-3">
+                        <button className="flex-1 flex items-center gap-3 text-left" onClick={() => openFriendProfile(u.id)}>
+                          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-sm font-bold shrink-0">
+                            {name[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-semibold truncate">{name}</span>
+                              <span className="text-xs text-muted-foreground bg-secondary rounded px-1 shrink-0">Nv {u.level}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">@{u.username}</span>
+                          </div>
+                        </button>
+                        {u.connectionStatus === "accepted" ? (
+                          <span className="text-xs text-green-600 font-semibold shrink-0">✓ Amigos</span>
+                        ) : u.connectionStatus === "pending" ? (
+                          <span className="text-xs text-muted-foreground shrink-0">Pendente</span>
+                        ) : (
+                          <Button size="sm" variant="outline" className="text-xs h-7 px-2 shrink-0"
+                            onClick={() => handleSearchConnect(u.id)}
+                            disabled={searchConnecting.has(u.id)}>
+                            <UserPlus className="w-3 h-3 mr-1" />Conectar
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             )}
 
-            {friends.map((friend) => {
-              const name = friend.displayName || friend.username;
-              const interests: string[] = (() => { try { return JSON.parse(friend.personality?.interests || "[]"); } catch { return []; } })();
-              const lastActive = friend.lastActiveAt ? timeAgo(friend.lastActiveAt) : null;
-              return (
-                <button
-                  key={friend.id}
-                  className="w-full text-left"
-                  onClick={() => openFriendProfile(friend.id)}
-                >
-                  <Card className="p-3 hover:border-primary/50 transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-base font-bold shrink-0">
-                        {name[0].toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{name}</span>
-                          <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {friend.level}</span>
-                          {friend.currentStreak > 0 && (
-                            <span className="text-xs text-orange-500 flex items-center gap-0.5">
-                              <Flame className="w-3 h-3" />{friend.currentStreak}d
-                            </span>
-                          )}
+            {/* Friends list (only when not searching) */}
+            {!friendSearch.trim() && (
+              <>
+                {friendsLoading && (
+                  <p className="text-sm text-muted-foreground text-center py-6">Carregando...</p>
+                )}
+                {!friendsLoading && friends.length === 0 && (
+                  <div className="text-center py-8 space-y-2">
+                    <p className="text-3xl">👥</p>
+                    <p className="text-sm font-semibold">Nenhum amigo ainda</p>
+                    <p className="text-xs text-muted-foreground">Use a busca para encontrar pessoas!</p>
+                  </div>
+                )}
+                {friends.map((friend) => {
+                  const name = friend.displayName || friend.username;
+                  const interests: string[] = (() => { try { return JSON.parse(friend.personality?.interests || "[]"); } catch { return []; } })();
+                  const lastActive = friend.lastActiveAt ? timeAgo(friend.lastActiveAt) : null;
+                  return (
+                    <button key={friend.id} className="w-full text-left" onClick={() => openFriendProfile(friend.id)}>
+                      <Card className="p-3 hover:border-primary/50 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-base font-bold shrink-0">
+                            {name[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{name}</span>
+                              <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {friend.level}</span>
+                              {friend.currentStreak > 0 && (
+                                <span className="text-xs text-orange-500 flex items-center gap-0.5">
+                                  <Flame className="w-3 h-3" />{friend.currentStreak}d
+                                </span>
+                              )}
+                            </div>
+                            {interests.length > 0 && (
+                              <p className="text-xs text-muted-foreground truncate">{interests.slice(0, 3).join(" · ")}</p>
+                            )}
+                            {lastActive && (
+                              <p className="text-xs text-muted-foreground">Ativo {lastActive}</p>
+                            )}
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                         </div>
-                        {interests.length > 0 && (
-                          <p className="text-xs text-muted-foreground truncate">{interests.slice(0, 3).join(" · ")}</p>
-                        )}
-                        {lastActive && (
-                          <p className="text-xs text-muted-foreground">Ativo {lastActive}</p>
-                        )}
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                    </div>
-                  </Card>
-                </button>
-              );
-            })}
+                      </Card>
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
         </TabsContent>
 

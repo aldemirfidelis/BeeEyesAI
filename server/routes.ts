@@ -516,6 +516,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(friends);
   });
 
+  // ── USER SEARCH ──────────────────────────────────────────────────────────
+
+  app.get("/api/users/search", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const q = (req.query.q as string) || "";
+    if (!q.trim()) return res.json([]);
+    const results = await storage.searchUsers(q, userId);
+    return res.json(results);
+  });
+
   // ── USER PUBLIC PROFILE ───────────────────────────────────────────────────
 
   app.get("/api/users/:userId/profile", requireAuth, async (req: Request, res: Response) => {

@@ -1,12 +1,21 @@
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, RefreshControl, Modal, ActivityIndicator,
-  Pressable,
+  TextInput,
 } from "react-native";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { COLORS, FONTS } from "../../lib/theme";
+
+interface SearchUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  level: number;
+  currentStreak: number;
+  connectionStatus: "none" | "pending" | "accepted";
+}
 
 interface Friend {
   id: string;
@@ -55,6 +64,11 @@ export default function FriendsScreen() {
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [profile, setProfile] = useState<FriendProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [connecting, setConnecting] = useState<Set<string>>(new Set());
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: friends = [], isLoading } = useQuery<Friend[]>({
     queryKey: ["friends"],
@@ -67,6 +81,32 @@ export default function FriendsScreen() {
     await queryClient.invalidateQueries({ queryKey: ["friends"] });
     setRefreshing(false);
   }, [queryClient]);
+
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (!q.trim()) { setSearchResults([]); return; }
+    searchTimeout.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await api.get(`/api/users/search?q=${encodeURIComponent(q)}`);
+        setSearchResults(res.data);
+      } catch { /* ignore */ }
+      finally { setSearchLoading(false); }
+    }, 350);
+  };
+
+  const handleConnect = async (targetUserId: string) => {
+    if (connecting.has(targetUserId)) return;
+    setConnecting((prev) => new Set(prev).add(targetUserId));
+    try {
+      await api.post("/api/connections", { targetUserId });
+      setSearchResults((prev) =>
+        prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "pending" as const } : u)
+      );
+    } catch { /* ignore */ }
+    finally { setConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
+  };
 
   const openProfile = async (friendId: string) => {
     setSelectedFriendId(friendId);
@@ -96,23 +136,85 @@ export default function FriendsScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
-        {isLoading && (
-          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
+        {/* Search bar */}
+        <View style={styles.searchWrapper}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar pessoas no BeeEyes..."
+            placeholderTextColor={COLORS.muted}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {searchLoading && <ActivityIndicator size="small" color={COLORS.primary} />}
+        </View>
+
+        {/* Search results */}
+        {searchQuery.trim().length > 0 && (
+          <>
+            {searchResults.length === 0 && !searchLoading && (
+              <Text style={styles.noResults}>Nenhum usuário encontrado.</Text>
+            )}
+            {searchResults.map((u) => {
+              const name = u.displayName || u.username;
+              return (
+                <View key={u.id} style={styles.friendCard}>
+                  <TouchableOpacity style={styles.friendCardLeft} onPress={() => openProfile(u.id)} activeOpacity={0.7}>
+                    <View style={styles.friendAvatar}>
+                      <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.friendNameRow}>
+                        <Text style={styles.friendName}>{name}</Text>
+                        <View style={styles.levelBadge}>
+                          <Text style={styles.levelBadgeText}>Nv {u.level}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.friendInterests}>@{u.username}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  {u.connectionStatus === "accepted" ? (
+                    <Text style={styles.friendTag}>✓ Amigos</Text>
+                  ) : u.connectionStatus === "pending" ? (
+                    <Text style={styles.pendingTag}>Pendente</Text>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.connectBtn}
+                      onPress={() => handleConnect(u.id)}
+                      disabled={connecting.has(u.id)}
+                    >
+                      <Text style={styles.connectBtnText}>+ Conectar</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </>
         )}
 
-        {!isLoading && friends.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>👥</Text>
-            <Text style={styles.emptyTitle}>Nenhum amigo ainda</Text>
-            <Text style={styles.emptyDesc}>
-              Vá ao Feed e conecte-se com outras pessoas para vê-las aqui!
-            </Text>
-          </View>
+        {/* Friends list — only when not searching */}
+        {!searchQuery.trim() && (
+          <>
+            {isLoading && (
+              <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
+            )}
+
+            {!isLoading && friends.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyEmoji}>👥</Text>
+                <Text style={styles.emptyTitle}>Nenhum amigo ainda</Text>
+                <Text style={styles.emptyDesc}>Use a busca para encontrar pessoas!</Text>
+              </View>
+            )}
+          </>
         )}
 
-        {friends.map((friend) => {
+        {!searchQuery.trim() && friends.map((friend) => {
           const name = friend.displayName || friend.username;
           const interests: string[] = (() => {
             try { return JSON.parse(friend.personality?.interests || "[]"); } catch { return []; }
@@ -273,6 +375,46 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: COLORS.foreground },
   content: { padding: 16, gap: 10, paddingBottom: 32 },
+
+  // Search
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  searchIcon: { fontSize: 16 },
+  searchInput: {
+    flex: 1,
+    fontFamily: FONTS.sans,
+    fontSize: 14,
+    color: COLORS.foreground,
+    padding: 0,
+  },
+  noResults: {
+    fontFamily: FONTS.sans,
+    fontSize: 13,
+    color: COLORS.muted,
+    textAlign: "center",
+    paddingVertical: 16,
+  },
+  friendCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  friendTag: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "600", color: "#16a34a" },
+  pendingTag: { fontFamily: FONTS.sans, fontSize: 12, color: COLORS.muted },
+  connectBtn: {
+    backgroundColor: COLORS.primary + "22",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  connectBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: COLORS.primary },
 
   // Friend card
   friendCard: {
