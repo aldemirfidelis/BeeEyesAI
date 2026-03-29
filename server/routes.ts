@@ -6,7 +6,7 @@ import { requireAuth, type AuthRequest } from "./middleware/requireAuth";
 import {
   streamChat, parseAIActions, updatePersonalityFromMessage,
   generateProactiveMessage, generateMissionCelebration,
-  analyzePost, buildConnectionSuggestionMessage, generateVisitNotification,
+  analyzePost, buildConnectionSuggestionMessage, generateVisitNotification, summarizeInterestsForProfile,
 } from "./ai";
 import { checkRateLimit } from "./rateLimit";
 import { insertUserSchema, insertMissionSchema, insertMoodEntrySchema } from "../shared/schema";
@@ -545,6 +545,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  app.patch("/api/messages/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { content, metadata } = req.body;
+    if (typeof content !== "string" || typeof metadata !== "string") {
+      return res.status(400).json({ message: "content e metadata são obrigatórios" });
+    }
+    const updated = await storage.updateMessageMetadata(req.params.id, userId, { content, metadata });
+    if (!updated) return res.status(404).json({ message: "Mensagem não encontrada" });
+    return res.json(updated);
+  });
+
   // ── FRIENDS ───────────────────────────────────────────────────────────────
 
   app.get("/api/friends", requireAuth, async (req: Request, res: Response) => {
@@ -614,7 +625,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:userId/profile", requireAuth, async (req: Request, res: Response) => {
     const profile = await storage.getUserPublicProfile(req.params.userId);
     if (!profile) return res.status(404).json({ message: "Usuário não encontrado" });
-    return res.json(profile);
+    const summarizedInterests = await summarizeInterestsForProfile(profile.interests);
+    return res.json({ ...profile, interests: summarizedInterests });
   });
 
   app.post("/api/users/:userId/visit", requireAuth, async (req: Request, res: Response) => {
@@ -644,6 +656,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .catch(() => {});
 
     return res.json({ ok: true });
+  });
+
+  // ── COMMUNITIES ───────────────────────────────────────────────────────────────
+
+  app.get("/api/communities", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const search = (req.query.search as string) || "";
+    const list = await storage.getCommunities(userId, search);
+    return res.json(list);
+  });
+
+  app.post("/api/communities", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { name, description, category, emoji } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: "Nome obrigatório" });
+    const community = await storage.createCommunity({ name: name.trim(), description: description?.trim() || null, category: category || "geral", emoji: emoji || "🐝", ownerId: userId });
+    return res.status(201).json(community);
+  });
+
+  app.get("/api/communities/mine", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const list = await storage.getUserCommunities(userId);
+    return res.json(list);
+  });
+
+  app.get("/api/communities/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const community = await storage.getCommunityById(req.params.id, userId);
+    if (!community) return res.status(404).json({ message: "Comunidade não encontrada" });
+    return res.json(community);
+  });
+
+  app.post("/api/communities/:id/join", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    await storage.joinCommunity(req.params.id, userId);
+    return res.json({ ok: true });
+  });
+
+  app.post("/api/communities/:id/leave", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    await storage.leaveCommunity(req.params.id, userId);
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/communities/:id/posts", requireAuth, async (req: Request, res: Response) => {
+    const posts = await storage.getCommunityPosts(req.params.id);
+    return res.json(posts);
+  });
+
+  app.post("/api/communities/:id/posts", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: "Conteúdo obrigatório" });
+    // check membership
+    const community = await storage.getCommunityById(req.params.id, userId);
+    if (!community?.isMember) return res.status(403).json({ message: "Entre na comunidade para publicar" });
+    const post = await storage.createCommunityPost({ communityId: req.params.id, userId, content: content.trim() });
+    return res.status(201).json(post);
   });
 
   const httpServer = createServer(app);

@@ -3,6 +3,7 @@ import { db } from "./db";
 import {
   users, userPersonality, messages, missions, moodEntries, achievements,
   posts, postLikes, userConnections, directMessages,
+  communities, communityMembers, communityPosts,
   type User, type InsertUser,
   type UserPersonality, type InsertUserPersonality,
   type Message, type InsertMessage,
@@ -12,6 +13,8 @@ import {
   type Post, type InsertPost,
   type UserConnection, type InsertConnection,
   type DirectMessage, type InsertDirectMessage,
+  type Community, type InsertCommunity,
+  type CommunityPost, type InsertCommunityPost,
   xpForLevel,
 } from "../shared/schema";
 
@@ -33,6 +36,7 @@ export interface IStorage {
   // Messages
   getMessagesByUser(userId: string, limit?: number): Promise<Message[]>;
   createMessage(msg: InsertMessage): Promise<Message>;
+  updateMessageMetadata(id: string, userId: string, data: { content: string; metadata: string }): Promise<Message | undefined>;
 
   // Missions
   getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]>;
@@ -90,6 +94,16 @@ export interface IStorage {
     lastMessageFromMe: boolean;
     unreadCount: number;
   }>>;
+
+  // Communities
+  getCommunities(userId: string, search?: string): Promise<(Community & { isMember: boolean })[]>;
+  createCommunity(data: InsertCommunity): Promise<Community>;
+  getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null>;
+  joinCommunity(communityId: string, userId: string): Promise<void>;
+  leaveCommunity(communityId: string, userId: string): Promise<void>;
+  getCommunityPosts(communityId: string): Promise<(CommunityPost & { username: string; displayName: string | null })[]>;
+  createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost>;
+  getUserCommunities(userId: string): Promise<Community[]>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -210,6 +224,15 @@ export class DrizzleStorage implements IStorage {
   async createMessage(msg: InsertMessage): Promise<Message> {
     const [message] = await db.insert(messages).values(msg).returning();
     return message;
+  }
+
+  async updateMessageMetadata(id: string, userId: string, data: { content: string; metadata: string }): Promise<Message | undefined> {
+    const [updated] = await db
+      .update(messages)
+      .set({ content: data.content, metadata: data.metadata })
+      .where(and(eq(messages.id, id), eq(messages.userId, userId)))
+      .returning();
+    return updated;
   }
 
   async getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]> {
@@ -653,6 +676,82 @@ export class DrizzleStorage implements IStorage {
       })
       .filter((c): c is NonNullable<typeof c> => c !== null)
       .sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
+  }
+  // ── Communities ───────────────────────────────────────────────────────────
+
+  async getCommunities(userId: string, search?: string): Promise<(Community & { isMember: boolean })[]> {
+    const rows = search?.trim()
+      ? await db.select().from(communities).where(
+          or(ilike(communities.name, `%${search}%`), ilike(communities.description, `%${search}%`))
+        ).orderBy(desc(communities.membersCount))
+      : await db.select().from(communities).orderBy(desc(communities.membersCount));
+
+    if (rows.length === 0) return [];
+
+    const memberships = await db
+      .select({ communityId: communityMembers.communityId })
+      .from(communityMembers)
+      .where(eq(communityMembers.userId, userId));
+
+    const memberSet = new Set(memberships.map((m) => m.communityId));
+    return rows.map((c) => ({ ...c, isMember: memberSet.has(c.id) }));
+  }
+
+  async createCommunity(data: InsertCommunity): Promise<Community> {
+    const [community] = await db.insert(communities).values(data).returning();
+    await db.insert(communityMembers).values({ communityId: community.id, userId: data.ownerId, role: "owner" });
+    return community;
+  }
+
+  async getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null> {
+    const [community] = await db.select().from(communities).where(eq(communities.id, id));
+    if (!community) return null;
+    const [membership] = await db.select().from(communityMembers).where(and(eq(communityMembers.communityId, id), eq(communityMembers.userId, userId)));
+    return { ...community, isMember: !!membership, memberRole: membership?.role };
+  }
+
+  async joinCommunity(communityId: string, userId: string): Promise<void> {
+    const [existing] = await db.select().from(communityMembers).where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, userId)));
+    if (existing) return;
+    await db.insert(communityMembers).values({ communityId, userId, role: "member" });
+    await db.update(communities).set({ membersCount: sql`${communities.membersCount} + 1` }).where(eq(communities.id, communityId));
+  }
+
+  async leaveCommunity(communityId: string, userId: string): Promise<void> {
+    const deleted = await db.delete(communityMembers).where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, userId), ne(communityMembers.role, "owner"))).returning({ id: communityMembers.id });
+    if (deleted.length > 0) {
+      await db.update(communities).set({ membersCount: sql`GREATEST(${communities.membersCount} - 1, 1)` }).where(eq(communities.id, communityId));
+    }
+  }
+
+  async getCommunityPosts(communityId: string): Promise<(CommunityPost & { username: string; displayName: string | null })[]> {
+    const rows = await db
+      .select({
+        id: communityPosts.id,
+        communityId: communityPosts.communityId,
+        userId: communityPosts.userId,
+        content: communityPosts.content,
+        createdAt: communityPosts.createdAt,
+        username: users.username,
+        displayName: users.displayName,
+      })
+      .from(communityPosts)
+      .innerJoin(users, eq(communityPosts.userId, users.id))
+      .where(eq(communityPosts.communityId, communityId))
+      .orderBy(desc(communityPosts.createdAt))
+      .limit(50);
+    return rows;
+  }
+
+  async createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost> {
+    const [post] = await db.insert(communityPosts).values(data).returning();
+    return post;
+  }
+
+  async getUserCommunities(userId: string): Promise<Community[]> {
+    const memberships = await db.select({ communityId: communityMembers.communityId }).from(communityMembers).where(eq(communityMembers.userId, userId));
+    if (memberships.length === 0) return [];
+    return db.select().from(communities).where(inArray(communities.id, memberships.map((m) => m.communityId))).orderBy(desc(communities.membersCount));
   }
 }
 

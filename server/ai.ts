@@ -706,6 +706,54 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
   );
 }
 
+// ── Profile Interest Summary ──────────────────────────────────────────────────
+
+export async function summarizeInterestsForProfile(rawInterests: string[]): Promise<string[]> {
+  if (rawInterests.length === 0) return [];
+
+  const prompt = `Você receberá uma lista de interesses e tópicos extraídos de conversas pessoais de um usuário. Alguns itens podem conter detalhes muito pessoais ou específicos.
+
+Sua tarefa: converta essa lista em no máximo 5 categorias amplas e genéricas, adequadas para exibição pública em um perfil. Use termos curtos (1-3 palavras cada), sem nomes próprios, datas ou informações pessoais identificáveis.
+
+Interesses brutos:
+${rawInterests.map((i) => `- ${i}`).join("\n")}
+
+Responda APENAS com um array JSON de strings. Exemplo: ["Tecnologia", "Música", "Esportes"]`;
+
+  return callWithFallback<string[]>(
+    [
+      async () => {
+        const r = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 100,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = r.choices[0]?.message?.content?.trim() ?? "[]";
+        const match = text.match(/\[.*\]/s);
+        return match ? JSON.parse(match[0]) : [];
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().trim();
+        const match = text.match(/\[.*\]/s);
+        return match ? JSON.parse(match[0]) : [];
+      },
+      async () => {
+        const r = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 100,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = r.choices[0]?.message?.content?.trim() ?? "[]";
+        const match = text.match(/\[.*\]/s);
+        return match ? JSON.parse(match[0]) : [];
+      },
+    ],
+    rawInterests.slice(0, 3)
+  );
+}
+
 // ── Action Parser ─────────────────────────────────────────────────────────────
 
 export function parseAIActions(response: string): {

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 
@@ -95,6 +95,29 @@ interface FriendProfile {
   activeMissionsCount: number;
 }
 
+interface Community {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  emoji: string;
+  ownerId: string;
+  membersCount: number;
+  createdAt: string;
+  isMember?: boolean;
+  memberRole?: string;
+}
+
+interface CommunityPost {
+  id: string;
+  communityId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  username: string;
+  displayName: string | null;
+}
+
 interface DMConversation {
   user: { id: string; username: string; displayName: string | null; level: number };
   lastMessage: string;
@@ -151,7 +174,7 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed" | "inbox">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed" | "inbox" | "communities">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
@@ -171,6 +194,20 @@ export default function Home() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<FriendProfile | null>(null);
   const [friendProfileLoading, setFriendProfileLoading] = useState(false);
+
+  // Communities state
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(false);
+  const [communitySearch, setCommunitySearch] = useState("");
+  const [selectedCommunity, setSelectedCommunity] = useState<(Community & { isMember: boolean; memberRole?: string }) | null>(null);
+  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([]);
+  const [communityPostsLoading, setCommunityPostsLoading] = useState(false);
+  const [communityPostInput, setCommunityPostInput] = useState("");
+  const [communityPostSending, setCommunityPostSending] = useState(false);
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false);
+  const [newCommunity, setNewCommunity] = useState({ name: "", description: "", category: "geral", emoji: "🐝" });
+  const [creatingCommunity, setCreatingCommunity] = useState(false);
+  const [communityJoining, setCommunityJoining] = useState<string | null>(null);
   const [friendSearch, setFriendSearch] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -390,17 +427,22 @@ export default function Home() {
         loadFriends();
       }
 
+      const resolvedContent =
+        decision === "accept"
+          ? "Solicitacao aceita. Agora voces podem conversar em Mensagens."
+          : "Solicitacao recusada.";
+      const resolvedMetadata = JSON.stringify({ type: "connection_request_resolved", decision });
+
+      await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content: resolvedContent, metadata: resolvedMetadata }),
+      });
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
-            ? {
-                ...m,
-                metadata: JSON.stringify({ type: "connection_request_resolved", decision }),
-                content:
-                  decision === "accept"
-                    ? "Solicitacao aceita. Agora voces podem conversar em Mensagens."
-                    : "Solicitacao recusada.",
-              }
+            ? { ...m, metadata: resolvedMetadata, content: resolvedContent }
             : m,
         ),
       );
@@ -424,6 +466,98 @@ export default function Home() {
     finally { setFeedLoading(false); }
   }, [token]);
 
+  const loadCommunities = useCallback(async (search = "") => {
+    if (!token) return;
+    setCommunitiesLoading(true);
+    try {
+      const res = await fetch(`/api/communities?search=${encodeURIComponent(search)}`, { headers: authHeaders() });
+      if (res.ok) setCommunities(await res.json());
+    } finally {
+      setCommunitiesLoading(false);
+    }
+  }, [token]);
+
+  const openCommunity = async (id: string) => {
+    setCommunityPostsLoading(true);
+    setSelectedCommunity(null);
+    setCommunityPosts([]);
+    try {
+      const [cRes, pRes] = await Promise.all([
+        fetch(`/api/communities/${id}`, { headers: authHeaders() }),
+        fetch(`/api/communities/${id}/posts`, { headers: authHeaders() }),
+      ]);
+      if (cRes.ok) setSelectedCommunity(await cRes.json());
+      if (pRes.ok) setCommunityPosts(await pRes.json());
+    } finally {
+      setCommunityPostsLoading(false);
+    }
+  };
+
+  const handleJoinCommunity = async (communityId: string) => {
+    setCommunityJoining(communityId);
+    try {
+      const res = await fetch(`/api/communities/${communityId}/join`, { method: "POST", headers: authHeaders() });
+      if (res.ok) {
+        setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isMember: true, membersCount: c.membersCount + 1 } : c));
+        if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, isMember: true, memberRole: "member" } : prev);
+      }
+    } finally {
+      setCommunityJoining(null);
+    }
+  };
+
+  const handleLeaveCommunity = async (communityId: string) => {
+    setCommunityJoining(communityId);
+    try {
+      const res = await fetch(`/api/communities/${communityId}/leave`, { method: "POST", headers: authHeaders() });
+      if (res.ok) {
+        setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isMember: false, membersCount: Math.max(c.membersCount - 1, 1) } : c));
+        if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, isMember: false, memberRole: undefined } : prev);
+      }
+    } finally {
+      setCommunityJoining(null);
+    }
+  };
+
+  const handleSendCommunityPost = async () => {
+    if (!communityPostInput.trim() || !selectedCommunity || communityPostSending) return;
+    setCommunityPostSending(true);
+    try {
+      const res = await fetch(`/api/communities/${selectedCommunity.id}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content: communityPostInput.trim() }),
+      });
+      if (res.ok) {
+        const post = await res.json();
+        setCommunityPosts((prev) => [post, ...prev]);
+        setCommunityPostInput("");
+      }
+    } finally {
+      setCommunityPostSending(false);
+    }
+  };
+
+  const handleCreateCommunity = async () => {
+    if (!newCommunity.name.trim() || creatingCommunity) return;
+    setCreatingCommunity(true);
+    try {
+      const res = await fetch("/api/communities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(newCommunity),
+      });
+      if (res.ok) {
+        const community = await res.json();
+        setCommunities((prev) => [{ ...community, isMember: true }, ...prev]);
+        setShowCreateCommunity(false);
+        setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝" });
+      }
+    } finally {
+      setCreatingCommunity(false);
+    }
+  };
+
   const loadConversationSuggestions = useCallback(async () => {
     if (!token) return;
     try {
@@ -441,7 +575,10 @@ export default function Home() {
       loadDMConversations();
       loadConversationSuggestions();
     }
-  }, [mobileTab, loadFeed, loadFriends, loadDMConversations, loadConversationSuggestions]);
+    if (mobileTab === "communities") {
+      loadCommunities(communitySearch);
+    }
+  }, [mobileTab, loadFeed, loadFriends, loadDMConversations, loadConversationSuggestions, loadCommunities]);
 
   useEffect(() => {
     if (!token || mobileTab !== "inbox") return;
@@ -1091,6 +1228,9 @@ export default function Home() {
             loadDMConversations();
             loadConversationSuggestions();
           }
+          if (v === "communities") {
+            loadCommunities(communitySearch);
+          }
         }}
       >
         <TabsList className="mx-4 mt-4 md:flex hidden">
@@ -1109,6 +1249,10 @@ export default function Home() {
           <TabsTrigger value="inbox" className="flex-1">
             <MessageSquare className="w-4 h-4 mr-2" />
             Mensagens
+          </TabsTrigger>
+          <TabsTrigger value="communities" className="flex-1">
+            <Users2 className="w-4 h-4 mr-2" />
+            Comunidades
           </TabsTrigger>
         </TabsList>
 
@@ -1549,6 +1693,182 @@ export default function Home() {
           </div>
         </TabsContent>
 
+        <TabsContent value="communities" className="flex-1 overflow-y-auto p-0 m-0 relative">
+          {/* Community detail overlay */}
+          {(communityPostsLoading || selectedCommunity) && (
+            <div className="absolute inset-0 z-20 bg-background overflow-y-auto">
+              <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-3">
+                <button onClick={() => setSelectedCommunity(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-5 h-5" />
+                </button>
+                {selectedCommunity && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="text-2xl">{selectedCommunity.emoji}</span>
+                    <div>
+                      <h2 className="font-bold text-sm">{selectedCommunity.name}</h2>
+                      <p className="text-xs text-muted-foreground">{selectedCommunity.membersCount} membros</p>
+                    </div>
+                    <div className="ml-auto">
+                      {selectedCommunity.memberRole === "owner" ? (
+                        <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-medium">Fundador</span>
+                      ) : selectedCommunity.isMember ? (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={communityJoining === selectedCommunity.id} onClick={() => handleLeaveCommunity(selectedCommunity.id)}>Sair</Button>
+                      ) : (
+                        <Button size="sm" className="h-7 text-xs" disabled={communityJoining === selectedCommunity.id} onClick={() => handleJoinCommunity(selectedCommunity.id)}>Entrar</Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {communityPostsLoading && (
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                </div>
+              )}
+
+              {selectedCommunity && !communityPostsLoading && (
+                <div className="p-4 space-y-4">
+                  {selectedCommunity.description && (
+                    <p className="text-sm text-muted-foreground bg-secondary/30 rounded-xl px-4 py-3">{selectedCommunity.description}</p>
+                  )}
+
+                  {/* Post input */}
+                  {selectedCommunity.isMember && (
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Escreva algo para a comunidade..."
+                        className="text-sm resize-none min-h-[60px]"
+                        value={communityPostInput}
+                        onChange={(e) => setCommunityPostInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendCommunityPost(); } }}
+                      />
+                      <Button size="sm" className="self-end h-9 px-3" disabled={!communityPostInput.trim() || communityPostSending} onClick={handleSendCommunityPost}>
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Posts */}
+                  <div className="space-y-3">
+                    {communityPosts.length === 0 && (
+                      <p className="text-center text-sm text-muted-foreground py-8">Nenhuma publicação ainda. Seja o primeiro!</p>
+                    )}
+                    {communityPosts.map((post) => (
+                      <div key={post.id} className="bg-secondary/30 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
+                            {(post.displayName || post.username)[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold">{post.displayName || post.username}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm leading-relaxed">{post.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Create community modal */}
+          {showCreateCommunity && (
+            <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-lg">Nova Comunidade</h3>
+                  <button onClick={() => setShowCreateCommunity(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input placeholder="Emoji" className="w-16 text-center text-xl" value={newCommunity.emoji} onChange={(e) => setNewCommunity((p) => ({ ...p, emoji: e.target.value }))} maxLength={2} />
+                    <Input placeholder="Nome da comunidade *" className="flex-1" value={newCommunity.name} onChange={(e) => setNewCommunity((p) => ({ ...p, name: e.target.value }))} />
+                  </div>
+                  <Textarea placeholder="Descrição (opcional)" className="resize-none text-sm" rows={3} value={newCommunity.description} onChange={(e) => setNewCommunity((p) => ({ ...p, description: e.target.value }))} />
+                  <select className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={newCommunity.category} onChange={(e) => setNewCommunity((p) => ({ ...p, category: e.target.value }))}>
+                    <option value="geral">Geral</option>
+                    <option value="tecnologia">Tecnologia</option>
+                    <option value="música">Música</option>
+                    <option value="esportes">Esportes</option>
+                    <option value="jogos">Jogos</option>
+                    <option value="arte">Arte</option>
+                    <option value="cinema">Cinema & Séries</option>
+                    <option value="livros">Livros</option>
+                    <option value="culinária">Culinária</option>
+                    <option value="viagens">Viagens</option>
+                    <option value="saúde">Saúde & Bem-estar</option>
+                    <option value="humor">Humor</option>
+                  </select>
+                </div>
+                <Button className="w-full" disabled={!newCommunity.name.trim() || creatingCommunity} onClick={handleCreateCommunity}>
+                  {creatingCommunity ? "Criando..." : "Criar Comunidade"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Header */}
+          <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-2">
+            <Input
+              placeholder="Buscar comunidades..."
+              className="flex-1 h-8 text-sm"
+              value={communitySearch}
+              onChange={(e) => { setCommunitySearch(e.target.value); loadCommunities(e.target.value); }}
+            />
+            <Button size="sm" className="h-8 px-3 text-xs gap-1" onClick={() => setShowCreateCommunity(true)}>
+              <Plus className="w-3 h-3" /> Criar
+            </Button>
+          </div>
+
+          {/* My communities section */}
+          {communities.filter((c) => c.isMember).length > 0 && (
+            <div className="px-4 pt-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">MINHAS COMUNIDADES</p>
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {communities.filter((c) => c.isMember).map((c) => (
+                  <button key={c.id} onClick={() => openCommunity(c.id)} className="flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-secondary/50 transition-colors w-16">
+                    <span className="text-2xl">{c.emoji}</span>
+                    <p className="text-xs text-center leading-tight line-clamp-2">{c.name}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* All communities */}
+          <div className="px-4 pt-4 pb-6 space-y-3">
+            {communities.filter((c) => !c.isMember).length > 0 && (
+              <p className="text-xs font-semibold text-muted-foreground">DESCOBRIR COMUNIDADES</p>
+            )}
+            {communitiesLoading && (
+              <p className="text-center text-sm text-muted-foreground py-8">Carregando...</p>
+            )}
+            {!communitiesLoading && communities.filter((c) => !c.isMember).length === 0 && communities.filter((c) => c.isMember).length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-12">Nenhuma comunidade encontrada.<br/>Que tal criar a primeira?</p>
+            )}
+            {communities.filter((c) => !c.isMember).map((c) => (
+              <div key={c.id} className="bg-secondary/30 rounded-xl p-4 flex items-start gap-3 cursor-pointer hover:bg-secondary/50 transition-colors" onClick={() => openCommunity(c.id)}>
+                <span className="text-3xl">{c.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-sm">{c.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{c.category} · {c.membersCount} {c.membersCount === 1 ? "membro" : "membros"}</p>
+                    </div>
+                    <Button size="sm" className="h-7 text-xs flex-shrink-0" disabled={communityJoining === c.id} onClick={(e) => { e.stopPropagation(); handleJoinCommunity(c.id); }}>
+                      {communityJoining === c.id ? "..." : "Entrar"}
+                    </Button>
+                  </div>
+                  {c.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </TabsContent>
+
       </Tabs>
     </>
   );
@@ -1559,7 +1879,7 @@ export default function Home() {
       {/* ── Chat area ── */}
       <div
         className={`flex-1 flex flex-col min-h-0 ${
-          mobileTab === "chat" ? "flex" : mobileTab === "inbox" ? "hidden" : "hidden md:flex"
+          mobileTab === "chat" ? "flex" : (mobileTab === "inbox" || mobileTab === "communities") ? "hidden" : "hidden md:flex"
         }`}
       >
         <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
@@ -1674,7 +1994,7 @@ export default function Home() {
         className={`bg-card/30 backdrop-blur-sm min-h-0 ${
           mobileTab === "chat"
             ? "hidden md:flex md:w-96 md:border-l md:flex-col"
-            : mobileTab === "inbox"
+            : (mobileTab === "inbox" || mobileTab === "communities")
               ? "flex flex-1 min-w-0 flex-col"
               : "flex flex-col flex-1 min-h-0 md:w-96 md:border-l md:flex"
         }`}
@@ -1718,6 +2038,13 @@ export default function Home() {
         >
           <MessageSquare className="w-5 h-5" />
           Msg
+        </button>
+        <button
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("communities"); loadCommunities(communitySearch); }}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "communities" ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <Users2 className="w-5 h-5" />
+          Grupos
         </button>
         <button
           onClick={() => setShowSettingsScreen(true)}

@@ -103,6 +103,33 @@ export const directMessages = pgTable("direct_messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const communities = pgTable("communities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 60 }).notNull().default("geral"),
+  emoji: varchar("emoji", { length: 10 }).notNull().default("🐝"),
+  ownerId: varchar("owner_id").notNull(),
+  membersCount: integer("members_count").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const communityMembers = pgTable("community_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  communityId: varchar("community_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  role: text("role").notNull().default("member"), // "owner" | "member"
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+});
+
+export const communityPosts = pgTable("community_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  communityId: varchar("community_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -156,6 +183,9 @@ export const insertDirectMessageSchema = createInsertSchema(directMessages).omit
   createdAt: true,
 });
 
+export const insertCommunitySchema = createInsertSchema(communities).omit({ id: true, createdAt: true, membersCount: true });
+export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, createdAt: true });
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -175,6 +205,11 @@ export type UserConnection = typeof userConnections.$inferSelect;
 export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 export type DirectMessage = typeof directMessages.$inferSelect;
 export type InsertDirectMessage = z.infer<typeof insertDirectMessageSchema>;
+export type Community = typeof communities.$inferSelect;
+export type InsertCommunity = typeof communities.$inferInsert;
+export type CommunityMember = typeof communityMembers.$inferSelect;
+export type CommunityPost = typeof communityPosts.$inferSelect;
+export type InsertCommunityPost = typeof communityPosts.$inferInsert;
 
 // Level calculation helper
 export function xpForLevel(level: number): number {
