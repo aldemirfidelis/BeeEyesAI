@@ -21,6 +21,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  metadata?: string | null;
 }
 
 interface Mission {
@@ -182,6 +183,7 @@ export default function Home() {
   const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
   const [dmInput, setDmInput] = useState("");
   const [dmSending, setDmSending] = useState(false);
+  const [processingConnectionRequestId, setProcessingConnectionRequestId] = useState<string | null>(null);
 
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -224,7 +226,15 @@ export default function Home() {
 
     fetch("/api/messages?limit=50", { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : [])
-      .then((msgs: any[]) => setMessages(msgs.map((m) => ({ ...m, timestamp: new Date(m.createdAt) }))));
+      .then((msgs: any[]) =>
+        setMessages(
+          msgs.map((m) => ({
+            ...m,
+            metadata: m.metadata ?? null,
+            timestamp: new Date(m.createdAt),
+          })),
+        ),
+      );
 
     fetch("/api/missions?completed=false", { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : [])
@@ -336,6 +346,56 @@ export default function Home() {
       );
     } catch { /* ignore */ }
     finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
+  };
+
+  const getConnectionRequestMeta = (metadata?: string | null) => {
+    if (!metadata) return null;
+    try {
+      const parsed = JSON.parse(metadata);
+      if (parsed?.type === "connection_request" && parsed?.connectionId) return parsed as {
+        type: "connection_request";
+        connectionId: string;
+        fromUserId?: string;
+        fromName?: string;
+      };
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleConnectionDecision = async (messageId: string, connectionId: string, decision: "accept" | "reject") => {
+    if (processingConnectionRequestId) return;
+    setProcessingConnectionRequestId(connectionId);
+    try {
+      const endpoint = decision === "accept" ? "accept" : "reject";
+      const res = await fetch(`/api/connections/${connectionId}/${endpoint}`, {
+        method: "PUT",
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+
+      if (decision === "accept") {
+        loadFriends();
+      }
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                metadata: JSON.stringify({ type: "connection_request_resolved", decision }),
+                content:
+                  decision === "accept"
+                    ? "Solicitacao aceita. Agora voces podem conversar em Mensagens."
+                    : "Solicitacao recusada.",
+              }
+            : m,
+        ),
+      );
+    } finally {
+      setProcessingConnectionRequestId(null);
+    }
   };
 
   // Load feed when user switches to feed tab
@@ -1495,6 +1555,33 @@ export default function Home() {
                   role={message.role}
                   content={message.content}
                   timestamp={message.timestamp}
+                  actions={(() => {
+                    if (message.role !== "assistant") return null;
+                    const meta = getConnectionRequestMeta(message.metadata);
+                    if (!meta) return null;
+                    const isBusy = processingConnectionRequestId === meta.connectionId;
+                    return (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={!!processingConnectionRequestId}
+                          onClick={() => handleConnectionDecision(message.id, meta.connectionId, "accept")}
+                        >
+                          {isBusy ? "Processando..." : "Aceitar"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          disabled={!!processingConnectionRequestId}
+                          onClick={() => handleConnectionDecision(message.id, meta.connectionId, "reject")}
+                        >
+                          Recusar
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 />
               ))}
               {streamingText && (

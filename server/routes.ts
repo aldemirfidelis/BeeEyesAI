@@ -498,15 +498,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (existing) return res.status(409).json({ message: "Solicitação já enviada" });
 
     const connection = await storage.createConnection({ userId, targetUserId });
+
+    const requester = await storage.getUser(userId);
+    if (requester) {
+      const requesterName = requester.displayName || requester.username;
+      await storage.createMessage({
+        userId: targetUserId,
+        role: "assistant",
+        content: `${requesterName} quer se conectar com voce. Deseja aceitar a solicitacao de amizade?`,
+        metadata: JSON.stringify({
+          type: "connection_request",
+          connectionId: connection.id,
+          fromUserId: requester.id,
+          fromName: requesterName,
+        }),
+      });
+    }
+
     return res.status(201).json(connection);
   });
 
   app.put("/api/connections/:id/accept", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
     const connection = await storage.acceptConnection(req.params.id, userId);
-    if (!connection) return res.status(404).json({ message: "Solicitação não encontrada" });
+    if (!connection) return res.status(404).json({ message: "Solicitacao nao encontrada" });
+
+    const accepter = await storage.getUser(userId);
+    if (accepter) {
+      const accepterName = accepter.displayName || accepter.username;
+      await storage.createMessage({
+        userId: connection.userId,
+        role: "assistant",
+        content: `${accepterName} aceitou sua solicitacao de amizade. Agora voces podem conversar!`,
+        metadata: JSON.stringify({ type: "connection_accepted", byUserId: userId }),
+      });
+    }
+
     return res.json(connection);
   });
+
+  app.put("/api/connections/:id/reject", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const rejected = await storage.rejectConnection(req.params.id, userId);
+    if (!rejected) return res.status(404).json({ message: "Solicitacao nao encontrada" });
+    return res.json({ ok: true });
+  });
+
 
   // ── FRIENDS ───────────────────────────────────────────────────────────────
 

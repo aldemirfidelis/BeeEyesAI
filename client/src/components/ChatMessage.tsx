@@ -1,13 +1,15 @@
 import { motion } from "framer-motion";
 import { User } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
   timestamp?: Date;
+  actions?: ReactNode;
 }
 
-export default function ChatMessage({ role, content, timestamp }: ChatMessageProps) {
+export default function ChatMessage({ role, content, timestamp, actions }: ChatMessageProps) {
   const isUser = role === "user";
 
   return (
@@ -37,6 +39,7 @@ export default function ChatMessage({ role, content, timestamp }: ChatMessagePro
         >
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>
         </div>
+        {actions ? <div className="mt-2 w-full">{actions}</div> : null}
         {timestamp && (
           <span className="text-xs text-muted-foreground mt-1 px-2">
             {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
