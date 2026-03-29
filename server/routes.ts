@@ -801,7 +801,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const community = await storage.getCommunityById(req.params.id, userId);
     if (!community?.isMember) return res.status(403).json({ message: "Entre na comunidade para publicar" });
     const post = await storage.createCommunityPost({ communityId: req.params.id, userId, content: content.trim() });
-    return res.status(201).json(post);
+    const author = await storage.getUser(userId);
+    return res.status(201).json({
+      ...post,
+      username: author?.username ?? "usuário",
+      displayName: author?.displayName ?? null,
+    });
   });
 
   const httpServer = createServer(app);

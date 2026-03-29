@@ -1796,10 +1796,10 @@ export default function Home() {
                       <div key={post.id} className="bg-secondary/30 rounded-xl p-4 space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
-                            {(post.displayName || post.username)[0].toUpperCase()}
+                            {(post.displayName || post.username || "?")[0].toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-xs font-semibold">{post.displayName || post.username}</p>
+                            <p className="text-xs font-semibold">{post.displayName || post.username || "Usuário"}</p>
                             <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
                           </div>
                         </div>
