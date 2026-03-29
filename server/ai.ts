@@ -780,6 +780,63 @@ Responda APENAS com um array JSON de strings. Exemplo: ["Tecnologia", "Música",
   );
 }
 
+// ── News Article Summarizer ───────────────────────────────────────────────────
+
+export async function summarizeNewsArticle(url: string, title: string): Promise<string | null> {
+  let articleText = "";
+  try {
+    const pageRes = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    const html = await pageRes.text();
+    articleText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .slice(0, 4000);
+  } catch {
+    // if can't fetch, summarize only from title
+    articleText = "";
+  }
+
+  const prompt = `Você é um assistente que resume notícias em português do Brasil de forma clara e objetiva.
+
+Título: "${title}"
+${articleText ? `\nConteúdo extraído:\n${articleText}` : ""}
+
+Faça um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principais. Escreva em parágrafo corrido, sem bullet points. Responda APENAS com o resumo.`;
+
+  return callWithFallback<string | null>(
+    [
+      async () => {
+        const r = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 250,
+          messages: [{ role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? null;
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim() || null;
+      },
+      async () => {
+        const r = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 250,
+          messages: [{ role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? null;
+      },
+    ],
+    null
+  );
+}
+
 // ── Action Parser ─────────────────────────────────────────────────────────────
 
 export function parseAIActions(response: string): {

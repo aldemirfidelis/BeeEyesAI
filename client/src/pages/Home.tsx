@@ -16,6 +16,7 @@ import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 import FeedPostCard from "@/components/FeedPostCard";
+import NewsCard from "@/components/NewsCard";
 
 interface Message {
   id: string;
@@ -2000,18 +2001,13 @@ export default function Home() {
                       return (
                         <div className="space-y-2">
                           {(meta.items as NewsItem[]).map((item, index) => (
-                            <a
+                            <NewsCard
                               key={`${item.link}-${index}`}
-                              href={item.link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block rounded-2xl border border-border bg-card/70 px-4 py-3 hover:bg-card transition-colors"
-                            >
-                              <p className="text-sm font-semibold leading-snug">{item.title}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Fonte: {item.source || "Google News"}
-                              </p>
-                            </a>
+                              title={item.title}
+                              link={item.link}
+                              source={item.source}
+                              authHeaders={authHeaders}
+                            />
                           ))}
                         </div>
                       );
@@ -2059,16 +2055,13 @@ export default function Home() {
                             <div className="space-y-2">
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notícias</p>
                               {digest.newsItems.map((item, index) => (
-                                <a
+                                <NewsCard
                                   key={`${item.link}-${index}`}
-                                  href={item.link}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block rounded-2xl border border-border bg-card/70 px-4 py-3 hover:bg-card transition-colors"
-                                >
-                                  <p className="text-sm font-semibold leading-snug">{item.title}</p>
-                                  <p className="mt-1 text-xs text-muted-foreground">Fonte: {item.source || "Google News"}</p>
-                                </a>
+                                  title={item.title}
+                                  link={item.link}
+                                  source={item.source}
+                                  authHeaders={authHeaders}
+                                />
                               ))}
                             </div>
                           )}

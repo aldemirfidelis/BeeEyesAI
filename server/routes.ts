@@ -6,7 +6,7 @@ import { requireAuth, type AuthRequest } from "./middleware/requireAuth";
 import {
   streamChat, parseAIActions, updatePersonalityFromMessage,
   generateProactiveMessage, generateMissionCelebration,
-  analyzePost, buildConnectionSuggestionMessage, generateVisitNotification, summarizeInterestsForProfile,
+  analyzePost, buildConnectionSuggestionMessage, generateVisitNotification, summarizeInterestsForProfile, summarizeNewsArticle,
 } from "./ai";
 import { checkRateLimit } from "./rateLimit";
 import { insertUserSchema, insertMissionSchema, insertMoodEntrySchema } from "../shared/schema";
@@ -482,6 +482,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ items, query });
     } catch {
       return res.json({ items: [], query });
+    }
+  });
+
+  app.post("/api/news/summarize", requireAuth, async (req: Request, res: Response) => {
+    const { url, title } = req.body;
+    if (!url || !title) return res.status(400).json({ message: "url e title obrigatórios" });
+    try {
+      const summary = await summarizeNewsArticle(url, title);
+      if (!summary) return res.status(500).json({ message: "Não foi possível gerar o resumo" });
+      return res.json({ summary });
+    } catch {
+      return res.status(500).json({ message: "Erro ao resumir o artigo" });
     }
   });
 
