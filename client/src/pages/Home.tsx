@@ -148,6 +148,14 @@ interface ChatFeedSummaryPost {
   author: { username: string; displayName: string | null; level: number };
 }
 
+interface NetworkDigestMeta {
+  type: "network_digest";
+  query: string;
+  newsItems: NewsItem[];
+  feedPosts: ChatFeedSummaryPost[];
+  suggestions: ConnectionSuggestion[];
+}
+
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
   neutral: "😐", excited: "🎉", proud: "🏆",
@@ -648,6 +656,13 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    handleAutomaticNetworkDigest();
+    const interval = setInterval(handleAutomaticNetworkDigest, 4 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [token, handleAutomaticNetworkDigest]);
+
   // Load Google GIS script once
   useEffect(() => {
     const script = document.createElement("script");
@@ -1099,6 +1114,51 @@ export default function Home() {
   const handleShareCommand = () => {
     setShowInlinePost((v) => !v);
   };
+
+  const handleAutomaticNetworkDigest = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const [newsRes, feedRes, suggestionsRes] = await Promise.all([
+        fetch("/api/news", { headers: authHeaders() }),
+        fetch("/api/feed?limit=5", { headers: authHeaders() }),
+        fetch("/api/connections/suggestions?limit=3", { headers: authHeaders() }),
+      ]);
+
+      const newsData = newsRes.ok ? await newsRes.json() : { items: [], query: "seus interesses" };
+      const feedPosts = feedRes.ok ? await feedRes.json() : [];
+      const suggestedConnections = suggestionsRes.ok ? await suggestionsRes.json() : [];
+
+      setFeed(feedPosts);
+      setSuggestions(suggestedConnections);
+
+      const hasNews = Array.isArray(newsData.items) && newsData.items.length > 0;
+      const hasFeed = Array.isArray(feedPosts) && feedPosts.length > 0;
+      const hasSuggestions = Array.isArray(suggestedConnections) && suggestedConnections.length > 0;
+
+      if (!hasNews && !hasFeed && !hasSuggestions) return;
+
+      const content = [
+        "Olha o que você perde.",
+        hasFeed ? `Tem ${feedPosts.length} atualização${feedPosts.length > 1 ? "ões" : ""} no seu feed.` : null,
+        hasNews ? `Separei notícias sobre ${newsData.query}.` : null,
+        hasSuggestions ? `Também achei ${suggestedConnections.length} sugest${suggestedConnections.length > 1 ? "ões" : "ão"} de conexão.` : null,
+      ].filter(Boolean).join(" ");
+
+      injectAssistantMessage(content, {
+        type: "network_digest",
+        query: newsData.query || "seus interesses",
+        newsItems: hasNews ? newsData.items.slice(0, 3) : [],
+        feedPosts: hasFeed ? feedPosts.slice(0, 3) : [],
+        suggestions: hasSuggestions ? suggestedConnections.slice(0, 3) : [],
+      } satisfies NetworkDigestMeta);
+
+      setEyeExpression("happy");
+      setTimeout(() => setEyeExpression("neutral"), 4000);
+    } catch {
+      // ignore automatic digest failures
+    }
+  }, [token]);
 
   const handleConnect = async (targetUserId: string) => {
     if (connectingIds.has(targetUserId)) return;
@@ -1975,6 +2035,72 @@ export default function Home() {
                               Compartilhar algo
                             </Button>
                           </div>
+                        </div>
+                      );
+                    }
+
+                    if (meta.type === "network_digest") {
+                      const digest = meta as NetworkDigestMeta;
+                      return (
+                        <div className="space-y-3">
+                          {Array.isArray(digest.feedPosts) && digest.feedPosts.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feed</p>
+                              {digest.feedPosts.map((post) => (
+                                <div key={post.id} className="rounded-2xl border border-border bg-card/70 px-4 py-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-sm font-semibold">{post.author.displayName || post.author.username}</p>
+                                    <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
+                                  </div>
+                                  <p className="mt-2 text-sm whitespace-pre-wrap">{post.content}</p>
+                                  <p className="mt-2 text-xs text-muted-foreground">Nv {post.author.level} · {post.likesCount} curtidas</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {Array.isArray(digest.newsItems) && digest.newsItems.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notícias</p>
+                              {digest.newsItems.map((item, index) => (
+                                <a
+                                  key={`${item.link}-${index}`}
+                                  href={item.link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block rounded-2xl border border-border bg-card/70 px-4 py-3 hover:bg-card transition-colors"
+                                >
+                                  <p className="text-sm font-semibold leading-snug">{item.title}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">Fonte: {item.source || "Google News"}</p>
+                                </a>
+                              ))}
+                            </div>
+                          )}
+
+                          {Array.isArray(digest.suggestions) && digest.suggestions.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rede</p>
+                              {digest.suggestions.map((suggestion) => (
+                                <div key={suggestion.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card/70 px-4 py-3">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold">{suggestion.displayName || suggestion.username}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground truncate">
+                                      {suggestion.commonInterests.slice(0, 2).join(" · ") || "Novo contato para conhecer"}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs"
+                                    disabled={connectingIds.has(suggestion.id)}
+                                    onClick={() => handleConnect(suggestion.id)}
+                                  >
+                                    Conectar
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     }
