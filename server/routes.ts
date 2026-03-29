@@ -489,23 +489,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/connections/suggestions", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
     const limit = parseInt(req.query.limit as string) || 5;
+    try {
+      const suggestions = await storage.getSuggestedConnections(userId, limit);
 
-    const suggestions = await storage.getSuggestedConnections(userId, limit);
+      const result = suggestions.map((u) => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        level: u.level,
+        commonInterests: u.commonInterests,
+        suggestionMessage: buildConnectionSuggestionMessage(
+          "",
+          u.displayName || u.username,
+          u.commonInterests
+        ),
+      }));
 
-    const result = suggestions.map((u) => ({
-      id: u.id,
-      username: u.username,
-      displayName: u.displayName,
-      level: u.level,
-      commonInterests: u.commonInterests,
-      suggestionMessage: buildConnectionSuggestionMessage(
-        "",
-        u.displayName || u.username,
-        u.commonInterests
-      ),
-    }));
-
-    return res.json(result);
+      return res.json(result);
+    } catch (error) {
+      console.error("GET /api/connections/suggestions failed", error);
+      return res.json([]);
+    }
   });
 
   app.get("/api/connections", requireAuth, async (req: Request, res: Response) => {
@@ -591,16 +595,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/friends", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
-    const friends = await storage.getFriends(userId);
-    return res.json(friends);
+    try {
+      const friends = await storage.getFriends(userId);
+      return res.json(friends);
+    } catch (error) {
+      console.error("GET /api/friends failed", error);
+      return res.json([]);
+    }
   });
 
   // ── USER SEARCH ──────────────────────────────────────────────────────────
 
   app.get("/api/dm/conversations", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
-    const conversations = await storage.getDirectConversations(userId);
-    return res.json(conversations);
+    try {
+      const conversations = await storage.getDirectConversations(userId);
+      return res.json(conversations);
+    } catch (error) {
+      console.error("GET /api/dm/conversations failed", error);
+      return res.json([]);
+    }
   });
 
   app.get("/api/dm/:userId", requireAuth, async (req: Request, res: Response) => {
@@ -697,8 +711,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/communities", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
     const search = (req.query.search as string) || "";
-    const list = await storage.getCommunities(userId, search);
-    return res.json(list);
+    try {
+      const list = await storage.getCommunities(userId, search);
+      return res.json(list);
+    } catch (error) {
+      console.error("GET /api/communities failed", error);
+      return res.json([]);
+    }
   });
 
   app.post("/api/communities", requireAuth, async (req: Request, res: Response) => {
