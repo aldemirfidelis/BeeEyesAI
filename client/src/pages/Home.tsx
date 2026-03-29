@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
 import BeeEyes from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import MissionCard from "@/components/MissionCard";
@@ -134,10 +134,10 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed" | "settings">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed">("chat");
+  const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
-  const [photoInput, setPhotoInput] = useState("");
   const [settingsMessage, setSettingsMessage] = useState("");
 
   // Feed state
@@ -172,6 +172,7 @@ export default function Home() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const photoFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -183,7 +184,6 @@ export default function Home() {
     setThemeMode(initialTheme);
     const savedPhoto = getProfilePhoto() || "";
     setProfilePhotoUrl(savedPhoto);
-    setPhotoInput(savedPhoto);
 
     return onThemeChange((nextTheme) => {
       setThemeMode(nextTheme);
@@ -494,21 +494,64 @@ export default function Home() {
     setMessages([]);
   };
 
-  const handleSaveProfilePhoto = () => {
-    const trimmed = photoInput.trim();
-    if (!trimmed) {
-      setSettingsMessage("Informe uma URL valida para a foto de perfil.");
+  const handleSelectProfilePhoto = () => {
+    photoFileInputRef.current?.click();
+  };
+
+  const handleProfileFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setSettingsMessage("Selecione um arquivo de imagem valido.");
       return;
     }
-    setProfilePhoto(trimmed);
-    setProfilePhotoUrl(trimmed);
-    setSettingsMessage("Foto de perfil atualizada com sucesso.");
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        setSettingsMessage("Nao foi possivel processar a imagem.");
+        return;
+      }
+
+      const image = new Image();
+      image.onload = () => {
+        const side = Math.min(image.width, image.height);
+        const sx = Math.floor((image.width - side) / 2);
+        const sy = Math.floor((image.height - side) / 2);
+        const targetSize = 512;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          setSettingsMessage("Nao foi possivel preparar a imagem.");
+          return;
+        }
+
+        ctx.drawImage(image, sx, sy, side, side, 0, 0, targetSize, targetSize);
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.82);
+
+        setProfilePhoto(compressedDataUrl);
+        setProfilePhotoUrl(compressedDataUrl);
+        setSettingsMessage("Foto atualizada com recorte e compressao.");
+      };
+      image.onerror = () => {
+        setSettingsMessage("Falha ao carregar o arquivo selecionado.");
+      };
+      image.src = result;
+    };
+    reader.onerror = () => {
+      setSettingsMessage("Falha ao ler o arquivo da imagem.");
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
   };
 
   const handleRemoveProfilePhoto = () => {
     clearProfilePhoto();
     setProfilePhotoUrl("");
-    setPhotoInput("");
     setSettingsMessage("Foto de perfil removida.");
   };
 
@@ -882,10 +925,6 @@ export default function Home() {
             <Globe className="w-4 h-4 mr-2" />
             Feed
           </TabsTrigger>
-          <TabsTrigger value="settings" className="flex-1">
-            <Settings className="w-4 h-4 mr-2" />
-            Configuracoes
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3 mt-0">
@@ -1169,85 +1208,6 @@ export default function Home() {
           </div>
         </TabsContent>
 
-        <TabsContent value="settings" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold">Configuracoes</h2>
-              <Button size="sm" variant="outline" onClick={() => setSettingsMessage("")}>
-                Limpar aviso
-              </Button>
-            </div>
-
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Camera className="w-4 h-4 text-primary" />
-                <p className="text-sm font-semibold">Foto de perfil</p>
-              </div>
-              <div className="flex items-center gap-3">
-                {profilePhotoUrl ? (
-                  <img
-                    src={profilePhotoUrl}
-                    alt="Foto de perfil"
-                    className="w-14 h-14 rounded-full object-cover border"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-lg font-black text-primary-foreground">
-                    {(user?.username || "?")[0].toUpperCase()}
-                  </div>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  Cole uma URL para colocar ou trocar sua foto de perfil.
-                </div>
-              </div>
-              <Input
-                value={photoInput}
-                onChange={(e) => setPhotoInput(e.target.value)}
-                placeholder="https://exemplo.com/minha-foto.jpg"
-              />
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={handleSaveProfilePhoto}>
-                  Salvar foto
-                </Button>
-                <Button className="flex-1" variant="outline" onClick={handleRemoveProfilePhoto}>
-                  Remover
-                </Button>
-              </div>
-            </Card>
-
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                {themeMode === "dark" ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
-                <p className="text-sm font-semibold">Aparencia</p>
-              </div>
-              <p className="text-xs text-muted-foreground">Alterne entre modo claro e modo escuro.</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant={themeMode === "light" ? "default" : "outline"}
-                  onClick={() => handleThemeSelect("light")}
-                >
-                  Modo claro
-                </Button>
-                <Button
-                  variant={themeMode === "dark" ? "default" : "outline"}
-                  onClick={() => handleThemeSelect("dark")}
-                >
-                  Modo escuro
-                </Button>
-              </div>
-            </Card>
-
-            <Card className="p-4 space-y-2">
-              <p className="text-sm font-semibold">Outras configuracoes</p>
-              <p className="text-xs text-muted-foreground">Notificacoes personalizadas (em breve)</p>
-              <p className="text-xs text-muted-foreground">Privacidade e seguranca (em breve)</p>
-              <p className="text-xs text-muted-foreground">Idioma e acessibilidade (em breve)</p>
-            </Card>
-
-            {settingsMessage && (
-              <p className="text-xs rounded-lg border border-primary/40 bg-primary/10 p-2 text-primary">{settingsMessage}</p>
-            )}
-          </div>
-        </TabsContent>
       </Tabs>
     </>
   );
@@ -1263,7 +1223,7 @@ export default function Home() {
               <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
               <button
                 type="button"
-                onClick={() => setMobileTab("settings")}
+                onClick={() => setShowSettingsScreen(true)}
                 className="w-9 h-9 rounded-full border border-border overflow-hidden bg-primary/20 flex items-center justify-center shrink-0"
                 aria-label="Abrir configuracoes de perfil"
               >
@@ -1278,7 +1238,7 @@ export default function Home() {
               {user && <StreakDisplay streak={user.currentStreak} />}
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" onClick={() => setMobileTab("settings")}>
+              <Button variant="outline" onClick={() => setShowSettingsScreen(true)}>
                 Configuracoes
               </Button>
               <ThemeToggle />
@@ -1348,36 +1308,36 @@ export default function Home() {
       {/* ── Bottom nav (mobile only) ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-card/95 backdrop-blur-sm z-20 flex">
         <button
-          onClick={() => setMobileTab("chat")}
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("chat"); }}
           className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "chat" ? "text-primary" : "text-muted-foreground"}`}
         >
           <MessageCircle className="w-5 h-5" />
           Chat
         </button>
         <button
-          onClick={() => { setMobileTab("feed"); loadFeed(); }}
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); }}
           className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "feed" ? "text-primary" : "text-muted-foreground"}`}
         >
           <Globe className="w-5 h-5" />
           Feed
         </button>
         <button
-          onClick={() => setMobileTab("missions")}
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("missions"); }}
           className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "missions" ? "text-primary" : "text-muted-foreground"}`}
         >
           <TrendingUp className="w-5 h-5" />
           Missões
         </button>
         <button
-          onClick={() => { setMobileTab("friends"); loadFriends(); }}
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("friends"); loadFriends(); }}
           className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "friends" ? "text-primary" : "text-muted-foreground"}`}
         >
           <Users className="w-5 h-5" />
           Amigos
         </button>
         <button
-          onClick={() => setMobileTab("settings")}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "settings" ? "text-primary" : "text-muted-foreground"}`}
+          onClick={() => setShowSettingsScreen(true)}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${showSettingsScreen ? "text-primary" : "text-muted-foreground"}`}
         >
           <Settings className="w-5 h-5" />
           Config.
@@ -1386,6 +1346,89 @@ export default function Home() {
 
       {/* Spacer so content doesn't hide behind bottom nav on mobile */}
       <div className="md:hidden h-16 shrink-0" />
+
+      <input
+        ref={photoFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleProfileFileChange}
+      />
+
+      <AnimatePresence>
+        {showSettingsScreen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background"
+          >
+            <div className="h-full overflow-y-auto">
+              <div className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur-sm">
+                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary" />
+                    <h2 className="font-display text-lg font-semibold">Configuracoes</h2>
+                  </div>
+                  <Button variant="outline" onClick={() => setShowSettingsScreen(false)}>Fechar</Button>
+                </div>
+              </div>
+
+              <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-4">
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Foto de perfil</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {profilePhotoUrl ? (
+                      <img src={profilePhotoUrl} alt="Foto de perfil" className="w-16 h-16 rounded-full object-cover border" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-lg font-black text-primary-foreground">
+                        {(user?.username || "?")[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      Selecione uma imagem do seu computador. O app aplica recorte central e compressao automaticamente.
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="flex-1" onClick={handleSelectProfilePhoto}>Escolher do computador</Button>
+                    <Button className="flex-1" variant="outline" onClick={handleRemoveProfilePhoto}>Remover</Button>
+                  </div>
+                </Card>
+
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    {themeMode === "dark" ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
+                    <p className="text-sm font-semibold">Aparencia</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Escolha entre modo claro e modo escuro.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant={themeMode === "light" ? "default" : "outline"} onClick={() => handleThemeSelect("light")}>
+                      Modo claro
+                    </Button>
+                    <Button variant={themeMode === "dark" ? "default" : "outline"} onClick={() => handleThemeSelect("dark")}>
+                      Modo escuro
+                    </Button>
+                  </div>
+                </Card>
+
+                <Card className="p-4 space-y-2">
+                  <p className="text-sm font-semibold">Outras configuracoes</p>
+                  <p className="text-xs text-muted-foreground">Notificacoes personalizadas (em breve)</p>
+                  <p className="text-xs text-muted-foreground">Privacidade e seguranca (em breve)</p>
+                  <p className="text-xs text-muted-foreground">Idioma e acessibilidade (em breve)</p>
+                </Card>
+
+                {settingsMessage && (
+                  <p className="text-xs rounded-lg border border-primary/40 bg-primary/10 p-2 text-primary">{settingsMessage}</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Friend Profile Modal ── */}
       <AnimatePresence>

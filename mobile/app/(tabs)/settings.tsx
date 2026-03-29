@@ -1,16 +1,16 @@
-import { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-  TextInput,
   Alert,
   Image,
   ScrollView,
 } from "react-native";
 import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { FONTS, getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
 
@@ -19,24 +19,38 @@ export default function SettingsScreen() {
   const profileImageUri = useUIStore((state) => state.profileImageUri);
   const setThemeMode = useUIStore((state) => state.setThemeMode);
   const setProfileImageUri = useUIStore((state) => state.setProfileImageUri);
-  const [imageInput, setImageInput] = useState(profileImageUri ?? "");
 
   const colors = getThemeColors(themeMode);
   const styles = makeStyles(colors);
 
-  async function handleSaveImage() {
-    const clean = imageInput.trim();
-    if (!clean) {
-      Alert.alert("Foto de perfil", "Informe uma URL valida para salvar a foto.");
+  async function handlePickFromGallery() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permissao necessaria", "Permita acesso a galeria para escolher sua foto.");
       return;
     }
-    await setProfileImageUri(clean);
-    Alert.alert("Foto atualizada", "Sua foto de perfil foi salva.");
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+
+    const processed = await ImageManipulator.manipulateAsync(
+      result.assets[0].uri,
+      [{ resize: { width: 512, height: 512 } }],
+      { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
+    );
+
+    await setProfileImageUri(processed.uri);
+    Alert.alert("Foto atualizada", "Sua foto foi ajustada e comprimida com sucesso.");
   }
 
   async function handleRemoveImage() {
     await setProfileImageUri(null);
-    setImageInput("");
     Alert.alert("Foto removida", "Sua foto de perfil foi removida.");
   }
 
@@ -61,22 +75,14 @@ export default function SettingsScreen() {
                 <Text style={styles.avatarPlaceholder}>Sem foto</Text>
               )}
             </View>
-            <Text style={styles.previewHelp}>Cole a URL de uma imagem para colocar ou trocar a foto.</Text>
+            <Text style={styles.previewHelp}>
+              Escolha uma foto da galeria. O app aplica ajuste e compressao automaticamente para avatar.
+            </Text>
           </View>
 
-          <TextInput
-            style={styles.input}
-            value={imageInput}
-            onChangeText={setImageInput}
-            placeholder="https://..."
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
           <View style={styles.rowButtons}>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleSaveImage}>
-              <Text style={styles.primaryButtonText}>Salvar foto</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={handlePickFromGallery}>
+              <Text style={styles.primaryButtonText}>Escolher da galeria</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={handleRemoveImage}>
               <Text style={styles.secondaryButtonText}>Remover</Text>
@@ -202,17 +208,6 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       color: colors.muted,
       fontSize: 12,
       lineHeight: 18,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      backgroundColor: colors.background,
-      color: colors.foreground,
-      fontFamily: FONTS.sans,
-      fontSize: 14,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
     },
     rowButtons: {
       flexDirection: "row",
