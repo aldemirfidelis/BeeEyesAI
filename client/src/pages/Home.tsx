@@ -306,6 +306,17 @@ export default function Home() {
     }
   }, [selectedDMUser, dmInput, dmSending, loadDMConversations]);
 
+  const isFriendUser = useCallback((targetUserId: string) => {
+    return friends.some((f) => f.id === targetUserId);
+  }, [friends]);
+
+  const openDMWithUser = useCallback((target: { id: string; username: string; displayName: string | null; level: number }) => {
+    setShowSettingsScreen(false);
+    setMobileTab("inbox");
+    setSelectedFriend(null);
+    openDMThread(target);
+  }, [openDMThread]);
+
   const openFriendProfile = async (friendId: string) => {
     setFriendProfileLoading(true);
     setSelectedFriend(null);
@@ -1173,7 +1184,17 @@ export default function Home() {
                           </div>
                         </button>
                         {u.connectionStatus === "accepted" ? (
-                          <span className="text-xs text-green-600 font-semibold shrink-0">✓ Amigos</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-green-600 font-semibold">Amigos</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7 px-2"
+                              onClick={() => openDMWithUser({ id: u.id, username: u.username, displayName: u.displayName, level: u.level })}
+                            >
+                              Enviar mensagem
+                            </Button>
+                          </div>
                         ) : u.connectionStatus === "pending" ? (
                           <span className="text-xs text-muted-foreground shrink-0">Pendente</span>
                         ) : (
@@ -1208,8 +1229,8 @@ export default function Home() {
                   const interests: string[] = (() => { try { return JSON.parse(friend.personality?.interests || "[]"); } catch { return []; } })();
                   const lastActive = friend.lastActiveAt ? timeAgo(friend.lastActiveAt) : null;
                   return (
-                    <button key={friend.id} className="w-full text-left" onClick={() => openFriendProfile(friend.id)}>
-                      <Card className="p-3 hover:border-primary/50 transition-colors cursor-pointer group">
+                    <Card key={friend.id} className="p-3 hover:border-primary/50 transition-colors group">
+                      <div className="w-full text-left cursor-pointer" onClick={() => openFriendProfile(friend.id)}>
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-base font-bold shrink-0">
                             {name[0].toUpperCase()}
@@ -1233,8 +1254,25 @@ export default function Home() {
                           </div>
                           <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                         </div>
-                      </Card>
-                    </button>
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8 px-3"
+                          onClick={() =>
+                            openDMWithUser({
+                              id: friend.id,
+                              username: friend.username,
+                              displayName: friend.displayName,
+                              level: friend.level,
+                            })
+                          }
+                        >
+                          Enviar mensagem
+                        </Button>
+                      </div>
+                    </Card>
                   );
                 })}
               </>
@@ -1784,6 +1822,7 @@ export default function Home() {
               {selectedFriend && !friendProfileLoading && (() => {
                 const { user: f, recentPosts, interests, activeMissionsCount } = selectedFriend;
                 const name = f.displayName || f.username;
+                const canSendMessage = isFriendUser(f.id);
                 return (
                   <div className="p-5 space-y-4">
                     {/* Header */}
@@ -1801,6 +1840,23 @@ export default function Home() {
                         <X className="w-5 h-5" />
                       </button>
                     </div>
+
+                    {canSendMessage && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() =>
+                          openDMWithUser({
+                            id: f.id,
+                            username: f.username,
+                            displayName: f.displayName,
+                            level: f.level,
+                          })
+                        }
+                      >
+                        Enviar mensagem
+                      </Button>
+                    )}
 
                     {/* Stats */}
                     <div className="grid grid-cols-3 gap-2">
@@ -1882,3 +1938,4 @@ export default function Home() {
     </div>
   );
 }
+
