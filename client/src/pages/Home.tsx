@@ -457,9 +457,18 @@ export default function Home() {
         body: JSON.stringify({ content: postText.trim() }),
       });
       if (!res.ok) return;
+      const newPost = await res.json();
+      // Optimistic update: prepend immediately, AI comment arrives on next refresh
+      setFeed((prev) => [{
+        ...newPost,
+        author: { id: user!.id, username: user!.username, displayName: null, level: user!.level },
+        likesCount: 0,
+        liked: false,
+      }, ...prev]);
       setPostText("");
       setShowPostInput(false);
-      await loadFeed();
+      // Reload in background to get AI comment
+      setTimeout(loadFeed, 3000);
     } catch { /* ignore */ }
     finally { setIsPosting(false); }
   };

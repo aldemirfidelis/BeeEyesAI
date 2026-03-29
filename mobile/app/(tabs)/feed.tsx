@@ -79,12 +79,21 @@ export default function FeedScreen() {
 
   const createPost = useMutation({
     mutationFn: (content: string) => api.post("/api/posts", { content }).then((r) => r.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      queryClient.invalidateQueries({ queryKey: ["posts"] });
-      queryClient.invalidateQueries({ queryKey: ["me"] });
+    onSuccess: (newPost) => {
+      // Optimistic update: prepend immediately
+      queryClient.setQueryData<FeedPost[]>(["feed"], (prev = []) => [{
+        ...newPost,
+        author: { id: user!.id, username: user!.username, displayName: null, level: user!.level },
+        likesCount: 0,
+        liked: false,
+      }, ...prev]);
       setPostText("");
       setShowPostInput(false);
+      // Reload in background after 3s to get AI comment
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["feed"] });
+        queryClient.invalidateQueries({ queryKey: ["me"] });
+      }, 3000);
     },
     onError: () => Alert.alert("Erro", "Não foi possível publicar. Tente novamente."),
   });

@@ -409,22 +409,31 @@ export class DrizzleStorage implements IStorage {
 
     const excludeIds = [userId, ...connectedIds];
 
+    // Fetch candidate users and their personalities in 2 queries (no N+1)
     const allUsers = await db
       .select()
       .from(users)
-      .where(notInArray(users.id, excludeIds))
+      .where(notInArray(users.id, excludeIds.length > 0 ? excludeIds : [userId]))
       .limit(50);
 
-    const withPersonality = await Promise.all(
-      allUsers.map(async (u) => {
-        const personality = await this.getPersonality(u.id);
-        const theirInterests: string[] = JSON.parse(personality?.interests || "[]");
-        const commonInterests = myInterests.filter((i) =>
-          theirInterests.some((t) => t.toLowerCase().includes(i.toLowerCase()) || i.toLowerCase().includes(t.toLowerCase()))
-        );
-        return { ...u, personality, commonInterests };
-      })
-    );
+    if (allUsers.length === 0) return [];
+
+    const candidateIds = allUsers.map((u) => u.id);
+    const personalities = await db
+      .select()
+      .from(userPersonality)
+      .where(inArray(userPersonality.userId, candidateIds));
+
+    const personalityMap = new Map(personalities.map((p) => [p.userId, p]));
+
+    const withPersonality = allUsers.map((u) => {
+      const personality = personalityMap.get(u.id) ?? null;
+      const theirInterests: string[] = JSON.parse(personality?.interests || "[]");
+      const commonInterests = myInterests.filter((i) =>
+        theirInterests.some((t) => t.toLowerCase().includes(i.toLowerCase()) || i.toLowerCase().includes(t.toLowerCase()))
+      );
+      return { ...u, personality, commonInterests };
+    });
 
     return withPersonality
       .sort((a, b) => b.commonInterests.length - a.commonInterests.length)
