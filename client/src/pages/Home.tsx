@@ -1233,26 +1233,26 @@ export default function Home() {
           }
         }}
       >
-        <TabsList className="mx-4 mt-4 md:flex hidden">
-          <TabsTrigger value="missions" className="flex-1">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Missões
+        <TabsList className="mx-2 mt-3 md:flex hidden gap-0.5">
+          <TabsTrigger value="missions" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <TrendingUp className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Missões</span>
           </TabsTrigger>
-          <TabsTrigger value="friends" className="flex-1">
-            <Users className="w-4 h-4 mr-2" />
-            Amigos
+          <TabsTrigger value="friends" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <Users className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Amigos</span>
           </TabsTrigger>
-          <TabsTrigger value="feed" className="flex-1">
-            <Globe className="w-4 h-4 mr-2" />
-            Feed
+          <TabsTrigger value="feed" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <Globe className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Feed</span>
           </TabsTrigger>
-          <TabsTrigger value="inbox" className="flex-1">
-            <MessageSquare className="w-4 h-4 mr-2" />
-            Mensagens
+          <TabsTrigger value="inbox" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <MessageSquare className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Mensagens</span>
           </TabsTrigger>
-          <TabsTrigger value="communities" className="flex-1">
-            <Users2 className="w-4 h-4 mr-2" />
-            Comunidades
+          <TabsTrigger value="communities" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <Users2 className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Comunidades</span>
           </TabsTrigger>
         </TabsList>
 
