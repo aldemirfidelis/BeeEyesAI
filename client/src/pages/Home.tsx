@@ -661,7 +661,7 @@ export default function Home() {
     handleAutomaticNetworkDigest();
     const interval = setInterval(handleAutomaticNetworkDigest, 4 * 60 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [token, handleAutomaticNetworkDigest]);
+  }, [token]);
 
   // Load Google GIS script once
   useEffect(() => {
@@ -1115,7 +1115,7 @@ export default function Home() {
     setShowInlinePost((v) => !v);
   };
 
-  const handleAutomaticNetworkDigest = useCallback(async () => {
+  async function handleAutomaticNetworkDigest() {
     if (!token) return;
 
     try {
@@ -1158,7 +1158,7 @@ export default function Home() {
     } catch {
       // ignore automatic digest failures
     }
-  }, [token]);
+  }
 
   const handleConnect = async (targetUserId: string) => {
     if (connectingIds.has(targetUserId)) return;
