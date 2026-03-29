@@ -94,6 +94,15 @@ export const userConnections = pgTable("user_connections", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const directMessages = pgTable("direct_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: varchar("sender_id").notNull(),
+  recipientId: varchar("recipient_id").notNull(),
+  content: text("content").notNull(),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -141,6 +150,12 @@ export const insertConnectionSchema = createInsertSchema(userConnections).omit({
   status: true,
 });
 
+export const insertDirectMessageSchema = createInsertSchema(directMessages).omit({
+  id: true,
+  readAt: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -158,6 +173,8 @@ export type Post = typeof posts.$inferSelect;
 export type InsertPost = z.infer<typeof insertPostSchema>;
 export type UserConnection = typeof userConnections.$inferSelect;
 export type InsertConnection = z.infer<typeof insertConnectionSchema>;
+export type DirectMessage = typeof directMessages.$inferSelect;
+export type InsertDirectMessage = z.infer<typeof insertDirectMessageSchema>;
 
 // Level calculation helper
 export function xpForLevel(level: number): number {

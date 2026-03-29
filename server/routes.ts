@@ -518,6 +518,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── USER SEARCH ──────────────────────────────────────────────────────────
 
+  app.get("/api/dm/conversations", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    const conversations = await storage.getDirectConversations(userId);
+    return res.json(conversations);
+  });
+
+  app.get("/api/dm/:userId", requireAuth, async (req: Request, res: Response) => {
+    const myUserId = (req as AuthRequest).userId;
+    const otherUserId = req.params.userId;
+
+    if (!otherUserId || otherUserId === myUserId) {
+      return res.status(400).json({ message: "Usuario invalido" });
+    }
+
+    const otherUser = await storage.getUser(otherUserId);
+    if (!otherUser) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+    const conversation = await storage.getDirectMessagesBetweenUsers(myUserId, otherUserId, 200);
+    await storage.markDirectMessagesAsRead(myUserId, otherUserId);
+
+    return res.json(conversation);
+  });
+
+  app.post("/api/dm/:userId", requireAuth, async (req: Request, res: Response) => {
+    const senderId = (req as AuthRequest).userId;
+    const recipientId = req.params.userId;
+    const content = String(req.body?.content || "").trim();
+
+    if (!recipientId || recipientId === senderId) {
+      return res.status(400).json({ message: "Usuario invalido" });
+    }
+
+    if (!content) {
+      return res.status(400).json({ message: "Mensagem nao pode ser vazia" });
+    }
+
+    if (content.length > 1500) {
+      return res.status(400).json({ message: "Mensagem muito longa (maximo 1500 caracteres)" });
+    }
+
+    const recipient = await storage.getUser(recipientId);
+    if (!recipient) return res.status(404).json({ message: "Usuario nao encontrado" });
+
+    const created = await storage.sendDirectMessage({ senderId, recipientId, content });
+    return res.status(201).json(created);
+  });
   app.get("/api/users/search", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
     const q = (req.query.q as string) || "";
@@ -566,3 +612,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+

@@ -1,8 +1,8 @@
-import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or } from "drizzle-orm";
+import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, userPersonality, messages, missions, moodEntries, achievements,
-  posts, postLikes, userConnections,
+  posts, postLikes, userConnections, directMessages,
   type User, type InsertUser,
   type UserPersonality, type InsertUserPersonality,
   type Message, type InsertMessage,
@@ -11,6 +11,7 @@ import {
   type Achievement, type InsertAchievement,
   type Post, type InsertPost,
   type UserConnection, type InsertConnection,
+  type DirectMessage, type InsertDirectMessage,
   xpForLevel,
 } from "../shared/schema";
 
@@ -76,6 +77,18 @@ export interface IStorage {
     interests: string[];
     activeMissionsCount: number;
   } | null>;
+
+  // Direct messages
+  sendDirectMessage(data: InsertDirectMessage): Promise<DirectMessage>;
+  getDirectMessagesBetweenUsers(userId: string, otherUserId: string, limit?: number): Promise<DirectMessage[]>;
+  markDirectMessagesAsRead(userId: string, fromUserId: string): Promise<void>;
+  getDirectConversations(userId: string): Promise<Array<{
+    user: Pick<User, "id" | "username" | "displayName" | "level">;
+    lastMessage: string;
+    lastMessageAt: Date;
+    lastMessageFromMe: boolean;
+    unreadCount: number;
+  }>>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -538,6 +551,99 @@ export class DrizzleStorage implements IStorage {
       interests: JSON.parse(personality?.interests || "[]"),
       activeMissionsCount: activeMissions.length,
     };
+  }
+
+  async sendDirectMessage(data: InsertDirectMessage): Promise<DirectMessage> {
+    const [created] = await db.insert(directMessages).values(data).returning();
+    return created;
+  }
+
+  async getDirectMessagesBetweenUsers(userId: string, otherUserId: string, limit = 80): Promise<DirectMessage[]> {
+    const rows = await db
+      .select()
+      .from(directMessages)
+      .where(
+        or(
+          and(eq(directMessages.senderId, userId), eq(directMessages.recipientId, otherUserId)),
+          and(eq(directMessages.senderId, otherUserId), eq(directMessages.recipientId, userId)),
+        ),
+      )
+      .orderBy(desc(directMessages.createdAt))
+      .limit(limit);
+
+    return rows.reverse();
+  }
+
+  async markDirectMessagesAsRead(userId: string, fromUserId: string): Promise<void> {
+    await db
+      .update(directMessages)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(directMessages.recipientId, userId),
+          eq(directMessages.senderId, fromUserId),
+          isNull(directMessages.readAt),
+        ),
+      );
+  }
+
+  async getDirectConversations(userId: string): Promise<Array<{
+    user: Pick<User, "id" | "username" | "displayName" | "level">;
+    lastMessage: string;
+    lastMessageAt: Date;
+    lastMessageFromMe: boolean;
+    unreadCount: number;
+  }>> {
+    const all = await db
+      .select()
+      .from(directMessages)
+      .where(or(eq(directMessages.senderId, userId), eq(directMessages.recipientId, userId)))
+      .orderBy(desc(directMessages.createdAt));
+
+    if (all.length === 0) return [];
+
+    const latestByPartner = new Map<string, DirectMessage>();
+    const unreadByPartner = new Map<string, number>();
+
+    for (const msg of all) {
+      const partnerId = msg.senderId === userId ? msg.recipientId : msg.senderId;
+      if (!latestByPartner.has(partnerId)) latestByPartner.set(partnerId, msg);
+      if (msg.recipientId === userId && msg.senderId === partnerId && !msg.readAt) {
+        unreadByPartner.set(partnerId, (unreadByPartner.get(partnerId) ?? 0) + 1);
+      }
+    }
+
+    const partnerIds: string[] = [];
+    latestByPartner.forEach((_value, key) => {
+      partnerIds.push(key);
+    });
+    const partnerUsers = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        level: users.level,
+      })
+      .from(users)
+      .where(inArray(users.id, partnerIds));
+
+    const partnerMap = new Map(partnerUsers.map((u) => [u.id, u]));
+
+    return partnerIds
+      .map((partnerId) => {
+        const user = partnerMap.get(partnerId);
+        const latest = latestByPartner.get(partnerId);
+        if (!user || !latest) return null;
+        return {
+          user,
+          lastMessage: latest.content,
+          lastMessageAt: latest.createdAt,
+          lastMessageFromMe: latest.senderId === userId,
+          unreadCount: unreadByPartner.get(partnerId) ?? 0,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null)
+      .sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
   }
 }
 

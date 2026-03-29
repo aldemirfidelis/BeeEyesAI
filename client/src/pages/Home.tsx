@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 
@@ -94,6 +94,22 @@ interface FriendProfile {
   activeMissionsCount: number;
 }
 
+interface DMConversation {
+  user: { id: string; username: string; displayName: string | null; level: number };
+  lastMessage: string;
+  lastMessageAt: string;
+  lastMessageFromMe: boolean;
+  unreadCount: number;
+}
+
+interface DMMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  content: string;
+  createdAt: string;
+}
+
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
   neutral: "😐", excited: "🎉", proud: "🏆",
@@ -134,7 +150,7 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "feed" | "inbox">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
@@ -158,6 +174,14 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchConnecting, setSearchConnecting] = useState<Set<string>>(new Set());
+
+  // Direct messages state
+  const [dmConversations, setDmConversations] = useState<DMConversation[]>([]);
+  const [dmLoading, setDmLoading] = useState(false);
+  const [selectedDMUser, setSelectedDMUser] = useState<{ id: string; username: string; displayName: string | null; level: number } | null>(null);
+  const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
+  const [dmInput, setDmInput] = useState("");
+  const [dmSending, setDmSending] = useState(false);
 
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -218,6 +242,60 @@ export default function Home() {
     finally { setFriendsLoading(false); }
   }, [token]);
 
+  const loadDMConversations = useCallback(async () => {
+    if (!token) return;
+    setDmLoading(true);
+    try {
+      const res = await fetch("/api/dm/conversations", { headers: authHeaders() });
+      if (res.ok) {
+        const list: DMConversation[] = await res.json();
+        setDmConversations(list);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDmLoading(false);
+    }
+  }, [token]);
+
+  const openDMThread = useCallback(async (target: { id: string; username: string; displayName: string | null; level: number }) => {
+    setSelectedDMUser(target);
+    try {
+      const res = await fetch(`/api/dm/${target.id}`, { headers: authHeaders() });
+      if (res.ok) {
+        const data: DMMessage[] = await res.json();
+        setDmMessages(data);
+      } else {
+        setDmMessages([]);
+      }
+    } catch {
+      setDmMessages([]);
+    }
+    loadDMConversations();
+  }, [loadDMConversations]);
+
+  const sendDMMessage = useCallback(async () => {
+    if (!selectedDMUser || !dmInput.trim() || dmSending) return;
+    setDmSending(true);
+    const content = dmInput.trim();
+    setDmInput("");
+    try {
+      const res = await fetch(`/api/dm/${selectedDMUser.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error("Falha ao enviar");
+      const created: DMMessage = await res.json();
+      setDmMessages((prev) => [...prev, created]);
+      loadDMConversations();
+    } catch {
+      setDmInput(content);
+    } finally {
+      setDmSending(false);
+    }
+  }, [selectedDMUser, dmInput, dmSending, loadDMConversations]);
+
   const openFriendProfile = async (friendId: string) => {
     setFriendProfileLoading(true);
     setSelectedFriend(null);
@@ -275,10 +353,38 @@ export default function Home() {
     finally { setFeedLoading(false); }
   }, [token]);
 
+  const loadConversationSuggestions = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/connections/suggestions?limit=6", { headers: authHeaders() });
+      if (res.ok) setSuggestions(await res.json());
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
   useEffect(() => {
     if (mobileTab === "feed") loadFeed();
     if (mobileTab === "friends") loadFriends();
-  }, [mobileTab, loadFeed, loadFriends]);
+    if (mobileTab === "inbox") {
+      loadDMConversations();
+      loadConversationSuggestions();
+    }
+  }, [mobileTab, loadFeed, loadFriends, loadDMConversations, loadConversationSuggestions]);
+
+  useEffect(() => {
+    if (!token || mobileTab !== "inbox") return;
+    const timer = setInterval(() => {
+      loadDMConversations();
+      if (selectedDMUser) {
+        fetch(`/api/dm/${selectedDMUser.id}`, { headers: authHeaders() })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((data: DMMessage[]) => setDmMessages(data))
+          .catch(() => {});
+      }
+    }, 7000);
+    return () => clearInterval(timer);
+  }, [token, mobileTab, selectedDMUser, loadDMConversations]);
 
   // Proactive messages polling
   useEffect(() => {
@@ -910,6 +1016,10 @@ export default function Home() {
           setMobileTab(v as any);
           if (v === "friends") loadFriends();
           if (v === "feed") loadFeed();
+          if (v === "inbox") {
+            loadDMConversations();
+            loadConversationSuggestions();
+          }
         }}
       >
         <TabsList className="mx-4 mt-4 md:flex hidden">
@@ -924,6 +1034,10 @@ export default function Home() {
           <TabsTrigger value="feed" className="flex-1">
             <Globe className="w-4 h-4 mr-2" />
             Feed
+          </TabsTrigger>
+          <TabsTrigger value="inbox" className="flex-1">
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Mensagens
           </TabsTrigger>
         </TabsList>
 
@@ -1208,6 +1322,125 @@ export default function Home() {
           </div>
         </TabsContent>
 
+        <TabsContent value="inbox" className="flex-1 overflow-hidden min-h-0 p-0 mt-0">
+          <div className="h-full flex min-h-0">
+            <div className={`w-full ${selectedDMUser ? "hidden md:flex" : "flex"} flex-col border-r min-h-0`}>
+              <div className="p-3 border-b">
+                <h2 className="font-display text-lg font-semibold">Mensagens</h2>
+                <p className="text-xs text-muted-foreground">Converse com amigos conectados e pessoas com interesses em comum.</p>
+              </div>
+
+              <div className="p-3 border-b space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Pessoas para conversar</p>
+                <div className="space-y-1 max-h-36 overflow-y-auto">
+                  {suggestions.slice(0, 5).map((s) => (
+                    <button
+                      key={`sug-${s.id}`}
+                      onClick={() => openDMThread({ id: s.id, username: s.username, displayName: s.displayName, level: s.level })}
+                      className="w-full text-left px-2 py-2 rounded-lg hover:bg-secondary/50 transition-colors flex items-center gap-2"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+                        {(s.displayName || s.username)[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{s.displayName || s.username}</p>
+                        <p className="text-xs text-muted-foreground truncate">{s.commonInterests.slice(0, 2).join(" · ") || "Novo contato"}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2">
+                {dmLoading && <p className="text-xs text-muted-foreground text-center py-4">Carregando conversas...</p>}
+                {!dmLoading && dmConversations.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">Ainda nao ha conversas. Inicie uma nova conversa acima.</p>
+                )}
+                {dmConversations.map((c) => {
+                  const name = c.user.displayName || c.user.username;
+                  return (
+                    <button
+                      key={c.user.id}
+                      onClick={() => openDMThread(c.user)}
+                      className={`w-full text-left p-2 rounded-xl transition-colors ${selectedDMUser?.id === c.user.id ? "bg-primary/10 border border-primary/30" : "hover:bg-secondary/50"}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-black text-primary-foreground">
+                          {name[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold truncate">{name}</p>
+                            {c.unreadCount > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{c.unreadCount}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {c.lastMessageFromMe ? "Voce: " : ""}{c.lastMessage}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className={`flex-1 ${selectedDMUser ? "flex" : "hidden md:flex"} flex-col min-h-0`}>
+              {selectedDMUser ? (
+                <>
+                  <div className="p-3 border-b flex items-center gap-2">
+                    <Button size="sm" variant="ghost" className="md:hidden" onClick={() => setSelectedDMUser(null)}>
+                      Voltar
+                    </Button>
+                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+                      {(selectedDMUser.displayName || selectedDMUser.username)[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{selectedDMUser.displayName || selectedDMUser.username}</p>
+                      <p className="text-xs text-muted-foreground">Nivel {selectedDMUser.level}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {dmMessages.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-6">Envie a primeira mensagem desta conversa.</p>
+                    )}
+                    {dmMessages.map((m) => {
+                      const fromMe = m.senderId === user?.id;
+                      return (
+                        <div key={m.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${fromMe ? "bg-primary text-primary-foreground" : "bg-secondary/70"}`}>
+                            {m.content}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="p-3 border-t flex items-end gap-2">
+                    <Textarea
+                      value={dmInput}
+                      onChange={(e) => setDmInput(e.target.value)}
+                      rows={2}
+                      placeholder="Mensagem..."
+                      className="resize-none text-sm"
+                      maxLength={1500}
+                    />
+                    <Button onClick={sendDMMessage} disabled={!dmInput.trim() || dmSending}>
+                      Enviar
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="hidden md:flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                  Selecione uma conversa para começar.
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
       </Tabs>
     </>
   );
@@ -1334,6 +1567,13 @@ export default function Home() {
         >
           <Users className="w-5 h-5" />
           Amigos
+        </button>
+        <button
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "inbox" ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <MessageSquare className="w-5 h-5" />
+          Msg
         </button>
         <button
           onClick={() => setShowSettingsScreen(true)}
