@@ -271,6 +271,11 @@ export default function Home() {
   const dmEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<Message[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -302,15 +307,15 @@ export default function Home() {
 
     fetch("/api/messages?limit=50", { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : [])
-      .then((msgs: any[]) =>
-        setMessages(
-          msgs.map((m) => ({
-            ...m,
-            metadata: m.metadata ?? null,
-            timestamp: new Date(m.createdAt),
-          })),
-        ),
-      );
+      .then((msgs: any[]) => {
+        const normalized = msgs.map((m) => ({
+          ...m,
+          metadata: m.metadata ?? null,
+          timestamp: new Date(m.createdAt),
+        }));
+        messagesRef.current = normalized;
+        setMessages(normalized);
+      });
 
     fetch("/api/missions?completed=false", { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : [])
@@ -413,6 +418,18 @@ export default function Home() {
   };
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshSearchResults = useCallback(async (query?: string) => {
+    const searchQuery = (query ?? friendSearch).trim();
+    if (!token || !searchQuery) {
+      if (!searchQuery) setSearchResults([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, { headers: authHeaders() });
+      if (res.ok) setSearchResults(await res.json());
+    } catch { /* ignore */ }
+  }, [friendSearch, token]);
+
   const handleFriendSearch = (q: string) => {
     setFriendSearch(q);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -420,8 +437,7 @@ export default function Home() {
     searchTimeoutRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
-        if (res.ok) setSearchResults(await res.json());
+        await refreshSearchResults(q);
       } catch { /* ignore */ }
       finally { setSearchLoading(false); }
     }, 350);
@@ -431,14 +447,22 @@ export default function Home() {
     if (searchConnecting.has(targetUserId)) return;
     setSearchConnecting((prev) => new Set(prev).add(targetUserId));
     try {
-      await fetch("/api/connections", {
+      const res = await fetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ targetUserId }),
       });
-      setSearchResults((prev) =>
-        prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "pending" as const } : u)
-      );
+      if (res.ok || res.status === 409) {
+        setSearchResults((prev) =>
+          prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "pending" as const } : u)
+        );
+        // Re-fetch search to get accurate server-side status
+        if (friendSearch.trim()) {
+          setTimeout(async () => {
+            await refreshSearchResults(friendSearch);
+          }, 1500);
+        }
+      }
     } catch { /* ignore */ }
     finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
@@ -479,14 +503,10 @@ export default function Home() {
       });
       if (!res.ok) return;
 
-      if (decision === "accept") {
-        loadFriends();
-      }
-
       const resolvedContent =
         decision === "accept"
-          ? "Solicitacao aceita. Agora voces podem conversar em Mensagens."
-          : "Solicitacao recusada.";
+          ? "Solicitação aceita! Agora vocês podem conversar em Mensagens."
+          : "Solicitação recusada.";
       const resolvedMetadata = JSON.stringify({ type: "connection_request_resolved", decision });
 
       await fetch(`/api/messages/${messageId}`, {
@@ -502,6 +522,29 @@ export default function Home() {
             : m,
         ),
       );
+
+      if (decision === "accept") {
+        loadFriends();
+        refreshSearchResults();
+        // Re-fetch messages so the "X aceitou sua solicitação" message appears for the requester
+        setTimeout(() => {
+          fetch("/api/messages?limit=50", { headers: authHeaders() })
+            .then((r) => r.ok ? r.json() : [])
+            .then((serverMsgs: any[]) => {
+              setMessages((prev) => {
+                const existingIds = new Set(prev.map((m) => m.id));
+                const newOnes = serverMsgs
+                  .filter((m) => !existingIds.has(m.id))
+                  .map((m) => ({ ...m, metadata: m.metadata ?? null, timestamp: new Date(m.createdAt) }));
+                if (newOnes.length === 0) return prev;
+                return [...prev, ...newOnes].sort(
+                  (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                );
+              });
+            })
+            .catch(() => {});
+        }, 1000);
+      }
     } finally {
       setProcessingConnectionRequestId(null);
     }
@@ -649,6 +692,80 @@ export default function Home() {
     }, 7000);
     return () => clearInterval(timer);
   }, [token, mobileTab, selectedDMUser, loadDMConversations]);
+
+  // Poll for new server-side messages (connection requests, acceptances, etc.)
+  useEffect(() => {
+    if (!token) return;
+    const connectionMessageTypes = new Set([
+      "connection_request",
+      "connection_request_resolved",
+      "connection_accepted",
+    ]);
+
+    const pollMessages = async () => {
+      try {
+        const res = await fetch("/api/messages?limit=50", { headers: authHeaders() });
+        if (!res.ok) return;
+        const serverMsgs: any[] = await res.json();
+        const previousMessages = messagesRef.current;
+        const matchedPreviousIds = new Set<string>();
+        let shouldRefreshConnections = false;
+
+        const normalized = serverMsgs.map((m) => {
+          const incoming: Message = {
+            ...m,
+            metadata: m.metadata ?? null,
+            timestamp: new Date(m.createdAt),
+          };
+
+          const existingById = previousMessages.find((msg) => msg.id === incoming.id);
+          const optimisticMatch = existingById ?? previousMessages.find((msg) =>
+            !matchedPreviousIds.has(msg.id) &&
+            msg.role === incoming.role &&
+            msg.content === incoming.content &&
+            Math.abs(new Date(msg.timestamp).getTime() - incoming.timestamp.getTime()) < 30000
+          );
+
+          if (optimisticMatch) matchedPreviousIds.add(optimisticMatch.id);
+
+          const changed =
+            !optimisticMatch ||
+            optimisticMatch.id !== incoming.id ||
+            optimisticMatch.content !== incoming.content ||
+            optimisticMatch.metadata !== incoming.metadata;
+
+          if (changed && incoming.metadata) {
+            try {
+              const meta = JSON.parse(incoming.metadata);
+              if (connectionMessageTypes.has(meta?.type)) shouldRefreshConnections = true;
+            } catch { /* ignore */ }
+          }
+
+          return incoming;
+        });
+
+        const leftovers = previousMessages.filter((msg) =>
+          !matchedPreviousIds.has(msg.id) &&
+          !normalized.some((incoming) => incoming.id === msg.id)
+        );
+
+        const merged = [...leftovers, ...normalized].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        messagesRef.current = merged;
+        setMessages(merged);
+
+        if (shouldRefreshConnections) {
+          loadFriends();
+          refreshSearchResults();
+        }
+      } catch { /* ignore */ }
+    };
+    pollMessages();
+    const interval = setInterval(pollMessages, 5000);
+    return () => clearInterval(interval);
+  }, [token, loadFriends, refreshSearchResults]);
 
   // Proactive messages polling
   useEffect(() => {

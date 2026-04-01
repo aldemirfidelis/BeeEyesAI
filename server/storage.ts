@@ -418,7 +418,10 @@ export class DrizzleStorage implements IStorage {
       .select()
       .from(userConnections)
       .where(
-        and(eq(userConnections.userId, userId), eq(userConnections.targetUserId, targetUserId))
+        or(
+          and(eq(userConnections.userId, userId), eq(userConnections.targetUserId, targetUserId)),
+          and(eq(userConnections.userId, targetUserId), eq(userConnections.targetUserId, userId))
+        )
       );
     return row;
   }

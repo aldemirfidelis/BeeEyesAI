@@ -588,7 +588,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!target) return res.status(404).json({ message: "Usuário não encontrado" });
 
     const existing = await storage.getConnectionStatus(userId, targetUserId);
-    if (existing) return res.status(409).json({ message: "Solicitação já enviada" });
+    if (existing) {
+      if (existing.status === "pending" && existing.targetUserId === userId) {
+        const accepted = await storage.acceptConnection(existing.id, userId);
+        if (!accepted) {
+          return res.status(409).json({ message: "Solicitacao ja processada" });
+        }
+
+        const accepter = await storage.getUser(userId);
+        if (accepter) {
+          const accepterName = accepter.displayName || accepter.username;
+          await storage.createMessage({
+            userId: accepted.userId,
+            role: "assistant",
+            content: `${accepterName} aceitou sua solicitacao de amizade. Agora voces podem conversar!`,
+            metadata: JSON.stringify({ type: "connection_accepted", byUserId: userId }),
+          });
+        }
+
+        return res.status(200).json(accepted);
+      }
+
+      return res.status(409).json({ message: "Solicitação já enviada" });
+    }
 
     const connection = await storage.createConnection({ userId, targetUserId });
 
