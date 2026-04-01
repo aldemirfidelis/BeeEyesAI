@@ -338,6 +338,19 @@ export default function Home() {
       );
   }, [token]);
 
+  // Refresh missions + user XP (called after any action that may trigger a mission)
+  const loadMissions = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [msRes, meRes] = await Promise.all([
+        fetch("/api/missions", { headers: authHeaders() }),
+        fetch("/api/me", { headers: authHeaders() }),
+      ]);
+      if (msRes.ok) setMissions(await msRes.json());
+      if (meRes.ok) setUser(await meRes.json());
+    } catch { /* ignore */ }
+  }, [token]);
+
   // Load friends list
   const loadFriends = useCallback(async () => {
     if (!token) return;
@@ -396,12 +409,13 @@ export default function Home() {
       const created: DMMessage = await res.json();
       setDmMessages((prev) => [...prev, created]);
       loadDMConversations();
+      setTimeout(loadMissions, 1000);
     } catch {
       setDmInput(content);
     } finally {
       setDmSending(false);
     }
-  }, [selectedDMUser, dmInput, dmSending, loadDMConversations]);
+  }, [selectedDMUser, dmInput, dmSending, loadDMConversations, loadMissions]);
 
   const isFriendUser = useCallback((targetUserId: string) => {
     return friends.some((f) => f.id === targetUserId);
@@ -472,6 +486,7 @@ export default function Home() {
         setSearchResults((prev) =>
           prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "pending" as const } : u)
         );
+        setTimeout(loadMissions, 1000);
         // Re-fetch search to get accurate server-side status
         if (friendSearch.trim()) {
           setTimeout(async () => {
@@ -542,6 +557,7 @@ export default function Home() {
       if (decision === "accept") {
         loadFriends();
         refreshSearchResults();
+        setTimeout(loadMissions, 1000);
         // Re-fetch messages so the "X aceitou sua solicitação" message appears for the requester
         setTimeout(() => {
           fetch("/api/messages?limit=50", { headers: authHeaders() })
@@ -615,6 +631,7 @@ export default function Home() {
       if (res.ok) {
         setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isMember: true, membersCount: c.membersCount + 1 } : c));
         if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, isMember: true, memberRole: "member" } : prev);
+        setTimeout(loadMissions, 1000);
       }
     } finally {
       setCommunityJoining(null);
@@ -647,6 +664,7 @@ export default function Home() {
         const post = await res.json();
         setCommunityPosts((prev) => [post, ...prev]);
         setCommunityPostInput("");
+        setTimeout(loadMissions, 1000);
       }
     } finally {
       setCommunityPostSending(false);
@@ -667,6 +685,7 @@ export default function Home() {
         setCommunities((prev) => [{ ...community, isMember: true }, ...prev]);
         setShowCreateCommunity(false);
         setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝" });
+        setTimeout(loadMissions, 1000);
       }
     } finally {
       setCreatingCommunity(false);
@@ -782,6 +801,13 @@ export default function Home() {
     const interval = setInterval(pollMessages, 5000);
     return () => clearInterval(interval);
   }, [token, loadFriends, refreshSearchResults]);
+
+  // Poll missions every 8s so auto-completed ones appear quickly
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(loadMissions, 8000);
+    return () => clearInterval(interval);
+  }, [token, loadMissions]);
 
   // Proactive messages polling
   useEffect(() => {
@@ -1198,8 +1224,9 @@ export default function Home() {
       }, ...prev]);
       setPostText("");
       setShowPostInput(false);
-      // Reload in background to get AI comment
+      // Reload in background to get AI comment + mission progress
       setTimeout(loadFeed, 3000);
+      setTimeout(loadMissions, 1000);
     } catch { /* ignore */ }
     finally { setIsPosting(false); }
   };
@@ -1213,6 +1240,7 @@ export default function Home() {
       if (!res.ok) return;
       const data = await res.json();
       setFeed((prev) => prev.map((p) => p.id === postId ? { ...p, liked: data.liked, likesCount: data.likesCount } : p));
+      if (data.liked) setTimeout(loadMissions, 1000);
     } catch { /* ignore */ }
   };
 
@@ -1874,9 +1902,11 @@ export default function Home() {
                               size="sm"
                               variant="outline"
                               className="text-xs h-7 px-2"
+                              disabled={!user || user.level < 2}
+                              title={user && user.level < 2 ? "🔒 Desbloqueado no Nível 2" : undefined}
                               onClick={() => openDMWithUser({ id: u.id, username: u.username, displayName: u.displayName, level: u.level })}
                             >
-                              Enviar mensagem
+                              {user && user.level < 2 ? "🔒 Mensagem" : "Enviar mensagem"}
                             </Button>
                           </div>
                         ) : u.connectionStatus === "pending" ? (
@@ -1944,6 +1974,8 @@ export default function Home() {
                           size="sm"
                           variant="outline"
                           className="text-xs h-8 px-3"
+                          disabled={!user || user.level < 2}
+                          title={user && user.level < 2 ? "🔒 Desbloqueado no Nível 2" : undefined}
                           onClick={() =>
                             openDMWithUser({
                               id: friend.id,
@@ -1953,7 +1985,7 @@ export default function Home() {
                             })
                           }
                         >
-                          Enviar mensagem
+                          {user && user.level < 2 ? "🔒 Mensagem" : "Enviar mensagem"}
                         </Button>
                       </div>
                     </Card>
@@ -2758,6 +2790,8 @@ export default function Home() {
                       <Button
                         variant="outline"
                         className="w-full"
+                        disabled={!user || user.level < 2}
+                        title={user && user.level < 2 ? "🔒 Desbloqueado no Nível 2" : undefined}
                         onClick={() =>
                           openDMWithUser({
                             id: f.id,
@@ -2767,7 +2801,7 @@ export default function Home() {
                           })
                         }
                       >
-                        Enviar mensagem
+                        {user && user.level < 2 ? "🔒 Mensagem (Nível 2)" : "Enviar mensagem"}
                       </Button>
                     )}
 

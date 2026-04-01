@@ -1,7 +1,9 @@
 import { Tabs } from "expo-router";
+import { Alert, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
+import { useAuthStore } from "../../stores/authStore";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
@@ -12,6 +14,7 @@ function TabIcon({ name, color, focused }: { name: FeatherName; color: string; f
 export default function TabsLayout() {
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
+  const userLevel = useAuthStore((s) => s.user?.level ?? 1);
 
   return (
     <Tabs
@@ -60,7 +63,24 @@ export default function TabsLayout() {
         name="inbox"
         options={{
           title: "Mensagens",
-          tabBarIcon: ({ color, focused }) => <TabIcon name="mail" color={color} focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="mail" color={userLevel >= 2 ? color : colors.muted} focused={focused} />
+          ),
+          tabBarButton: userLevel >= 2
+            ? undefined
+            : (props) => (
+                <TouchableOpacity
+                  {...props}
+                  onPress={() =>
+                    Alert.alert(
+                      "🔒 Bloqueado",
+                      "Mensagens Diretas são desbloqueadas no Nível 2.\nComplete mais missões para subir de nível!",
+                      [{ text: "Entendido", style: "cancel" }]
+                    )
+                  }
+                  style={[props.style, { opacity: 0.45 }]}
+                />
+              ),
         }}
       />
       <Tabs.Screen

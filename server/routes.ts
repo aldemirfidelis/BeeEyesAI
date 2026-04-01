@@ -290,12 +290,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── MISSIONS ──────────────────────────────────────────────────────────────
 
-  // Helper: auto-complete a system mission by actionType (fire-and-forget, no xp celebr.)
+  // Helper: auto-complete a system mission by actionType + generate AI celebration (fire-and-forget)
   async function triggerMissionAction(userId: string, actionType: string) {
     try {
       const mission = await storage.completeMissionByAction(userId, actionType);
-      if (mission) {
-        await storage.updateUserXP(userId, mission.xpReward);
+      if (!mission) return;
+      const [updatedUser, personality] = await Promise.all([
+        storage.updateUserXP(userId, mission.xpReward),
+        storage.getPersonality(userId),
+      ]);
+      if (updatedUser && personality) {
+        generateMissionCelebration(updatedUser, personality, mission.title, mission.xpReward)
+          .then((msg) => storage.createMessage({ userId, role: "assistant", content: msg }))
+          .catch(() => {});
       }
     } catch { /* non-critical */ }
   }

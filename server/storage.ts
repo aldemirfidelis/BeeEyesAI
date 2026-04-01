@@ -302,13 +302,27 @@ export class DrizzleStorage implements IStorage {
   }
 
   async seedPredefinedMissions(userId: string): Promise<void> {
-    // Get existing system missions for this user (by actionType)
+    const validActionTypes = new Set(PREDEFINED_MISSIONS.map((pm) => pm.actionType));
+
+    // Get existing system missions for this user
     const existing = await db
-      .select({ actionType: missions.actionType })
+      .select()
       .from(missions)
       .where(and(eq(missions.userId, userId), eq(missions.type, "system")));
-    const existingTypes = new Set(existing.map((m) => m.actionType));
 
+    // Remove any system missions whose actionType is no longer in the predefined list (cleanup obsolete)
+    const toDelete = existing.filter((m) => m.actionType && !validActionTypes.has(m.actionType));
+    if (toDelete.length > 0) {
+      await db.delete(missions).where(
+        and(
+          eq(missions.userId, userId),
+          inArray(missions.id, toDelete.map((m) => m.id))
+        )
+      );
+    }
+
+    // Insert missing predefined missions
+    const existingTypes = new Set(existing.map((m) => m.actionType));
     const toInsert = PREDEFINED_MISSIONS
       .filter((pm) => !existingTypes.has(pm.actionType))
       .map((pm) => ({

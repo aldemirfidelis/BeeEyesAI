@@ -11,6 +11,8 @@ export function useMissions() {
   const { data: missions = [], isLoading } = useQuery({
     queryKey: ["missions"],
     queryFn: () => api.get("/api/missions").then((r) => r.data),
+    refetchInterval: 8000,       // poll every 8s so auto-completed missions appear quickly
+    refetchOnWindowFocus: true,
   });
 
   // Seed predefined missions for user (idempotent)

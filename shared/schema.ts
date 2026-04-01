@@ -275,20 +275,19 @@ export const PREDEFINED_MISSIONS: Array<{
   tier: number;
 }> = [
   // Tier 1 — Boas-vindas
-  { actionType: "send_message",     title: "Diga olá para a Bee",         description: "Envie sua primeira mensagem no chat",                xpReward: 10, tier: 1 },
-  { actionType: "set_mood",         title: "Como você está hoje?",         description: "Registre seu humor pela primeira vez",               xpReward: 15, tier: 1 },
-  { actionType: "like_post",        title: "Mostre carinho",               description: "Curta uma publicação no feed",                       xpReward: 15, tier: 1 },
+  { actionType: "send_message",      title: "Diga olá para a Bee",          description: "Envie sua primeira mensagem no chat",                xpReward: 10, tier: 1 },
+  { actionType: "like_post",         title: "Mostre carinho",               description: "Curta uma publicação no feed",                       xpReward: 15, tier: 1 },
   // Tier 2 — Social
-  { actionType: "create_post",      title: "Compartilhe algo",             description: "Faça sua primeira publicação no feed",               xpReward: 20, tier: 2 },
-  { actionType: "add_friend",       title: "Faça uma conexão",             description: "Envie um pedido de amizade para alguém",             xpReward: 20, tier: 2 },
-  { actionType: "accept_friend",    title: "Aceite um amigo",              description: "Aceite um pedido de conexão",                        xpReward: 20, tier: 2 },
+  { actionType: "create_post",       title: "Compartilhe algo",             description: "Faça sua primeira publicação no feed",               xpReward: 20, tier: 2 },
+  { actionType: "add_friend",        title: "Faça uma conexão",             description: "Envie um pedido de amizade para alguém",             xpReward: 20, tier: 2 },
+  { actionType: "accept_friend",     title: "Aceite um amigo",              description: "Aceite um pedido de conexão recebido",               xpReward: 20, tier: 2 },
+  { actionType: "comment_post",      title: "Participe da conversa",        description: "Comente em uma publicação do feed",                  xpReward: 25, tier: 2 },
   // Tier 3 — Conectado
-  { actionType: "comment_post",     title: "Participe da conversa",        description: "Comente em uma publicação do feed",                  xpReward: 25, tier: 3 },
-  { actionType: "send_dm",          title: "Conversa privada",             description: "Mande uma mensagem direta para um amigo",            xpReward: 40, tier: 3 },
-  { actionType: "join_community",   title: "Entre em uma comunidade",      description: "Participe de uma comunidade",                        xpReward: 40, tier: 3 },
+  { actionType: "send_dm",           title: "Conversa privada",             description: "Mande uma mensagem direta para um amigo",            xpReward: 40, tier: 3 },
+  { actionType: "join_community",    title: "Entre em uma comunidade",      description: "Participe de uma comunidade",                        xpReward: 40, tier: 3 },
   // Tier 4 — Criador
-  { actionType: "post_in_community",title: "Voz na comunidade",            description: "Publique algo em uma comunidade que você participa", xpReward: 30, tier: 4 },
-  { actionType: "create_community", title: "Funde sua comunidade",         description: "Crie sua própria comunidade",                        xpReward: 50, tier: 4 },
+  { actionType: "post_in_community", title: "Voz na comunidade",            description: "Publique algo em uma comunidade que você participa", xpReward: 30, tier: 4 },
+  { actionType: "create_community",  title: "Funde sua comunidade",         description: "Crie sua própria comunidade",                        xpReward: 50, tier: 4 },
 ];
 
 // Features unlocked at each level
