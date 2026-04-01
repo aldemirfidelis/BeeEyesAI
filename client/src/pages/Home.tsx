@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 import FeedPostCard from "@/components/FeedPostCard";
@@ -256,6 +256,10 @@ export default function Home() {
   const [dmSending, setDmSending] = useState(false);
   const [processingConnectionRequestId, setProcessingConnectionRequestId] = useState<string | null>(null);
 
+  // Chat search state
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [msgSearchQuery, setMsgSearchQuery] = useState("");
+
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authUsername, setAuthUsername] = useState("");
@@ -268,6 +272,8 @@ export default function Home() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
   const dmEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
@@ -278,7 +284,9 @@ export default function Home() {
   }, [messages]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isNearBottomRef.current) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, streamingText]);
 
   useEffect(() => {
@@ -890,6 +898,7 @@ export default function Home() {
     const slashCommand = content.toLowerCase();
     const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
+    isNearBottomRef.current = true;
     setInputValue("");
 
     if (slashCommand === "/feed") {
@@ -1208,6 +1217,7 @@ export default function Home() {
       metadata: metadata ? JSON.stringify(metadata) : undefined,
     };
     setMessages((prev) => [...prev, msg]);
+    isNearBottomRef.current = true;
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
 
@@ -2204,13 +2214,56 @@ export default function Home() {
         </header>
 
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <div className="flex items-center justify-center py-4 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0">
+          <div className="flex items-center justify-center py-4 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative">
             <BeeEyes expression={eyeExpression} />
+            <button
+              type="button"
+              onClick={() => { setShowMsgSearch((v) => !v); setMsgSearchQuery(""); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-muted transition-colors"
+              aria-label="Buscar mensagens"
+            >
+              <Search size={18} className="text-muted-foreground" />
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
+          {showMsgSearch && (
+            <div className="shrink-0 px-4 py-2 border-b bg-card/50 flex items-center gap-2">
+              <Search size={16} className="text-muted-foreground shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={msgSearchQuery}
+                onChange={(e) => setMsgSearchQuery(e.target.value)}
+                placeholder="Buscar nas mensagens..."
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              {msgSearchQuery && (
+                <button type="button" onClick={() => setMsgSearchQuery("")} className="text-muted-foreground hover:text-foreground">
+                  <X size={14} />
+                </button>
+              )}
+              <span className="text-xs text-muted-foreground shrink-0">
+                {msgSearchQuery
+                  ? `${messages.filter((m) => m.content.toLowerCase().includes(msgSearchQuery.toLowerCase())).length} resultado(s)`
+                  : ""}
+              </span>
+            </div>
+          )}
+
+          <div
+            ref={chatScrollRef}
+            className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3"
+            onScroll={() => {
+              const el = chatScrollRef.current;
+              if (!el) return;
+              isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+            }}
+          >
             <AnimatePresence mode="popLayout">
-              {messages.map((message) => (
+              {(msgSearchQuery
+                ? messages.filter((m) => m.content.toLowerCase().includes(msgSearchQuery.toLowerCase()))
+                : messages
+              ).map((message) => (
                 <ChatMessage
                   key={message.id}
                   role={message.role}
