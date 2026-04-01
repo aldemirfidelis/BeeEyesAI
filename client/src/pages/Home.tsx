@@ -2048,12 +2048,8 @@ export default function Home() {
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-background">
 
-      {/* ── Chat area ── */}
-      <div
-        className={`flex-1 flex flex-col min-h-0 ${
-          mobileTab === "chat" ? "flex" : (mobileTab === "inbox" || mobileTab === "communities" || mobileTab === "feed") ? "hidden" : "hidden md:flex"
-        }`}
-      >
+      {/* ── Chat area — sempre visível no desktop, hidden em outras tabs no mobile ── */}
+      <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : ""}`}>
         <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
@@ -2304,16 +2300,12 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── Sidebar (desktop) ── */}
-      <aside
-        className={`bg-card/30 backdrop-blur-sm min-h-0 ${
-          mobileTab === "chat"
-            ? "hidden md:flex md:w-96 md:border-l md:flex-col"
-            : (mobileTab === "inbox" || mobileTab === "communities" || mobileTab === "feed")
-              ? "flex flex-1 min-w-0 flex-col"
-              : "flex flex-col flex-1 min-h-0 md:w-96 md:border-l md:flex"
-        }`}
-      >
+      {/* ── Sidebar — sempre visível no desktop (384px), full-screen em outras tabs no mobile ── */}
+      <aside className={`bg-card/30 backdrop-blur-sm min-h-0 ${
+        mobileTab !== "chat"
+          ? "flex flex-col flex-1 min-h-0 md:w-96 md:flex-none md:border-l"
+          : "hidden md:flex md:w-96 md:border-l md:flex-col"
+      }`}>
         {sidebarContent}
       </aside>
 
