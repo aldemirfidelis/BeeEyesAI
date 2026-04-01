@@ -156,6 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!isSystem) {
       await storage.createMessage({ userId, role: "user", content });
       await storage.incrementMessageCount(userId);
+      triggerMissionAction(userId, "send_message");
     }
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -289,6 +290,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── MISSIONS ──────────────────────────────────────────────────────────────
 
+  // Helper: auto-complete a system mission by actionType (fire-and-forget, no xp celebr.)
+  async function triggerMissionAction(userId: string, actionType: string) {
+    try {
+      const mission = await storage.completeMissionByAction(userId, actionType);
+      if (mission) {
+        await storage.updateUserXP(userId, mission.xpReward);
+      }
+    } catch { /* non-critical */ }
+  }
+
+  app.post("/api/missions/seed", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req as AuthRequest).userId;
+    await storage.seedPredefinedMissions(userId);
+    const missions = await storage.getMissionsByUser(userId);
+    return res.json(missions);
+  });
+
   app.get("/api/missions", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
     const completedQuery = req.query.completed;
@@ -366,6 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     const entry = await storage.createMoodEntry(parsed.data);
     storage.updateUserStreak(userId).catch(() => {});
+    triggerMissionAction(userId, "set_mood");
     return res.status(201).json(entry);
   });
 
@@ -454,6 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.updateUserXP(userId, 15);
       }
     }).catch(() => {});
+    triggerMissionAction(userId, "create_post");
 
     return res.status(201).json(post);
   });
@@ -473,6 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } else {
       await storage.likePost(postId, userId);
       const likesCount = await storage.getPostLikesCount(postId);
+      triggerMissionAction(userId, "like_post");
       return res.json({ liked: true, likesCount });
     }
   });
@@ -533,6 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ message: "Comentário vazio" });
     const comment = await storage.createPostComment({ postId: req.params.id, userId, content: content.trim() });
+    triggerMissionAction(userId, "comment_post");
     return res.status(201).json(comment);
   });
 
@@ -630,6 +652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
+    triggerMissionAction(userId, "add_friend");
     return res.status(201).json(connection);
   });
 
@@ -648,6 +671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: JSON.stringify({ type: "connection_accepted", byUserId: userId }),
       });
     }
+    triggerMissionAction(userId, "accept_friend");
 
     return res.json(connection);
   });
@@ -735,6 +759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!recipient) return res.status(404).json({ message: "Usuario nao encontrado" });
 
     const created = await storage.sendDirectMessage({ senderId, recipientId, content });
+    triggerMissionAction(senderId, "send_dm");
     return res.status(201).json(created);
   });
   app.get("/api/users/search", requireAuth, async (req: Request, res: Response) => {
@@ -805,6 +830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { name, description, category, emoji } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "Nome obrigatório" });
     const community = await storage.createCommunity({ name: name.trim(), description: description?.trim() || null, category: category || "geral", emoji: emoji || "🐝", ownerId: userId });
+    triggerMissionAction(userId, "create_community");
     return res.status(201).json(community);
   });
 
@@ -824,6 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/communities/:id/join", requireAuth, async (req: Request, res: Response) => {
     const userId = (req as AuthRequest).userId;
     await storage.joinCommunity(req.params.id, userId);
+    triggerMissionAction(userId, "join_community");
     return res.json({ ok: true });
   });
 
@@ -847,6 +874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const community = await storage.getCommunityById(req.params.id, userId);
     if (!community?.isMember) return res.status(403).json({ message: "Entre na comunidade para publicar" });
     const post = await storage.createCommunityPost({ communityId: req.params.id, userId, content: content.trim() });
+    triggerMissionAction(userId, "post_in_community");
     const author = await storage.getUser(userId);
     return res.status(201).json({
       ...post,

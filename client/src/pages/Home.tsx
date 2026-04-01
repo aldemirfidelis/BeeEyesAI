@@ -30,9 +30,12 @@ interface Message {
 interface Mission {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   xpReward: number;
   completed: boolean;
+  type: "system" | "user";
+  actionType: string | null;
+  tier: number;
 }
 
 interface User {
@@ -325,9 +328,14 @@ export default function Home() {
         setMessages(normalized);
       });
 
-    fetch("/api/missions?completed=false", { headers: authHeaders() })
+    fetch("/api/missions/seed", { method: "POST", headers: authHeaders() })
       .then((r) => r.ok ? r.json() : [])
-      .then(setMissions);
+      .then(setMissions)
+      .catch(() =>
+        fetch("/api/missions", { headers: authHeaders() })
+          .then((r) => r.ok ? r.json() : [])
+          .then(setMissions)
+      );
   }, [token]);
 
   // Load friends list
@@ -1238,18 +1246,21 @@ export default function Home() {
   };
 
   const handleMissionsCommand = () => {
-    const active = missions.filter((m) => !m.completed);
-    const done = missions.filter((m) => m.completed);
-    if (missions.length === 0) {
-      injectAssistantMessage("Você ainda não tem missões. Crie uma na aba Missões ou me peça uma sugestão!");
+    const sys = missions.filter((m) => m.type === "system");
+    const active = sys.filter((m) => !m.completed);
+    const done = sys.filter((m) => m.completed);
+    if (sys.length === 0) {
+      injectAssistantMessage("Abrindo suas missões na aba ao lado! 🎯");
+      setMobileTab("missions");
       return;
     }
     const lines = [
-      `🎯 Suas missões (${active.length} ativas, ${done.length} concluídas):`,
-      ...active.map((m) => `▸ ${m.title} — ${m.xpReward} XP`),
-      ...(done.length > 0 ? [`\n✅ Concluídas: ${done.map((m) => m.title).join(", ")}`] : []),
+      `🎯 Progresso das missões: ${done.length}/${sys.length} concluídas`,
+      ...active.slice(0, 3).map((m) => `▸ ${m.title} (+${m.xpReward} XP)`),
+      ...(active.length > 3 ? [`...e mais ${active.length - 3} missões`] : []),
     ];
     injectAssistantMessage(lines.join("\n"));
+    setMobileTab("missions");
   };
 
   const [showInlinePost, setShowInlinePost] = useState(false);
@@ -1703,33 +1714,115 @@ export default function Home() {
           </div>
         </TabsContent>
 
-        <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3 mt-0">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg font-semibold">Missões</h2>
-            <Button size="sm" variant="outline" data-testid="button-add-mission">
-              <Plus className="w-4 h-4 mr-1" />
-              Nova
-            </Button>
-          </div>
-          <AnimatePresence mode="popLayout">
-            {missions.map((mission) => (
-              <MissionCard
-                key={mission.id}
-                id={mission.id}
-                title={mission.title}
-                description={mission.description}
-                xpReward={mission.xpReward}
-                completed={mission.completed}
-                onToggle={handleToggleMission}
-                onDelete={handleDeleteMission}
-              />
-            ))}
-            {missions.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Nenhuma missão ainda. Peça ao BeeEyes para criar uma! 🐝
-              </p>
-            )}
-          </AnimatePresence>
+        <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
+          {(() => {
+            const TIER_META: Record<number, { label: string; emoji: string; color: string }> = {
+              1: { label: "Boas-vindas",  emoji: "👋", color: "#F59E0B" },
+              2: { label: "Social",       emoji: "🤝", color: "#3B82F6" },
+              3: { label: "Conectado",    emoji: "💬", color: "#8B5CF6" },
+              4: { label: "Criador",      emoji: "🚀", color: "#10B981" },
+            };
+            const LEVEL_UNLOCKS: Record<number, { icon: string; label: string }> = {
+              2: { icon: "📨", label: "Mensagens Diretas desbloqueadas" },
+              3: { icon: "👻", label: "Visita anônima de perfil" },
+              4: { icon: "🏅", label: "Badge exclusiva no perfil" },
+              5: { icon: "🤖", label: "Modo IA Avançado" },
+            };
+            const xpForLevel = (lvl: number) => lvl * 100 + (lvl - 1) * 50;
+            const level = user?.level ?? 1;
+            const xp = user?.xp ?? 0;
+            const xpNeeded = xpForLevel(level);
+            const progress = Math.min(xp / xpNeeded, 1);
+
+            const sysMissions = missions.filter((m) => m.type === "system");
+            const totalDone = sysMissions.filter((m) => m.completed).length;
+            const byTier: Record<number, Mission[]> = { 1: [], 2: [], 3: [], 4: [] };
+            for (const m of sysMissions) {
+              if (byTier[m.tier]) byTier[m.tier].push(m);
+            }
+
+            return (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <h2 className="font-display text-lg font-bold">Missões 🎯</h2>
+                  <span className="text-xs text-muted-foreground">{totalDone}/{sysMissions.length} concluídas</span>
+                </div>
+
+                {/* Level + XP card */}
+                {user && (
+                  <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-full bg-primary flex items-center justify-center font-bold text-lg text-primary-foreground shrink-0">
+                        {level}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold">Nível {level}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{xp} / {xpNeeded} XP</p>
+                      </div>
+                      <span className="text-xs font-bold text-primary">{Math.round(progress * 100)}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                      <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${progress * 100}%` }} />
+                    </div>
+                    {LEVEL_UNLOCKS[level + 1] && (
+                      <p className="text-xs text-muted-foreground bg-secondary/60 rounded-lg px-3 py-2">
+                        {LEVEL_UNLOCKS[level + 1].icon} Próximo desbloqueio no nível {level + 1}:{" "}
+                        <strong>{LEVEL_UNLOCKS[level + 1].label}</strong>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Unlocked features */}
+                {Object.entries(LEVEL_UNLOCKS)
+                  .filter(([lvl]) => Number(lvl) <= level)
+                  .map(([lvl, info]) => (
+                    <div key={lvl} className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/8 px-3 py-2">
+                      <span className="text-base">{info.icon}</span>
+                      <span className="text-xs font-semibold text-green-600">{info.label}</span>
+                    </div>
+                  ))}
+
+                {/* Tier sections */}
+                {[1, 2, 3, 4].map((tier) => {
+                  const tierMissions = byTier[tier];
+                  if (!tierMissions || tierMissions.length === 0) return null;
+                  const meta = TIER_META[tier];
+                  const allDone = tierMissions.every((m) => m.completed);
+                  return (
+                    <div key={tier} className="rounded-2xl border border-border bg-card overflow-hidden">
+                      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+                        <span className="text-sm font-semibold flex-1">{meta.emoji} {meta.label}</span>
+                        {allDone && <span className="text-xs font-bold text-green-600">✓ Completo</span>}
+                      </div>
+                      <div className="divide-y divide-border">
+                        {tierMissions.map((m) => (
+                          <div key={m.id} className={`flex items-center gap-3 px-4 py-3 ${m.completed ? "opacity-50" : ""}`}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${m.completed ? "bg-green-500 border-green-500" : "border-border"}`}>
+                              {m.completed && <span className="text-white text-[10px] font-black">✓</span>}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium ${m.completed ? "line-through text-muted-foreground" : ""}`}>{m.title}</p>
+                              {m.description && <p className="text-xs text-muted-foreground mt-0.5">{m.description}</p>}
+                            </div>
+                            <span className={`text-xs font-bold font-mono shrink-0 px-2 py-1 rounded-lg ${m.completed ? "text-green-600 bg-green-500/10" : "text-primary bg-primary/10"}`}>
+                              +{m.xpReward} XP
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {sysMissions.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">Carregando missões... 🐝</p>
+                )}
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">

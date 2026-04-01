@@ -20,6 +20,7 @@ import {
   type CommunityPostComment, type InsertCommunityPostComment,
   type PostComment, type InsertPostComment,
   xpForLevel,
+  PREDEFINED_MISSIONS,
 } from "../shared/schema";
 
 export interface IStorage {
@@ -46,6 +47,8 @@ export interface IStorage {
   getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]>;
   createMission(mission: InsertMission): Promise<Mission>;
   completeMission(id: string, userId: string): Promise<Mission | undefined>;
+  completeMissionByAction(userId: string, actionType: string): Promise<Mission | undefined>;
+  seedPredefinedMissions(userId: string): Promise<void>;
   deleteMission(id: string, userId: string): Promise<void>;
 
   // Mood
@@ -273,6 +276,53 @@ export class DrizzleStorage implements IStorage {
       .where(and(eq(missions.id, id), eq(missions.userId, userId)))
       .returning();
     return mission;
+  }
+
+  async completeMissionByAction(userId: string, actionType: string): Promise<Mission | undefined> {
+    // Find the first pending system mission with this actionType for the user
+    const [pending] = await db
+      .select()
+      .from(missions)
+      .where(
+        and(
+          eq(missions.userId, userId),
+          eq(missions.actionType, actionType),
+          eq(missions.type, "system"),
+          eq(missions.completed, false),
+        )
+      )
+      .limit(1);
+    if (!pending) return undefined;
+    const [completed] = await db
+      .update(missions)
+      .set({ completed: true, completedAt: new Date() })
+      .where(eq(missions.id, pending.id))
+      .returning();
+    return completed;
+  }
+
+  async seedPredefinedMissions(userId: string): Promise<void> {
+    // Get existing system missions for this user (by actionType)
+    const existing = await db
+      .select({ actionType: missions.actionType })
+      .from(missions)
+      .where(and(eq(missions.userId, userId), eq(missions.type, "system")));
+    const existingTypes = new Set(existing.map((m) => m.actionType));
+
+    const toInsert = PREDEFINED_MISSIONS
+      .filter((pm) => !existingTypes.has(pm.actionType))
+      .map((pm) => ({
+        userId,
+        title: pm.title,
+        description: pm.description,
+        xpReward: pm.xpReward,
+        type: "system" as const,
+        actionType: pm.actionType,
+        tier: pm.tier,
+      }));
+    if (toInsert.length > 0) {
+      await db.insert(missions).values(toInsert);
+    }
   }
 
   async deleteMission(id: string, userId: string): Promise<void> {
