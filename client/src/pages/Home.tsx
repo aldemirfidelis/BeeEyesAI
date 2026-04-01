@@ -268,12 +268,17 @@ export default function Home() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const dmEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
+
+  useEffect(() => {
+    dmEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [dmMessages]);
 
   useEffect(() => {
     const initialTheme = resolveInitialTheme();
@@ -1740,43 +1745,98 @@ export default function Home() {
         </TabsContent>
 
 
-        <TabsContent value="inbox" className="flex-1 overflow-hidden min-h-0 p-0 mt-0">
-          <div className="h-full flex min-h-0 overflow-hidden">
-            <div
-              className={`${
-                selectedDMUser ? "hidden md:flex md:w-[360px] lg:w-[400px]" : "flex w-full md:w-[360px] lg:w-[400px]"
-              } flex-col border-r min-h-0 bg-card/20`}
-            >
-              <div className="p-3 border-b">
-                <h2 className="font-display text-lg font-semibold">Mensagens</h2>
-                <p className="text-xs text-muted-foreground">Converse com amigos conectados e pessoas com interesses em comum.</p>
-              </div>
-
-              <div className="p-3 border-b space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">Pessoas para conversar</p>
-                <div className="space-y-1 max-h-36 overflow-y-auto">
-                  {suggestions.slice(0, 5).map((s) => (
-                    <button
-                      key={`sug-${s.id}`}
-                      onClick={() => openDMThread({ id: s.id, username: s.username, displayName: s.displayName, level: s.level })}
-                      className="w-full text-left px-2 py-2 rounded-lg hover:bg-secondary/50 transition-colors flex items-center gap-2"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
-                        {(s.displayName || s.username)[0].toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">{s.displayName || s.username}</p>
-                        <p className="text-xs text-muted-foreground truncate">{s.commonInterests.slice(0, 2).join(" · ") || "Novo contato"}</p>
-                      </div>
-                    </button>
-                  ))}
+        <TabsContent value="inbox" className="flex-1 overflow-hidden min-h-0 p-0 mt-0 relative">
+          {/* Thread view */}
+          {selectedDMUser ? (
+            <div className="absolute inset-0 flex flex-col min-h-0 bg-background z-10">
+              <div className="p-3 border-b flex items-center gap-2 bg-card/40 shrink-0">
+                <button
+                  onClick={() => setSelectedDMUser(null)}
+                  className="p-1 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg>
+                </button>
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
+                  {(selectedDMUser.displayName || selectedDMUser.username)[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{selectedDMUser.displayName || selectedDMUser.username}</p>
+                  <p className="text-xs text-muted-foreground">Nível {selectedDMUser.level}</p>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-2">
-                {dmLoading && <p className="text-xs text-muted-foreground text-center py-4">Carregando conversas...</p>}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {dmMessages.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-6">Envie a primeira mensagem desta conversa.</p>
+                )}
+                {dmMessages.map((m) => {
+                  const fromMe = m.senderId === user?.id;
+                  return (
+                    <div key={m.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${fromMe ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-secondary/70 rounded-bl-sm"}`}>
+                        {m.content}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={dmEndRef} />
+              </div>
+
+              <div className="p-3 border-t flex items-end gap-2 bg-card/40 shrink-0">
+                <Textarea
+                  value={dmInput}
+                  onChange={(e) => setDmInput(e.target.value)}
+                  rows={1}
+                  placeholder="Mensagem..."
+                  className="flex-1 resize-none text-sm min-h-[40px] max-h-28"
+                  maxLength={1500}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendDMMessage();
+                    }
+                  }}
+                />
+                <Button size="icon" onClick={sendDMMessage} disabled={!dmInput.trim() || dmSending} className="shrink-0 h-9 w-9">
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Conversation list */
+            <div className="h-full flex flex-col min-h-0 overflow-hidden">
+              <div className="p-3 border-b shrink-0">
+                <h2 className="font-display text-lg font-semibold">Mensagens</h2>
+              </div>
+
+              {suggestions.length > 0 && (
+                <div className="p-3 border-b shrink-0 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Sugestões</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {suggestions.slice(0, 5).map((s) => (
+                      <button
+                        key={`sug-${s.id}`}
+                        onClick={() => openDMThread({ id: s.id, username: s.username, displayName: s.displayName, level: s.level })}
+                        className="flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-secondary/50 transition-colors w-14"
+                      >
+                        <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+                          {(s.displayName || s.username)[0].toUpperCase()}
+                        </div>
+                        <p className="text-[10px] text-center leading-tight truncate w-full">{s.displayName || s.username}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto">
+                {dmLoading && <p className="text-xs text-muted-foreground text-center py-4">Carregando...</p>}
                 {!dmLoading && dmConversations.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-6">Ainda nao ha conversas. Inicie uma nova conversa acima.</p>
+                  <div className="text-center py-10 px-4 space-y-2">
+                    <p className="text-2xl">💬</p>
+                    <p className="text-sm font-semibold">Nenhuma conversa ainda</p>
+                    <p className="text-xs text-muted-foreground">Conecte-se com pessoas e inicie uma conversa.</p>
+                  </div>
                 )}
                 {dmConversations.map((c) => {
                   const name = c.user.displayName || c.user.username;
@@ -1784,89 +1844,33 @@ export default function Home() {
                     <button
                       key={c.user.id}
                       onClick={() => openDMThread(c.user)}
-                      className={`w-full text-left p-2 rounded-xl transition-colors ${selectedDMUser?.id === c.user.id ? "bg-primary/10 border border-primary/30" : "hover:bg-secondary/50"}`}
+                      className="w-full text-left px-3 py-3 hover:bg-secondary/50 transition-colors border-b border-border/40 flex items-center gap-3"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-black text-primary-foreground">
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-black text-primary-foreground">
                           {name[0].toUpperCase()}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold truncate">{name}</p>
-                            {c.unreadCount > 0 && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">{c.unreadCount}</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {c.lastMessageFromMe ? "Voce: " : ""}{c.lastMessage}
-                          </p>
+                        {c.unreadCount > 0 && (
+                          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+                            {c.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className={`text-sm truncate ${c.unreadCount > 0 ? "font-bold" : "font-semibold"}`}>{name}</p>
+                          <p className="text-[10px] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt)}</p>
                         </div>
+                        <p className={`text-xs truncate ${c.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                          {c.lastMessageFromMe ? "Você: " : ""}{c.lastMessage}
+                        </p>
                       </div>
                     </button>
                   );
                 })}
               </div>
             </div>
-
-            <div className={`flex-1 min-w-0 ${selectedDMUser ? "flex" : "hidden md:flex"} flex-col min-h-0`}>
-              {selectedDMUser ? (
-                <>
-                  <div className="p-3 border-b flex items-center gap-2 bg-card/40">
-                    <Button size="sm" variant="ghost" className="md:hidden" onClick={() => setSelectedDMUser(null)}>
-                      Voltar
-                    </Button>
-                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
-                      {(selectedDMUser.displayName || selectedDMUser.username)[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{selectedDMUser.displayName || selectedDMUser.username}</p>
-                      <p className="text-xs text-muted-foreground">Nivel {selectedDMUser.level}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {dmMessages.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-6">Envie a primeira mensagem desta conversa.</p>
-                    )}
-                    {dmMessages.map((m) => {
-                      const fromMe = m.senderId === user?.id;
-                      return (
-                        <div key={m.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${fromMe ? "bg-primary text-primary-foreground" : "bg-secondary/70"}`}>
-                            {m.content}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="p-3 border-t flex items-end gap-2 bg-card/40">
-                    <Textarea
-                      value={dmInput}
-                      onChange={(e) => setDmInput(e.target.value)}
-                      rows={2}
-                      placeholder="Mensagem..."
-                      className="flex-1 resize-none text-sm min-h-[52px] max-h-40"
-                      maxLength={1500}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          sendDMMessage();
-                        }
-                      }}
-                    />
-                    <Button onClick={sendDMMessage} disabled={!dmInput.trim() || dmSending}>
-                      Enviar
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="hidden md:flex flex-1 items-center justify-center text-sm text-muted-foreground">
-                  Selecione uma conversa para começar.
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </TabsContent>
 
         <TabsContent value="communities" className="flex-1 overflow-y-auto p-0 m-0 relative">
