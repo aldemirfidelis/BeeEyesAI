@@ -5,6 +5,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  metadata?: string | null;
 }
 
 interface ChatState {

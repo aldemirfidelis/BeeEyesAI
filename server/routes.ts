@@ -179,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return;
     }
 
-    const { cleanText, suggestedMission, achievement } = parseAIActions(fullResponse);
+    const { cleanText, suggestedMission, achievement, fetchNews } = parseAIActions(fullResponse);
 
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
 
@@ -211,6 +211,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.write(`data: ${JSON.stringify({ type: "achievement_unlocked", achievement: unlocked })}\n\n`);
       }
     }).catch(() => {});
+
+    if (fetchNews?.query) {
+      try {
+        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(fetchNews.query)}&hl=pt-BR&gl=BR&ceid=BR:pt-BR`;
+        const rssRes = await fetch(rssUrl, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
+        if (rssRes.ok) {
+          const xml = await rssRes.text();
+          const items: { title: string; link: string; source: string }[] = [];
+          const matches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
+          for (const m of matches) {
+            const block = m[1];
+            const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ?? block.match(/<title>(.*?)<\/title>/)?.[1] ?? "").trim();
+            const link = (block.match(/<link>(.*?)<\/link>/)?.[1] ?? "").trim();
+            const source = (block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] ?? "").trim();
+            if (title && link) items.push({ title, link, source });
+            if (items.length >= 5) break;
+          }
+          res.write(`data: ${JSON.stringify({ type: "news_fetched", query: fetchNews.query, items })}\n\n`);
+        }
+      } catch {
+        // ignore news fetch errors
+      }
+    }
 
     storage.updateUserStreak(userId).catch(() => {});
     updatePersonalityFromMessage(userId, content, cleanText).catch(() => {});

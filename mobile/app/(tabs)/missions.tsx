@@ -1,9 +1,10 @@
 import { useState } from "react";
 import {
-  View, Text, StyleSheet, SafeAreaView,
+  View, Text, StyleSheet,
   FlatList, TouchableOpacity, Modal,
   TextInput, Alert, ActivityIndicator,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useMissions } from "../../hooks/useMissions";
@@ -13,6 +14,7 @@ function xpForLevel(level: number) { return level * 100 + (level - 1) * 50; }
 import { COLORS, FONTS } from "../../lib/theme";
 
 export default function MissionsScreen() {
+  const insets = useSafeAreaInsets();
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -43,11 +45,22 @@ export default function MissionsScreen() {
     completeMission.mutate(id);
   }
 
+  function handleDelete(id: string, title: string) {
+    Alert.alert("Remover missao", `Deseja remover "${title}"?`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Remover",
+        style: "destructive",
+        onPress: () => deleteMission.mutate({ id, title }),
+      },
+    ]);
+  }
+
   const pending = missions.filter((m: any) => !m.completed);
   const completed = missions.filter((m: any) => m.completed);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Missões</Text>
@@ -95,6 +108,7 @@ export default function MissionsScreen() {
               xpReward={item.xpReward}
               completed={item.completed}
               onToggle={handleComplete}
+              onDelete={(id) => handleDelete(id, item.title)}
             />
           )}
         />
@@ -143,7 +157,7 @@ export default function MissionsScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -154,7 +168,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 12,
     backgroundColor: COLORS.card,
     borderBottomWidth: 1,

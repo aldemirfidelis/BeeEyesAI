@@ -2,14 +2,15 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
   Image,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { api } from "../../lib/api";
 import { useAuthStore } from "../../stores/authStore";
 import { queryClient } from "../../lib/queryClient";
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
   const profileImageUri = useUIStore((state) => state.profileImageUri);
   const colors = getThemeColors(themeMode);
   const styles = makeStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -65,11 +67,11 @@ export default function ProfileScreen() {
   const profile = me || user;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.topActions}>
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push("/settings" as never)}>
-            <Text style={styles.settingsButtonText}>Configuracoes</Text>
+            <Feather name="settings" size={20} color={colors.muted} />
           </TouchableOpacity>
         </View>
 
@@ -83,7 +85,9 @@ export default function ProfileScreen() {
               </Text>
             )}
           </View>
-          <Text style={styles.username}>{profile?.username}</Text>
+          <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
+          {profile?.displayName ? <Text style={styles.usernameHandle}>@{profile?.username}</Text> : null}
+          {profile?.gender ? <Text style={styles.profileMeta}>Genero: {profile.gender}</Text> : null}
           <View style={styles.levelBadge}>
             <Text style={styles.levelText}>Nivel {profile?.level ?? 1}</Text>
           </View>
@@ -123,7 +127,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Sair da conta</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -155,14 +159,8 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     content: { padding: 20, gap: 16 },
     topActions: { alignItems: "flex-end" },
     settingsButton: {
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
+      padding: 8,
     },
-    settingsButtonText: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: colors.foreground },
     avatarSection: { alignItems: "center", paddingVertical: 8, gap: 8 },
     avatar: {
       width: 80,
@@ -176,6 +174,8 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     avatarImage: { width: "100%", height: "100%" },
     avatarText: { fontFamily: FONTS.display, fontSize: 36, fontWeight: "700", color: "#1A1A1A" },
     username: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: colors.foreground },
+    usernameHandle: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted },
+    profileMeta: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
     levelBadge: {
       backgroundColor: colors.secondary,
       borderRadius: 12,

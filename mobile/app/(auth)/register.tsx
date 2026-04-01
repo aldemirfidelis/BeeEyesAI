@@ -81,7 +81,7 @@ function GoogleRegisterButton({
 
   useEffect(() => {
     if (response?.type === "success") {
-      const accessToken = response.authentication?.access_token;
+      const accessToken = response.authentication?.accessToken;
       if (accessToken) {
         onSuccess(accessToken);
       }
@@ -109,6 +109,8 @@ function GoogleRegisterButton({
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [gender, setGender] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -143,11 +145,16 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      const { data } = await api.post("/api/auth/register", { username, password });
+      const { data } = await api.post("/api/auth/register", {
+        username,
+        password,
+        displayName: displayName.trim() || undefined,
+        gender: gender || undefined,
+      });
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)/");
+      router.replace("/(tabs)");
     } catch (err: any) {
       Alert.alert("Erro", err.response?.data?.message || "Falha ao criar conta");
     } finally {
@@ -162,7 +169,7 @@ export default function RegisterScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)/");
+      router.replace("/(tabs)");
     } catch (err: any) {
       Alert.alert("Erro", err.response?.data?.message || "Falha ao entrar com Google");
     } finally {
@@ -239,6 +246,38 @@ export default function RegisterScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(290)} style={styles.inputWrapper}>
+            <Text style={styles.inputLabel}>Nome de exibicao</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="opcional"
+              placeholderTextColor={COLORS.muted}
+              value={displayName}
+              onChangeText={setDisplayName}
+            />
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(305)} style={styles.inputWrapper}>
+            <Text style={styles.inputLabel}>Genero</Text>
+            <View style={styles.genderRow}>
+              {[
+                { label: "Feminino", value: "female" },
+                { label: "Masculino", value: "male" },
+                { label: "Outro", value: "other" },
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[styles.genderChip, gender === option.value && styles.genderChipActive]}
+                  onPress={() => setGender((current) => (current === option.value ? "" : option.value))}
+                >
+                  <Text style={[styles.genderChipText, gender === option.value && styles.genderChipTextActive]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </Animated.View>
 
           {/* Password */}
@@ -411,6 +450,32 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
   },
   inputWrapper: { marginBottom: 16 },
+  genderRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  genderChip: {
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: "#EDE9E0",
+    backgroundColor: "#F8F6F0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  genderChipActive: {
+    borderColor: COLORS.primaryDark,
+    backgroundColor: "#FFF3D0",
+  },
+  genderChipText: {
+    fontFamily: "System",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#555",
+  },
+  genderChipTextActive: {
+    color: COLORS.primaryDark,
+  },
   inputLabel: {
     fontFamily: "System",
     fontSize: 13,

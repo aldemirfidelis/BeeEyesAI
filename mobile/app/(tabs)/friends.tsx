@@ -1,9 +1,10 @@
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView, SafeAreaView,
   TouchableOpacity, RefreshControl, Modal, ActivityIndicator,
   TextInput,
 } from "react-native";
 import { useState, useCallback, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { COLORS, FONTS } from "../../lib/theme";
@@ -59,6 +60,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function FriendsScreen() {
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export default function FriendsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>👥 Amigos</Text>
       </View>
@@ -358,7 +360,7 @@ export default function FriendsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -368,7 +370,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,

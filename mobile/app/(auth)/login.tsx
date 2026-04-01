@@ -77,7 +77,7 @@ function GoogleLoginButton({
 
   useEffect(() => {
     if (response?.type === "success") {
-      const accessToken = response.authentication?.access_token;
+      const accessToken = response.authentication?.accessToken;
       if (accessToken) {
         onSuccess(accessToken);
       }
@@ -141,7 +141,7 @@ export default function LoginScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)/");
+      router.replace("/(tabs)");
     } catch (err: any) {
       Alert.alert("Erro", err.response?.data?.message || "Falha ao entrar");
     } finally {
@@ -156,7 +156,7 @@ export default function LoginScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)/");
+      router.replace("/(tabs)");
     } catch (err: any) {
       Alert.alert("Erro", err.response?.data?.message || "Falha ao entrar com Google");
     } finally {

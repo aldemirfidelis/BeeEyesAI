@@ -1,14 +1,12 @@
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
 
-function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
-  return (
-    <Text style={{ fontSize: focused ? 26 : 22, opacity: focused ? 1 : 0.6 }}>
-      {emoji}
-    </Text>
-  );
+type FeatherName = React.ComponentProps<typeof Feather>["name"];
+
+function TabIcon({ name, color, focused }: { name: FeatherName; color: string; focused: boolean }) {
+  return <Feather name={name} size={focused ? 23 : 21} color={color} />;
 }
 
 export default function TabsLayout() {
@@ -22,15 +20,18 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          height: 70,
+          height: 72,
           paddingBottom: 10,
-          paddingTop: 8,
+          paddingTop: 6,
         },
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.primaryDark,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
+        },
+        tabBarItemStyle: {
+          flex: 1,
         },
       }}
     >
@@ -38,49 +39,43 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Chat",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🐝" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => <TabIcon name="message-circle" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="feed"
         options={{
           title: "Feed",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🌐" focused={focused} />,
+          tabBarIcon: ({ color, focused }) => <TabIcon name="layout" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="missions"
         options={{
-          title: "Missoes",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🎯" focused={focused} />,
+          title: "Missões",
+          tabBarIcon: ({ color, focused }) => <TabIcon name="zap" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
-        name="friends"
+        name="inbox"
         options={{
-          title: "Amigos",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👥" focused={focused} />,
+          title: "Mensagens",
+          tabBarIcon: ({ color, focused }) => <TabIcon name="mail" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
-        name="mood"
+        name="communities"
         options={{
-          href: null,
+          title: "Comunidades",
+          tabBarIcon: ({ color, focused }) => <TabIcon name="users" color={color} focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Perfil",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Ocultos da tab bar — acessíveis via header */}
+      <Tabs.Screen name="friends" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="mood" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="news" options={{ href: null }} />
     </Tabs>
   );
 }

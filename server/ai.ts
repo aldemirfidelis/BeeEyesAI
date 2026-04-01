@@ -139,8 +139,12 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
    {"suggest_mission": {"title": "...", "description": "...", "xp_reward": 20}}
 4. Quando detectar conquista, inclua ao FINAL:
    {"achievement": {"type": "...", "title": "...", "description": "..."}}
-5. NUNCA invente informações sobre o usuário que não foram mencionadas
-6. Responda SEMPRE em português do Brasil`.trim();
+5. Quando o usuário pedir notícias sobre qualquer assunto, responda normalmente E inclua ao FINAL:
+   {"fetch_news": {"query": "termo de busca em português"}}
+   Exemplos: "me dê notícias sobre política" → {"fetch_news": {"query": "política Brasil"}}
+             "o que aconteceu no futebol hoje?" → {"fetch_news": {"query": "futebol hoje Brasil"}}
+6. NUNCA invente informações sobre o usuário que não foram mencionadas
+7. Responda SEMPRE em português do Brasil`.trim();
 }
 
 // ── Personality Analysis ──────────────────────────────────────────────────────
@@ -843,10 +847,12 @@ export function parseAIActions(response: string): {
   cleanText: string;
   suggestedMission?: { title: string; description: string; xp_reward: number };
   achievement?: { type: string; title: string; description: string };
+  fetchNews?: { query: string };
 } {
   let cleanText = response;
   let suggestedMission: { title: string; description: string; xp_reward: number } | undefined;
   let achievement: { type: string; title: string; description: string } | undefined;
+  let fetchNews: { query: string } | undefined;
 
   const missionMatch = response.match(/\{"suggest_mission":\s*(\{[^}]+\})\}/);
   if (missionMatch) {
@@ -870,5 +876,16 @@ export function parseAIActions(response: string): {
     }
   }
 
-  return { cleanText, suggestedMission, achievement };
+  const newsMatch = response.match(/\{"fetch_news":\s*\{[^}]+\}\}/);
+  if (newsMatch) {
+    try {
+      const parsed = JSON.parse(newsMatch[0]);
+      fetchNews = parsed.fetch_news;
+      cleanText = cleanText.replace(newsMatch[0], "").trim();
+    } catch {
+      // ignore parse error
+    }
+  }
+
+  return { cleanText, suggestedMission, achievement, fetchNews };
 }

@@ -4,6 +4,8 @@ import * as SecureStore from "expo-secure-store";
 interface UserBasic {
   id: string;
   username: string;
+  displayName?: string | null;
+  gender?: string | null;
   level: number;
   xp: number;
   currentStreak: number;

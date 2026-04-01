@@ -115,6 +115,9 @@ export default function SettingsScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Outras configuracoes</Text>
+          <TouchableOpacity style={styles.linkButton} onPress={() => router.push("/news" as never)}>
+            <Text style={styles.linkButtonText}>Abrir central de noticias</Text>
+          </TouchableOpacity>
           <Text style={styles.futureItem}>- Notificacoes personalizadas (em breve)</Text>
           <Text style={styles.futureItem}>- Privacidade e seguranca (em breve)</Text>
           <Text style={styles.futureItem}>- Idioma e acessibilidade (em breve)</Text>
@@ -270,6 +273,20 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       color: colors.muted,
       fontSize: 13,
       lineHeight: 20,
+    },
+    linkButton: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      paddingVertical: 11,
+      alignItems: "center",
+    },
+    linkButtonText: {
+      fontFamily: FONTS.sans,
+      fontWeight: "700",
+      color: colors.foreground,
+      fontSize: 13,
     },
   });
 }

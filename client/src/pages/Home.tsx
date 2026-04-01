@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2 } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 import FeedPostCard from "@/components/FeedPostCard";
@@ -54,6 +54,7 @@ interface FeedPost {
   author: { id: string; username: string; displayName: string | null; level: number };
   likesCount: number;
   liked: boolean;
+  commentsCount?: number;
 }
 
 interface ConnectionSuggestion {
@@ -207,7 +208,7 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "missions" | "friends" | "inbox" | "communities">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "feed" | "missions" | "friends" | "inbox" | "communities">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
@@ -619,6 +620,7 @@ export default function Home() {
   }, [token]);
 
   useEffect(() => {
+    if (mobileTab === "feed") loadFeed();
     if (mobileTab === "friends") loadFriends();
     if (mobileTab === "inbox") {
       loadDMConversations();
@@ -769,7 +771,9 @@ export default function Home() {
     setInputValue("");
 
     if (slashCommand === "/feed") {
-      handleFeedCommand();
+      setMobileTab("feed");
+      loadFeed();
+      injectAssistantMessage("Abrindo o feed para você. 📣");
       return;
     }
     if (slashCommand === "/missões" || slashCommand === "/missoes") {
@@ -782,6 +786,19 @@ export default function Home() {
     }
     if (slashCommand === "/compartilhar") {
       handleShareCommand();
+      return;
+    }
+    if (slashCommand === "/inbox" || slashCommand === "/mensagens") {
+      setMobileTab("inbox");
+      loadDMConversations();
+      loadConversationSuggestions();
+      injectAssistantMessage("Abrindo suas mensagens. 💬");
+      return;
+    }
+    if (slashCommand === "/comunidades") {
+      setMobileTab("communities");
+      loadCommunities(communitySearch);
+      injectAssistantMessage("Abrindo comunidades. 👥");
       return;
     }
 
@@ -1088,23 +1105,6 @@ export default function Home() {
     }
   };
 
-  const handleFeedCommand = async () => {
-    injectAssistantMessage("Carregando o feed dos seus amigos... 📣");
-    try {
-      const res = await fetch("/api/feed", { headers: authHeaders() });
-      if (!res.ok) throw new Error();
-      const posts = await res.json();
-      setFeed(posts);
-      if (posts.length === 0) {
-        injectAssistantMessage("Seu feed está vazio. Conecte-se com mais pessoas para ver as novidades delas!");
-        return;
-      }
-      injectAssistantMessage(`📣 Feed dos seus amigos — ${posts.length} publicações recentes`, { type: "feed_summary", posts: posts.slice(0, 5) });
-    } catch {
-      injectAssistantMessage("Não consegui carregar o feed agora.");
-    }
-  };
-
   const handleMissionsCommand = () => {
     const active = missions.filter((m) => !m.completed);
     const done = missions.filter((m) => m.completed);
@@ -1404,10 +1404,11 @@ export default function Home() {
       </div>
 
       <Tabs
-        value={mobileTab === "chat" ? "missions" : mobileTab}
+        value={mobileTab === "chat" ? "feed" : mobileTab}
         className="flex-1 flex flex-col min-h-0"
         onValueChange={(v) => {
           setMobileTab(v as any);
+          if (v === "feed") loadFeed();
           if (v === "friends") loadFriends();
           if (v === "inbox") {
             loadDMConversations();
@@ -1419,6 +1420,10 @@ export default function Home() {
         }}
       >
         <TabsList className="mx-2 mt-3 md:flex hidden gap-0.5">
+          <TabsTrigger value="feed" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <LayoutGrid className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Feed</span>
+          </TabsTrigger>
           <TabsTrigger value="missions" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
             <TrendingUp className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Missões</span>
@@ -1436,6 +1441,135 @@ export default function Home() {
             <span className="text-[10px] leading-tight">Comunidades</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="feed" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
+          {/* Post creation */}
+          <div className="p-4 border-b flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold">Feed</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={loadFeed} className="text-muted-foreground hover:text-foreground transition-colors" title="Atualizar">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <Button size="sm" variant="outline" onClick={() => setShowPostInput((v) => !v)}>
+                <Plus className="w-4 h-4 mr-1" />
+                Publicar
+              </Button>
+            </div>
+          </div>
+
+          {showPostInput && (
+            <div className="p-4 border-b space-y-2 bg-secondary/10">
+              <Textarea
+                value={postText}
+                onChange={(e) => setPostText(e.target.value)}
+                placeholder="Compartilhe algo com seus amigos..."
+                className="resize-none text-sm min-h-[80px]"
+                maxLength={500}
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-muted-foreground">{postText.length}/500</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => { setShowPostInput(false); setPostText(""); }}>Cancelar</Button>
+                  <Button size="sm" disabled={!postText.trim() || isPosting} onClick={handleCreatePost}>
+                    {isPosting ? "Publicando..." : "Publicar"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Connection suggestions */}
+          {suggestions.length > 0 && (
+            <div className="px-4 pt-4 pb-3 border-b">
+              <p className="text-xs font-semibold text-muted-foreground mb-3">PESSOAS QUE VOCÊ PODE CONHECER</p>
+              <div className="space-y-2">
+                {suggestions.slice(0, 3).map((s) => {
+                  const name = s.displayName || s.username;
+                  return (
+                    <div key={s.id} className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
+                        {name[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {s.commonInterests.slice(0, 2).join(" · ") || `Nível ${s.level}`}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs shrink-0"
+                        disabled={connectingIds.has(s.id)}
+                        onClick={() => handleConnect(s.id)}
+                      >
+                        <UserPlus className="w-3 h-3 mr-1" />
+                        Conectar
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Feed posts */}
+          <div className="p-4 space-y-3">
+            {feedLoading && (
+              <p className="text-sm text-muted-foreground text-center py-8">Carregando feed...</p>
+            )}
+            {!feedLoading && feed.length === 0 && (
+              <div className="text-center py-8 space-y-2">
+                <p className="text-3xl">📭</p>
+                <p className="text-sm font-semibold">Feed vazio</p>
+                <p className="text-xs text-muted-foreground">Conecte-se com pessoas para ver as novidades delas!</p>
+              </div>
+            )}
+            {feed.map((post) => {
+              const name = post.author.displayName || post.author.username;
+              return (
+                <Card key={post.id} className="p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
+                      {name[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-semibold">{name}</span>
+                        <span className="text-xs text-muted-foreground bg-secondary rounded px-1 shrink-0">Nv {post.author.level}</span>
+                        {post.sentiment && SENTIMENT_EMOJI[post.sentiment] && (
+                          <span className="text-xs shrink-0">{SENTIMENT_EMOJI[post.sentiment]}</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed">{post.content}</p>
+                  {post.aiComment && (
+                    <div className="border-l-2 border-primary/40 pl-3 py-1 bg-secondary/20 rounded-r-lg">
+                      <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 pt-1">
+                    <button
+                      onClick={() => handleLikePost(post.id)}
+                      className={`flex items-center gap-1 text-xs transition-colors ${post.liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
+                    >
+                      <Heart className={`w-4 h-4 ${post.liked ? "fill-current" : ""}`} />
+                      {post.likesCount}
+                    </button>
+                    {post.commentsCount !== undefined && (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MessageCircle className="w-4 h-4" />
+                        {post.commentsCount}
+                      </span>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
 
         <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3 mt-0">
           <div className="flex items-center justify-between mb-4">
@@ -1917,7 +2051,7 @@ export default function Home() {
       {/* ── Chat area ── */}
       <div
         className={`flex-1 flex flex-col min-h-0 ${
-          mobileTab === "chat" ? "flex" : (mobileTab === "inbox" || mobileTab === "communities") ? "hidden" : "hidden md:flex"
+          mobileTab === "chat" ? "flex" : (mobileTab === "inbox" || mobileTab === "communities" || mobileTab === "feed") ? "hidden" : "hidden md:flex"
         }`}
       >
         <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
@@ -1997,7 +2131,7 @@ export default function Home() {
                       );
                     }
 
-                    if (meta.type === "news" && Array.isArray(meta.items)) {
+                    if ((meta.type === "news" || meta.type === "news_digest") && Array.isArray(meta.items)) {
                       return (
                         <div className="space-y-2">
                           {(meta.items as NewsItem[]).map((item, index) => (
@@ -2133,10 +2267,11 @@ export default function Home() {
 
             <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2">
               {[
-                { label: "/feed", onClick: handleFeedCommand },
+                { label: "/feed", onClick: () => { setMobileTab("feed"); loadFeed(); } },
                 { label: "/missões", onClick: handleMissionsCommand },
                 { label: "/notícias", onClick: handleNewsCommand },
-                { label: "/compartilhar", onClick: handleShareCommand },
+                { label: "/inbox", onClick: () => { setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); } },
+                { label: "/comunidades", onClick: () => { setMobileTab("communities"); loadCommunities(communitySearch); } },
               ].map((action) => (
                 <button
                   key={action.label}
@@ -2174,7 +2309,7 @@ export default function Home() {
         className={`bg-card/30 backdrop-blur-sm min-h-0 ${
           mobileTab === "chat"
             ? "hidden md:flex md:w-96 md:border-l md:flex-col"
-            : (mobileTab === "inbox" || mobileTab === "communities")
+            : (mobileTab === "inbox" || mobileTab === "communities" || mobileTab === "feed")
               ? "flex flex-1 min-w-0 flex-col"
               : "flex flex-col flex-1 min-h-0 md:w-96 md:border-l md:flex"
         }`}
@@ -2192,18 +2327,18 @@ export default function Home() {
           Chat
         </button>
         <button
+          onClick={() => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); }}
+          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "feed" ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <LayoutGrid className="w-5 h-5" />
+          Feed
+        </button>
+        <button
           onClick={() => { setShowSettingsScreen(false); setMobileTab("missions"); }}
           className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "missions" ? "text-primary" : "text-muted-foreground"}`}
         >
           <TrendingUp className="w-5 h-5" />
           Missões
-        </button>
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("friends"); loadFriends(); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "friends" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <Users className="w-5 h-5" />
-          Amigos
         </button>
         <button
           onClick={() => { setShowSettingsScreen(false); setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }}

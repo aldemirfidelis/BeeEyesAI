@@ -34,8 +34,8 @@ function Eye({
 }: {
   x: number;
   expression: EyeExpression;
-  blinkScale: Animated.SharedValue<number>;
-  bounceY: Animated.SharedValue<number>;
+  blinkScale: { value: number };
+  bounceY: { value: number };
 }) {
   const pupilX = expression === "curious" ? 8 : 0;
   const pupilY =

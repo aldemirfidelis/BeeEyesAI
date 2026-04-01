@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useUIStore } from "../stores/uiStore";
 import { useChatStore } from "../stores/chatStore";
+import { API_URL_RAW } from "../lib/api";
+import * as SecureStore from "expo-secure-store";
 
 export function useMissions() {
   const queryClient = useQueryClient();
@@ -50,9 +52,64 @@ export function useMissions() {
   });
 
   const deleteMission = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/missions/${id}`),
-    onSuccess: () => {
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      await api.delete(`/api/missions/${id}`);
+      return { id, title };
+    },
+    onSuccess: async ({ title }) => {
       queryClient.invalidateQueries({ queryKey: ["missions"] });
+      const token = await SecureStore.getItemAsync("bee_token");
+      if (!token) return;
+
+      try {
+        const response = await fetch(`${API_URL_RAW}/api/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            content: `[SISTEMA] O usuario acabou de desistir e deletar a missao "${title}". Faca uma piada curta, leve e carinhosa sobre ele ter desistido.`,
+            isSystem: true,
+          }),
+        });
+
+        if (!response.ok) return;
+
+        const reader = response.body?.getReader();
+        if (!reader) return;
+
+        const decoder = new TextDecoder();
+        let finalContent = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              if (event.type === "chunk") {
+                finalContent += event.text;
+              } else if (event.type === "done") {
+                addMessage({
+                  id: `mission-delete-${Date.now()}`,
+                  role: "assistant",
+                  content: event.cleanText ?? finalContent,
+                  createdAt: new Date().toISOString(),
+                  metadata: null,
+                });
+              }
+            } catch {
+              // ignore malformed chunks
+            }
+          }
+        }
+      } catch {
+        // ignore joke generation failures
+      }
     },
   });
 
