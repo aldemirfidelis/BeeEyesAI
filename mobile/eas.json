@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 18.4.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://beeyes.net",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "576542580903-8pbiro275srp6g312l3gps7gbeffjk70.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://beeyes.net",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "576542580903-8pbiro275srp6g312l3gps7gbeffjk70.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://beeyes.net",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "576542580903-8pbiro275srp6g312l3gps7gbeffjk70.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

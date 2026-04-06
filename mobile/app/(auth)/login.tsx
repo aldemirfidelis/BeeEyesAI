@@ -12,11 +12,12 @@ import Svg, { Path, G, Rect, Circle } from "react-native-svg";
 import { router, Link } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
+import * as GoogleAuth from "expo-auth-session/providers/google";
 import { api } from "../../lib/api";
 import { useAuthStore } from "../../stores/authStore";
 import BeeEyes from "../../components/BeeEyes";
 import { COLORS } from "../../lib/theme";
+import { signInWithGoogleNative } from "../../lib/googleAuth";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -59,18 +60,16 @@ function EyeIcon({ visible, color = "#888" }: { visible: boolean; color?: string
 }
 
 function GoogleLoginButton({
-  enabled,
   loading,
   googleLoading,
   onSuccess,
 }: {
-  enabled: boolean;
   loading: boolean;
   googleLoading: boolean;
   onSuccess: (accessToken: string) => void;
 }) {
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  const [request, response, promptAsync] = GoogleAuth.useAuthRequest({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
   });
@@ -84,11 +83,23 @@ function GoogleLoginButton({
     }
   }, [onSuccess, response]);
 
+  async function handlePress() {
+    if (Platform.OS === "android") {
+      const accessToken = await signInWithGoogleNative();
+      if (accessToken) {
+        onSuccess(accessToken);
+      }
+      return;
+    }
+
+    await promptAsync();
+  }
+
   return (
     <TouchableOpacity
       style={styles.socialBtn}
-      onPress={() => promptAsync()}
-      disabled={!request || loading || googleLoading}
+      onPress={handlePress}
+      disabled={(Platform.OS !== "android" && !request) || loading || googleLoading}
       activeOpacity={0.8}
     >
       {googleLoading ? (
@@ -254,7 +265,6 @@ export default function LoginScreen() {
           <Animated.View entering={FadeInDown.delay(480)} style={styles.socialRow}>
             {googleEnabled ? (
               <GoogleLoginButton
-                enabled={googleEnabled}
                 loading={loading}
                 googleLoading={googleLoading}
                 onSuccess={(accessToken) => handleSocialLogin("google", accessToken)}

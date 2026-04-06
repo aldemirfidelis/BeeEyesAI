@@ -1,9 +1,10 @@
 import { Tabs } from "expo-router";
 import { Alert, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../lib/api";
 import { getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
-import { useAuthStore } from "../../stores/authStore";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
 
@@ -14,7 +15,13 @@ function TabIcon({ name, color, focused }: { name: FeatherName; color: string; f
 export default function TabsLayout() {
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
-  const userLevel = useAuthStore((s) => s.user?.level ?? 1);
+  const { data: me } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.get("/api/me").then((r) => r.data),
+    staleTime: 30 * 1000,
+    refetchInterval: 10 * 1000,
+  });
+  const userLevel = me?.level ?? 1;
 
   return (
     <Tabs
@@ -68,9 +75,8 @@ export default function TabsLayout() {
           ),
           tabBarButton: userLevel >= 2
             ? undefined
-            : (props) => (
+            : ({ style, children, accessibilityState, accessibilityLabel, testID }) => (
                 <TouchableOpacity
-                  {...props}
                   onPress={() =>
                     Alert.alert(
                       "🔒 Bloqueado",
@@ -78,8 +84,13 @@ export default function TabsLayout() {
                       [{ text: "Entendido", style: "cancel" }]
                     )
                   }
-                  style={[props.style, { opacity: 0.45 }]}
-                />
+                  accessibilityState={accessibilityState}
+                  accessibilityLabel={accessibilityLabel}
+                  testID={testID}
+                  style={[style, { opacity: 0.45 }]}
+                >
+                  {children}
+                </TouchableOpacity>
               ),
         }}
       />

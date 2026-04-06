@@ -1,7 +1,21 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const SECRET = process.env.JWT_SECRET || "bee-eyes-dev-secret-change-in-production";
+function resolveJwtSecret(): string {
+  const secret = process.env.JWT_SECRET?.trim();
+
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET is required in production");
+  }
+
+  return "bee-eyes-dev-secret-change-in-production";
+}
+
+const SECRET = resolveJwtSecret();
 
 export function signToken(userId: string): string {
   return jwt.sign({ sub: userId }, SECRET, { expiresIn: "30d" });

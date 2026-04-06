@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, View } from "react-native";
 import { queryClient } from "../lib/queryClient";
+import { configureGoogleSignin } from "../lib/googleAuth";
 import { useAuthStore } from "../stores/authStore";
 import { useUIStore } from "../stores/uiStore";
 import { getThemeColors } from "../lib/theme";
@@ -16,6 +17,7 @@ export default function RootLayout() {
   const colors = getThemeColors(themeMode);
 
   useEffect(() => {
+    configureGoogleSignin();
     initialize();
     initializePreferences();
   }, []);

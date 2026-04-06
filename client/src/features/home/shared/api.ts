@@ -1,0 +1,46 @@
+import type { ApiResponse } from "@shared/api";
+
+function isEnvelope<T>(value: unknown): value is ApiResponse<T> {
+  return Boolean(value && typeof value === "object" && "ok" in (value as Record<string, unknown>));
+}
+
+export async function parseApiResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+
+  if (isEnvelope<T>(payload)) {
+    if (!payload.ok) {
+      throw new Error(payload.error.message);
+    }
+
+    return payload.data;
+  }
+
+  if (!response.ok) {
+    throw new Error((payload as { message?: string } | null)?.message || response.statusText);
+  }
+
+  return payload as T;
+}
+
+export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
+  return parseApiResponse<T>(response);
+}
+
+export async function apiTryFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T | null> {
+  const response = await fetch(input, init);
+  if (!response.ok) {
+    return null;
+  }
+
+  return parseApiResponse<T>(response);
+}
+
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}

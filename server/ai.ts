@@ -716,12 +716,12 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
           max_tokens: 120,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
         });
-        return r.choices[0]?.message?.content?.trim() ?? null;
+        return r.choices[0]?.message?.content?.trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
       async () => {
         const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash", systemInstruction: systemPrompt });
         const result = await model.generateContent(prompt);
-        return result.response.text().trim() ?? null;
+        return result.response.text().trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
       async () => {
         const r = await cerebras.chat.completions.create({
@@ -729,7 +729,7 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
           max_tokens: 120,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
         });
-        return r.choices[0]?.message?.content?.trim() ?? null;
+        return r.choices[0]?.message?.content?.trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
     ],
     `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`

@@ -12,12 +12,14 @@ interface Entry {
 const store = new Map<string, Entry>();
 
 // Clean up expired entries every 10 minutes to avoid memory leak
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of store) {
     if (now > entry.resetAt) store.delete(key);
   }
 }, 10 * 60 * 1000);
+
+cleanupTimer.unref?.();
 
 export function checkRateLimit(userId: string): {
   allowed: boolean;
@@ -39,4 +41,8 @@ export function checkRateLimit(userId: string): {
 
   entry.count++;
   return { allowed: true, remaining: MAX_PER_HOUR - entry.count, resetInMs: entry.resetAt - now };
+}
+
+export function resetRateLimitStoreForTests() {
+  store.clear();
 }

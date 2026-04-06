@@ -15,7 +15,8 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-google-signin/google-signin"
     ],
     "ios": {
       "supportsTablet": false,
@@ -23,6 +24,7 @@
     },
     "android": {
       "package": "com.beeeyes.ai",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#FFF8E7",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -32,6 +34,12 @@
     },
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d0d86027-eada-4f64-bf91-faba1d627a58"
+      }
     }
   }
 }

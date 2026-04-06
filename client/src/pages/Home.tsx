@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
-import BeeEyes from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import MissionCard from "@/components/MissionCard";
 import XPProgress from "@/components/XPProgress";
 import MoodSelector from "@/components/MoodSelector";
 import AchievementPopup from "@/components/AchievementPopup";
+import BeeEyes from "@/components/BeeEyes";
 import StreakDisplay from "@/components/StreakDisplay";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -14,162 +14,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
+import { AuthScreen } from "@/features/home/auth/AuthScreen";
+import { FeedPanel } from "@/features/home/feed/FeedPanel";
+import { MissionsPanel } from "@/features/home/missions/MissionsPanel";
+import { FriendsPanel } from "@/features/home/friends/FriendsPanel";
+import { InboxPanel } from "@/features/home/chat/InboxPanel";
+import { CommunitiesPanel } from "@/features/home/communities/CommunitiesPanel";
+import { SettingsScreen } from "@/features/home/settings/SettingsScreen";
+import { FriendProfileModal } from "@/features/home/friends/FriendProfileModal";
+import { ChatWorkspace } from "@/features/home/chat/ChatWorkspace";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-  metadata?: string | null;
-}
-
-interface Mission {
-  id: string;
-  title: string;
-  description: string | null;
-  xpReward: number;
-  completed: boolean;
-  type: "system" | "user";
-  actionType: string | null;
-  tier: number;
-}
-
-interface User {
-  id: string;
-  username: string;
-  level: number;
-  xp: number;
-  currentStreak: number;
-}
-
-interface FeedPost {
-  id: string;
-  userId: string;
-  content: string;
-  sentiment: string | null;
-  sentimentLabel: string | null;
-  aiComment: string | null;
-  createdAt: string;
-  author: { id: string; username: string; displayName: string | null; level: number };
-  likesCount: number;
-  liked: boolean;
-  commentsCount?: number;
-}
-
-interface ConnectionSuggestion {
-  id: string;
-  username: string;
-  displayName: string | null;
-  level: number;
-  commonInterests: string[];
-}
-
-interface Friend {
-  id: string;
-  username: string;
-  displayName: string | null;
-  level: number;
-  currentStreak: number;
-  lastActiveAt: string | null;
-  personality: { interests: string } | null;
-}
-
-interface SearchUser {
-  id: string;
-  username: string;
-  displayName: string | null;
-  level: number;
-  currentStreak: number;
-  connectionStatus: "none" | "pending" | "accepted";
-}
-
-interface FriendProfile {
-  user: {
-    id: string;
-    username: string;
-    displayName: string | null;
-    level: number;
-    xp: number;
-    currentStreak: number;
-    lastActiveAt: string | null;
-  };
-  recentPosts: FeedPost[];
-  interests: string[];
-  activeMissionsCount: number;
-}
-
-interface Community {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string;
-  emoji: string;
-  ownerId: string;
-  membersCount: number;
-  createdAt: string;
-  isMember?: boolean;
-  memberRole?: string;
-}
-
-interface CommunityPost {
-  id: string;
-  communityId: string;
-  userId: string;
-  content: string;
-  createdAt: string;
-  username: string;
-  displayName: string | null;
-  likesCount: number;
-  liked: boolean;
-  commentsCount: number;
-}
-
-interface DMConversation {
-  user: { id: string; username: string; displayName: string | null; level: number };
-  lastMessage: string;
-  lastMessageAt: string;
-  lastMessageFromMe: boolean;
-  unreadCount: number;
-}
-
-interface DMMessage {
-  id: string;
-  senderId: string;
-  recipientId: string;
-  content: string;
-  createdAt: string;
-}
-
-interface NewsItem {
-  title: string;
-  link: string;
-  source: string;
-}
-
-interface ChatFeedSummaryPost {
-  id: string;
-  content: string;
-  createdAt: string;
-  likesCount: number;
-  liked: boolean;
-  commentsCount: number;
-  aiComment?: string | null;
-  sentimentLabel?: string | null;
-  sentiment?: string | null;
-  author: { id: string; username: string; displayName: string | null; level: number };
-}
-
-interface NetworkDigestMeta {
-  type: "network_digest";
-  query: string;
-  newsItems: NewsItem[];
-  feedPosts: ChatFeedSummaryPost[];
-  suggestions: ConnectionSuggestion[];
-}
+import type { Message, Mission, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ChatFeedSummaryPost, NetworkDigestMeta } from "@/features/home/types";
 
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
@@ -189,8 +48,8 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function timeAgo(dateInput: string | Date): string {
+  const diff = Date.now() - new Date(dateInput).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "agora";
   if (mins < 60) return `${mins}min`;
@@ -311,13 +170,11 @@ export default function Home() {
   // Load user data when token is set
   useEffect(() => {
     if (!token) return;
-    fetch("/api/me", { headers: authHeaders() })
-      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+    apiFetch<User>("/api/me", { headers: authHeaders() })
       .then(setUser)
       .catch(() => { clearToken(); setTokenState(null); });
 
-    fetch("/api/messages?limit=50", { headers: authHeaders() })
-      .then((r) => r.ok ? r.json() : [])
+    apiFetch<any[]>("/api/messages?limit=50", { headers: authHeaders() })
       .then((msgs: any[]) => {
         const normalized = msgs.map((m) => ({
           ...m,
@@ -328,12 +185,10 @@ export default function Home() {
         setMessages(normalized);
       });
 
-    fetch("/api/missions/seed", { method: "POST", headers: authHeaders() })
-      .then((r) => r.ok ? r.json() : [])
+    apiFetch<Mission[]>("/api/missions/seed", { method: "POST", headers: authHeaders() })
       .then(setMissions)
       .catch(() =>
-        fetch("/api/missions", { headers: authHeaders() })
-          .then((r) => r.ok ? r.json() : [])
+        apiFetch<Mission[]>("/api/missions", { headers: authHeaders() })
           .then(setMissions)
       );
   }, [token]);
@@ -342,12 +197,12 @@ export default function Home() {
   const loadMissions = useCallback(async () => {
     if (!token) return;
     try {
-      const [msRes, meRes] = await Promise.all([
-        fetch("/api/missions", { headers: authHeaders() }),
-        fetch("/api/me", { headers: authHeaders() }),
+      const [missionsData, meData] = await Promise.all([
+        apiFetch<Mission[]>("/api/missions", { headers: authHeaders() }),
+        apiFetch<User>("/api/me", { headers: authHeaders() }),
       ]);
-      if (msRes.ok) setMissions(await msRes.json());
-      if (meRes.ok) setUser(await meRes.json());
+      setMissions(missionsData);
+      setUser(meData);
     } catch { /* ignore */ }
   }, [token]);
 
@@ -356,8 +211,7 @@ export default function Home() {
     if (!token) return;
     setFriendsLoading(true);
     try {
-      const res = await fetch("/api/friends", { headers: authHeaders() });
-      if (res.ok) setFriends(await res.json());
+      setFriends(await apiFetch<Friend[]>("/api/friends", { headers: authHeaders() }));
     } catch { /* ignore */ }
     finally { setFriendsLoading(false); }
   }, [token]);
@@ -366,11 +220,7 @@ export default function Home() {
     if (!token) return;
     setDmLoading(true);
     try {
-      const res = await fetch("/api/dm/conversations", { headers: authHeaders() });
-      if (res.ok) {
-        const list: DMConversation[] = await res.json();
-        setDmConversations(list);
-      }
+      setDmConversations(await apiFetch<DMConversation[]>("/api/dm/conversations", { headers: authHeaders() }));
     } catch {
       // ignore
     } finally {
@@ -381,13 +231,7 @@ export default function Home() {
   const openDMThread = useCallback(async (target: { id: string; username: string; displayName: string | null; level: number }) => {
     setSelectedDMUser(target);
     try {
-      const res = await fetch(`/api/dm/${target.id}`, { headers: authHeaders() });
-      if (res.ok) {
-        const data: DMMessage[] = await res.json();
-        setDmMessages(data);
-      } else {
-        setDmMessages([]);
-      }
+      setDmMessages(await apiFetch<DMMessage[]>(`/api/dm/${target.id}`, { headers: authHeaders() }));
     } catch {
       setDmMessages([]);
     }
@@ -400,13 +244,11 @@ export default function Home() {
     const content = dmInput.trim();
     setDmInput("");
     try {
-      const res = await fetch(`/api/dm/${selectedDMUser.id}`, {
+      const created = await apiFetch<DMMessage>(`/api/dm/${selectedDMUser.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ content }),
       });
-      if (!res.ok) throw new Error("Falha ao enviar");
-      const created: DMMessage = await res.json();
       setDmMessages((prev) => [...prev, created]);
       loadDMConversations();
       setTimeout(loadMissions, 1000);
@@ -455,8 +297,7 @@ export default function Home() {
       return;
     }
     try {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, { headers: authHeaders() });
-      if (res.ok) setSearchResults(await res.json());
+      setSearchResults(await apiFetch<SearchUser[]>(`/api/users/search?q=${encodeURIComponent(searchQuery)}`, { headers: authHeaders() }));
     } catch { /* ignore */ }
   }, [friendSearch, token]);
 
@@ -1362,209 +1203,32 @@ export default function Home() {
   if (!token) {
     const strength = authMode === "register" ? pwStrength(authPassword) : null;
     return (
-      <div className="flex h-screen overflow-hidden bg-white">
-
-        {/* ── Left hero (desktop only) ── */}
-        <div className="hidden md:flex md:w-[42%] flex-col items-center justify-center relative overflow-hidden"
-          style={{ background: "linear-gradient(160deg, #FFF8E7 0%, #FFE566 50%, #F5C842 100%)" }}>
-          <svg className="absolute top-0 right-0 opacity-10" width={200} height={200} viewBox="0 0 200 200">
-            <path d="M50 10 L90 10 L110 45 L90 80 L50 80 L30 45 Z" fill="#D4A017" />
-            <path d="M110 60 L150 60 L170 95 L150 130 L110 130 L90 95 Z" fill="#D4A017" />
-            <path d="M20 110 L60 110 L80 145 L60 180 L20 180 L0 145 Z" fill="#D4A017" />
-          </svg>
-          <svg className="absolute bottom-0 left-0 opacity-10" width={160} height={160} viewBox="0 0 160 160">
-            <path d="M60 10 L100 10 L120 45 L100 80 L60 80 L40 45 Z" fill="#D4A017" />
-            <path d="M10 70 L50 70 L70 105 L50 140 L10 140 L-10 105 Z" fill="#D4A017" />
-          </svg>
-
-          <motion.div animate={{ y: [-12, 0, -12] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}>
-            <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
-          </motion.div>
-
-          <motion.div className="text-center mt-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h1 className="text-4xl font-black text-gray-900 tracking-tight">bee-eyes</h1>
-            <p className="text-sm mt-2 font-medium" style={{ color: "#7A5500" }}>
-              {authMode === "register" ? "Comece sua jornada hoje 🚀" : "Sua melhor amiga com IA 🐝"}
-            </p>
-          </motion.div>
-
-          <motion.div className="flex gap-2 mt-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-            {["Chat inteligente", "Feed social", "Missões diárias"].map((f) => (
-              <span key={f} className="text-xs px-3 py-1 rounded-full bg-black/10 text-gray-800 font-medium">{f}</span>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* ── Right form ── */}
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-y-auto bg-white">
-          <motion.div className="md:hidden mb-6" animate={{ y: [-8, 0, -8] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
-            <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
-            <p className="text-center text-lg font-black text-gray-900 mt-3">bee-eyes</p>
-          </motion.div>
-
-          <motion.div
-            key={authMode}
-            className="w-full max-w-sm"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="mb-7">
-              <h2 className="text-2xl font-black text-gray-900">
-                {authMode === "login" ? "Olá de novo! 👋" : "Criar conta 🎉"}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {authMode === "login" ? "Entre para continuar sua jornada" : "É rápido, grátis e a BeeEyes te espera!"}
-              </p>
-            </div>
-
-            {/* Social buttons */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <button
-                disabled={googleLoading}
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
-                onClick={handleGoogleLogin}
-              >
-                {googleLoading ? (
-                  <span className="text-xs text-gray-500">Aguarde...</span>
-                ) : (
-                  <>
-                    <svg width={18} height={18} viewBox="0 0 24 24">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                    </svg>
-                    Google
-                  </>
-                )}
-              </button>
-              <button
-                disabled
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-400 cursor-not-allowed opacity-50"
-              >
-                <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-                </svg>
-                Apple
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400 font-medium">ou com e-mail</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            <div className="space-y-4 mb-6">
-              {authMode === "register" && (
-                <>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Nome de exibição (opcional)</label>
-                    <Input
-                      placeholder="Como você quer ser chamado?"
-                      value={authDisplayName}
-                      onChange={(e) => setAuthDisplayName(e.target.value)}
-                      className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Gênero (opcional)</label>
-                    <select
-                      value={authGender}
-                      onChange={(e) => setAuthGender(e.target.value)}
-                      className="w-full h-12 px-3 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base text-gray-800 outline-none"
-                    >
-                      <option value="">Prefiro não informar</option>
-                      <option value="masculino">Masculino</option>
-                      <option value="feminino">Feminino</option>
-                      <option value="nao-binario">Não-binário</option>
-                      <option value="outro">Outro</option>
-                    </select>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Usuário</label>
-                <Input
-                  placeholder="seu_usuario"
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                  className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base"
-                  autoCapitalize="none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Senha</label>
-                <div className="relative">
-                  <Input
-                    type={authShowPassword ? "text" : "password"}
-                    placeholder={authMode === "register" ? "mínimo 6 caracteres" : "••••••••"}
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAuth()}
-                    className="h-12 rounded-xl border-2 border-gray-200 focus:border-yellow-400 bg-gray-50 text-base pr-12"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    onClick={() => setAuthShowPassword(!authShowPassword)}
-                  >
-                    {authShowPassword ? (
-                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22" strokeLinecap="round"/></svg>
-                    ) : (
-                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx={12} cy={12} r={3}/></svg>
-                    )}
-                  </button>
-                </div>
-                {strength && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-1 rounded-full transition-all duration-300" style={{ width: strength.w, backgroundColor: strength.color }} />
-                    </div>
-                    <span className="text-xs font-semibold" style={{ color: strength.color }}>{strength.label}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {authError && (
-              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-destructive mb-4 text-center bg-red-50 py-2 px-3 rounded-lg">
-                {authError}
-              </motion.p>
-            )}
-
-            <button
-              onClick={handleAuth}
-              disabled={authLoading}
-              className="w-full h-13 py-4 rounded-xl font-black text-gray-900 text-base transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 shadow-lg shadow-yellow-200"
-              style={{ background: "linear-gradient(90deg, #FFD700, #F5C842, #E8B800)" }}
-            >
-              {authLoading ? "Aguarde..." : authMode === "login" ? "Entrar  →" : "Criar conta  🐝"}
-            </button>
-
-            {authMode === "register" && (
-              <p className="text-center text-xs text-muted-foreground mt-3">
-                Ao criar uma conta você concorda com os{" "}
-                <span className="text-yellow-600 font-semibold cursor-pointer hover:underline">Termos de Uso</span>
-              </p>
-            )}
-
-            <button
-              className="w-full mt-5 text-sm text-muted-foreground hover:text-gray-800 transition-colors"
-              onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setAuthPassword(""); setAuthDisplayName(""); setAuthGender(""); }}
-            >
-              {authMode === "login"
-                ? <>Não tem conta? <span className="font-bold text-yellow-600">Criar conta ↗</span></>
-                : <>Já tem conta? <span className="font-bold text-yellow-600">Entrar ↗</span></>
-              }
-            </button>
-          </motion.div>
-        </div>
-      </div>
+      <AuthScreen
+        authMode={authMode}
+        authUsername={authUsername}
+        authPassword={authPassword}
+        authDisplayName={authDisplayName}
+        authGender={authGender}
+        authError={authError}
+        authShowPassword={authShowPassword}
+        authLoading={authLoading}
+        googleLoading={googleLoading}
+        strength={strength}
+        onAuthModeChange={setAuthMode}
+        onUsernameChange={setAuthUsername}
+        onPasswordChange={setAuthPassword}
+        onDisplayNameChange={setAuthDisplayName}
+        onGenderChange={setAuthGender}
+        onTogglePassword={() => setAuthShowPassword((value) => !value)}
+        onSubmit={handleAuth}
+        onGoogleLogin={handleGoogleLogin}
+        onClearError={() => {
+          setAuthError("");
+          setAuthPassword("");
+          setAuthDisplayName("");
+          setAuthGender("");
+        }}
+      />
     );
   }
 
@@ -1614,687 +1278,93 @@ export default function Home() {
         </TabsList>
 
         <TabsContent value="feed" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
-          {/* Post creation */}
-          <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Feed</h2>
-            <div className="flex items-center gap-2">
-              <button onClick={loadFeed} className="text-muted-foreground hover:text-foreground transition-colors" title="Atualizar">
-                <RefreshCw className="w-4 h-4" />
-              </button>
-              <Button size="sm" variant="outline" onClick={() => setShowPostInput((v) => !v)}>
-                <Plus className="w-4 h-4 mr-1" />
-                Publicar
-              </Button>
-            </div>
-          </div>
-
-          {showPostInput && (
-            <div className="p-4 border-b space-y-2 bg-secondary/10">
-              <Textarea
-                value={postText}
-                onChange={(e) => setPostText(e.target.value)}
-                placeholder="Compartilhe algo com seus amigos..."
-                className="resize-none text-sm min-h-[80px]"
-                maxLength={500}
-              />
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground">{postText.length}/500</span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => { setShowPostInput(false); setPostText(""); }}>Cancelar</Button>
-                  <Button size="sm" disabled={!postText.trim() || isPosting} onClick={handleCreatePost}>
-                    {isPosting ? "Publicando..." : "Publicar"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Connection suggestions */}
-          {suggestions.length > 0 && (
-            <div className="px-4 pt-4 pb-3 border-b">
-              <p className="text-xs font-semibold text-muted-foreground mb-3">PESSOAS QUE VOCÊ PODE CONHECER</p>
-              <div className="space-y-2">
-                {suggestions.slice(0, 3).map((s) => {
-                  const name = s.displayName || s.username;
-                  return (
-                    <div key={s.id} className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
-                        {name[0].toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {s.commonInterests.slice(0, 2).join(" · ") || `Nível ${s.level}`}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs shrink-0"
-                        disabled={connectingIds.has(s.id)}
-                        onClick={() => handleConnect(s.id)}
-                      >
-                        <UserPlus className="w-3 h-3 mr-1" />
-                        Conectar
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Feed posts */}
-          <div className="p-4 space-y-3">
-            {feedLoading && (
-              <p className="text-sm text-muted-foreground text-center py-8">Carregando feed...</p>
-            )}
-            {!feedLoading && feed.length === 0 && (
-              <div className="text-center py-8 space-y-2">
-                <p className="text-3xl">📭</p>
-                <p className="text-sm font-semibold">Feed vazio</p>
-                <p className="text-xs text-muted-foreground">Conecte-se com pessoas para ver as novidades delas!</p>
-              </div>
-            )}
-            {feed.map((post) => {
-              const name = post.author.displayName || post.author.username;
-              return (
-                <Card key={post.id} className="p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
-                      {name[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-semibold">{name}</span>
-                        <span className="text-xs text-muted-foreground bg-secondary rounded px-1 shrink-0">Nv {post.author.level}</span>
-                        {post.sentiment && SENTIMENT_EMOJI[post.sentiment] && (
-                          <span className="text-xs shrink-0">{SENTIMENT_EMOJI[post.sentiment]}</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
-                    </div>
-                  </div>
-                  <p className="text-sm leading-relaxed">{post.content}</p>
-                  {post.aiComment && (
-                    <div className="border-l-2 border-primary/40 pl-3 py-1 bg-secondary/20 rounded-r-lg">
-                      <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 pt-1">
-                    <button
-                      onClick={() => handleLikePost(post.id)}
-                      className={`flex items-center gap-1 text-xs transition-colors ${post.liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
-                    >
-                      <Heart className={`w-4 h-4 ${post.liked ? "fill-current" : ""}`} />
-                      {post.likesCount}
-                    </button>
-                    {post.commentsCount !== undefined && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MessageCircle className="w-4 h-4" />
-                        {post.commentsCount}
-                      </span>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+          <FeedPanel
+            feed={feed}
+            feedLoading={feedLoading}
+            postText={postText}
+            isPosting={isPosting}
+            showPostInput={showPostInput}
+            suggestions={suggestions}
+            connectingIds={connectingIds}
+            onLoadFeed={loadFeed}
+            onTogglePostInput={() => setShowPostInput((value) => !value)}
+            onPostTextChange={setPostText}
+            onCancelPost={() => { setShowPostInput(false); setPostText(""); }}
+            onCreatePost={handleCreatePost}
+            onConnect={handleConnect}
+            onLikePost={handleLikePost}
+            timeAgo={timeAgo}
+          />
         </TabsContent>
 
-        <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
-          {(() => {
-            const TIER_META: Record<number, { label: string; emoji: string; color: string }> = {
-              1: { label: "Boas-vindas",  emoji: "👋", color: "#F59E0B" },
-              2: { label: "Social",       emoji: "🤝", color: "#3B82F6" },
-              3: { label: "Conectado",    emoji: "💬", color: "#8B5CF6" },
-              4: { label: "Criador",      emoji: "🚀", color: "#10B981" },
-            };
-            const LEVEL_UNLOCKS: Record<number, { icon: string; label: string }> = {
-              2: { icon: "📨", label: "Mensagens Diretas desbloqueadas" },
-              3: { icon: "👻", label: "Visita anônima de perfil" },
-              4: { icon: "🏅", label: "Badge exclusiva no perfil" },
-              5: { icon: "🤖", label: "Modo IA Avançado" },
-            };
-            const xpForLevel = (lvl: number) => lvl * 100 + (lvl - 1) * 50;
-            const level = user?.level ?? 1;
-            const xp = user?.xp ?? 0;
-            const xpNeeded = xpForLevel(level);
-            const progress = Math.min(xp / xpNeeded, 1);
-
-            const sysMissions = missions.filter((m) => m.type === "system");
-            const totalDone = sysMissions.filter((m) => m.completed).length;
-            const byTier: Record<number, Mission[]> = { 1: [], 2: [], 3: [], 4: [] };
-            for (const m of sysMissions) {
-              if (byTier[m.tier]) byTier[m.tier].push(m);
-            }
-
-            return (
-              <div className="space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <h2 className="font-display text-lg font-bold">Missões 🎯</h2>
-                  <span className="text-xs text-muted-foreground">{totalDone}/{sysMissions.length} concluídas</span>
-                </div>
-
-                {/* Level + XP card */}
-                {user && (
-                  <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-full bg-primary flex items-center justify-center font-bold text-lg text-primary-foreground shrink-0">
-                        {level}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold">Nível {level}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{xp} / {xpNeeded} XP</p>
-                      </div>
-                      <span className="text-xs font-bold text-primary">{Math.round(progress * 100)}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                      <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${progress * 100}%` }} />
-                    </div>
-                    {LEVEL_UNLOCKS[level + 1] && (
-                      <p className="text-xs text-muted-foreground bg-secondary/60 rounded-lg px-3 py-2">
-                        {LEVEL_UNLOCKS[level + 1].icon} Próximo desbloqueio no nível {level + 1}:{" "}
-                        <strong>{LEVEL_UNLOCKS[level + 1].label}</strong>
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Unlocked features */}
-                {Object.entries(LEVEL_UNLOCKS)
-                  .filter(([lvl]) => Number(lvl) <= level)
-                  .map(([lvl, info]) => (
-                    <div key={lvl} className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/8 px-3 py-2">
-                      <span className="text-base">{info.icon}</span>
-                      <span className="text-xs font-semibold text-green-600">{info.label}</span>
-                    </div>
-                  ))}
-
-                {/* Tier sections */}
-                {[1, 2, 3, 4].map((tier) => {
-                  const tierMissions = byTier[tier];
-                  if (!tierMissions || tierMissions.length === 0) return null;
-                  const meta = TIER_META[tier];
-                  const allDone = tierMissions.every((m) => m.completed);
-                  return (
-                    <div key={tier} className="rounded-2xl border border-border bg-card overflow-hidden">
-                      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
-                        <span className="text-sm font-semibold flex-1">{meta.emoji} {meta.label}</span>
-                        {allDone && <span className="text-xs font-bold text-green-600">✓ Completo</span>}
-                      </div>
-                      <div className="divide-y divide-border">
-                        {tierMissions.map((m) => (
-                          <div key={m.id} className={`flex items-center gap-3 px-4 py-3 ${m.completed ? "opacity-50" : ""}`}>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${m.completed ? "bg-green-500 border-green-500" : "border-border"}`}>
-                              {m.completed && <span className="text-white text-[10px] font-black">✓</span>}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium ${m.completed ? "line-through text-muted-foreground" : ""}`}>{m.title}</p>
-                              {m.description && <p className="text-xs text-muted-foreground mt-0.5">{m.description}</p>}
-                            </div>
-                            <span className={`text-xs font-bold font-mono shrink-0 px-2 py-1 rounded-lg ${m.completed ? "text-green-600 bg-green-500/10" : "text-primary bg-primary/10"}`}>
-                              +{m.xpReward} XP
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {sysMissions.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-8">Carregando missões... 🐝</p>
-                )}
-              </div>
-            );
-          })()}
+        <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
+          <MissionsPanel user={user} missions={missions} />
         </TabsContent>
 
-        <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-4 mt-0">
-          <div className="space-y-3">
-            <h2 className="font-display text-lg font-semibold">Amigos</h2>
-
-            {/* Search bar */}
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx={11} cy={11} r={8}/><path d="m21 21-4.35-4.35"/></svg>
-              <input
-                type="text"
-                placeholder="Buscar pessoas no BeeEyes..."
-                value={friendSearch}
-                onChange={(e) => handleFriendSearch(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-              {searchLoading && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              )}
-            </div>
-
-            {/* Search results */}
-            {friendSearch.trim() && (
-              <div className="space-y-2">
-                {searchResults.length === 0 && !searchLoading && (
-                  <p className="text-xs text-muted-foreground text-center py-3">Nenhum usuário encontrado.</p>
-                )}
-                {searchResults.map((u) => {
-                  const name = u.displayName || u.username;
-                  return (
-                    <Card key={u.id} className="p-3">
-                      <div className="flex items-center gap-3">
-                        <button className="flex-1 flex items-center gap-3 text-left" onClick={() => openFriendProfile(u.id)}>
-                          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-sm font-bold shrink-0">
-                            {name[0].toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-semibold truncate">{name}</span>
-                              <span className="text-xs text-muted-foreground bg-secondary rounded px-1 shrink-0">Nv {u.level}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">@{u.username}</span>
-                          </div>
-                        </button>
-                        {u.connectionStatus === "accepted" ? (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs text-green-600 font-semibold">Amigos</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7 px-2"
-                              disabled={!user || user.level < 2}
-                              title={user && user.level < 2 ? "🔒 Desbloqueado no Nível 2" : undefined}
-                              onClick={() => openDMWithUser({ id: u.id, username: u.username, displayName: u.displayName, level: u.level })}
-                            >
-                              {user && user.level < 2 ? "🔒 Mensagem" : "Enviar mensagem"}
-                            </Button>
-                          </div>
-                        ) : u.connectionStatus === "pending" ? (
-                          <span className="text-xs text-muted-foreground shrink-0">Pendente</span>
-                        ) : (
-                          <Button size="sm" variant="outline" className="text-xs h-7 px-2 shrink-0"
-                            onClick={() => handleSearchConnect(u.id)}
-                            disabled={searchConnecting.has(u.id)}>
-                            <UserPlus className="w-3 h-3 mr-1" />Conectar
-                          </Button>
-                        )}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Friends list (only when not searching) */}
-            {!friendSearch.trim() && (
-              <>
-                {friendsLoading && (
-                  <p className="text-sm text-muted-foreground text-center py-6">Carregando...</p>
-                )}
-                {!friendsLoading && friends.length === 0 && (
-                  <div className="text-center py-8 space-y-2">
-                    <p className="text-3xl">👥</p>
-                    <p className="text-sm font-semibold">Nenhum amigo ainda</p>
-                    <p className="text-xs text-muted-foreground">Use a busca para encontrar pessoas!</p>
-                  </div>
-                )}
-                {friends.map((friend) => {
-                  const name = friend.displayName || friend.username;
-                  const interests: string[] = (() => { try { return JSON.parse(friend.personality?.interests || "[]"); } catch { return []; } })();
-                  const lastActive = friend.lastActiveAt ? timeAgo(friend.lastActiveAt) : null;
-                  return (
-                    <Card key={friend.id} className="p-3 hover:border-primary/50 transition-colors group">
-                      <div className="w-full text-left cursor-pointer" onClick={() => openFriendProfile(friend.id)}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-base font-bold shrink-0">
-                            {name[0].toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm">{name}</span>
-                              <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {friend.level}</span>
-                              {friend.currentStreak > 0 && (
-                                <span className="text-xs text-orange-500 flex items-center gap-0.5">
-                                  <Flame className="w-3 h-3" />{friend.currentStreak}d
-                                </span>
-                              )}
-                            </div>
-                            {interests.length > 0 && (
-                              <p className="text-xs text-muted-foreground truncate">{interests.slice(0, 3).join(" · ")}</p>
-                            )}
-                            {lastActive && (
-                              <p className="text-xs text-muted-foreground">Ativo {lastActive}</p>
-                            )}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                        </div>
-                      </div>
-                      <div className="mt-3 flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-8 px-3"
-                          disabled={!user || user.level < 2}
-                          title={user && user.level < 2 ? "🔒 Desbloqueado no Nível 2" : undefined}
-                          onClick={() =>
-                            openDMWithUser({
-                              id: friend.id,
-                              username: friend.username,
-                              displayName: friend.displayName,
-                              level: friend.level,
-                            })
-                          }
-                        >
-                          {user && user.level < 2 ? "🔒 Mensagem" : "Enviar mensagem"}
-                        </Button>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </>
-            )}
-          </div>
+        <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
+          <FriendsPanel
+            user={user}
+            friends={friends}
+            friendsLoading={friendsLoading}
+            friendSearch={friendSearch}
+            searchResults={searchResults}
+            searchLoading={searchLoading}
+            searchConnecting={searchConnecting}
+            onFriendSearchChange={handleFriendSearch}
+            onOpenFriendProfile={openFriendProfile}
+            onSearchConnect={handleSearchConnect}
+            onOpenDMWithUser={openDMWithUser}
+            timeAgo={timeAgo}
+          />
         </TabsContent>
 
 
         <TabsContent value="inbox" className="flex-1 overflow-hidden min-h-0 p-0 mt-0 relative">
-          {/* Thread view */}
-          {selectedDMUser ? (
-            <div className="absolute inset-0 flex flex-col min-h-0 bg-background z-10">
-              <div className="p-3 border-b flex items-center gap-2 bg-card/40 shrink-0">
-                <button
-                  onClick={() => setSelectedDMUser(null)}
-                  className="p-1 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                >
-                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg>
-                </button>
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
-                  {(selectedDMUser.displayName || selectedDMUser.username)[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{selectedDMUser.displayName || selectedDMUser.username}</p>
-                  <p className="text-xs text-muted-foreground">Nível {selectedDMUser.level}</p>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {dmMessages.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-6">Envie a primeira mensagem desta conversa.</p>
-                )}
-                {dmMessages.map((m) => {
-                  const fromMe = m.senderId === user?.id;
-                  return (
-                    <div key={m.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${fromMe ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-secondary/70 rounded-bl-sm"}`}>
-                        {m.content}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div ref={dmEndRef} />
-              </div>
-
-              <div className="p-3 border-t flex items-end gap-2 bg-card/40 shrink-0">
-                <Textarea
-                  value={dmInput}
-                  onChange={(e) => setDmInput(e.target.value)}
-                  rows={1}
-                  placeholder="Mensagem..."
-                  className="flex-1 resize-none text-sm min-h-[40px] max-h-28"
-                  maxLength={1500}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendDMMessage();
-                    }
-                  }}
-                />
-                <Button size="icon" onClick={sendDMMessage} disabled={!dmInput.trim() || dmSending} className="shrink-0 h-9 w-9">
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          ) : (
-            /* Conversation list */
-            <div className="h-full flex flex-col min-h-0 overflow-hidden">
-              <div className="p-3 border-b shrink-0">
-                <h2 className="font-display text-lg font-semibold">Mensagens</h2>
-              </div>
-
-              {suggestions.length > 0 && (
-                <div className="p-3 border-b shrink-0 space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">Sugestões</p>
-                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                    {suggestions.slice(0, 5).map((s) => (
-                      <button
-                        key={`sug-${s.id}`}
-                        onClick={() => openDMThread({ id: s.id, username: s.username, displayName: s.displayName, level: s.level })}
-                        className="flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-secondary/50 transition-colors w-14"
-                      >
-                        <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
-                          {(s.displayName || s.username)[0].toUpperCase()}
-                        </div>
-                        <p className="text-[10px] text-center leading-tight truncate w-full">{s.displayName || s.username}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto">
-                {dmLoading && <p className="text-xs text-muted-foreground text-center py-4">Carregando...</p>}
-                {!dmLoading && dmConversations.length === 0 && (
-                  <div className="text-center py-10 px-4 space-y-2">
-                    <p className="text-2xl">💬</p>
-                    <p className="text-sm font-semibold">Nenhuma conversa ainda</p>
-                    <p className="text-xs text-muted-foreground">Conecte-se com pessoas e inicie uma conversa.</p>
-                  </div>
-                )}
-                {dmConversations.map((c) => {
-                  const name = c.user.displayName || c.user.username;
-                  return (
-                    <button
-                      key={c.user.id}
-                      onClick={() => openDMThread(c.user)}
-                      className="w-full text-left px-3 py-3 hover:bg-secondary/50 transition-colors border-b border-border/40 flex items-center gap-3"
-                    >
-                      <div className="relative shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-black text-primary-foreground">
-                          {name[0].toUpperCase()}
-                        </div>
-                        {c.unreadCount > 0 && (
-                          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
-                            {c.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <p className={`text-sm truncate ${c.unreadCount > 0 ? "font-bold" : "font-semibold"}`}>{name}</p>
-                          <p className="text-[10px] text-muted-foreground shrink-0">{timeAgo(c.lastMessageAt)}</p>
-                        </div>
-                        <p className={`text-xs truncate ${c.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                          {c.lastMessageFromMe ? "Você: " : ""}{c.lastMessage}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <InboxPanel
+            user={user}
+            selectedDMUser={selectedDMUser}
+            dmMessages={dmMessages}
+            dmInput={dmInput}
+            dmSending={dmSending}
+            dmLoading={dmLoading}
+            dmConversations={dmConversations}
+            suggestions={suggestions}
+            dmEndRef={dmEndRef}
+            onBack={() => setSelectedDMUser(null)}
+            onInputChange={setDmInput}
+            onSend={sendDMMessage}
+            onOpenThread={openDMThread}
+            timeAgo={timeAgo}
+          />
         </TabsContent>
 
         <TabsContent value="communities" className="flex-1 overflow-y-auto p-0 m-0 relative">
-          {/* Community detail overlay */}
-          {(communityPostsLoading || selectedCommunity) && (
-            <div className="absolute inset-0 z-20 bg-background overflow-y-auto">
-              <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-3">
-                <button onClick={() => setSelectedCommunity(null)} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-5 h-5" />
-                </button>
-                {selectedCommunity && (
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-2xl">{selectedCommunity.emoji}</span>
-                    <div>
-                      <h2 className="font-bold text-sm">{selectedCommunity.name}</h2>
-                      <p className="text-xs text-muted-foreground">{selectedCommunity.membersCount} membros</p>
-                    </div>
-                    <div className="ml-auto">
-                      {selectedCommunity.memberRole === "owner" ? (
-                        <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-medium">Fundador</span>
-                      ) : selectedCommunity.isMember ? (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={communityJoining === selectedCommunity.id} onClick={() => handleLeaveCommunity(selectedCommunity.id)}>Sair</Button>
-                      ) : (
-                        <Button size="sm" className="h-7 text-xs" disabled={communityJoining === selectedCommunity.id} onClick={() => handleJoinCommunity(selectedCommunity.id)}>Entrar</Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {communityPostsLoading && (
-                <div className="flex items-center justify-center h-40">
-                  <p className="text-sm text-muted-foreground">Carregando...</p>
-                </div>
-              )}
-
-              {selectedCommunity && !communityPostsLoading && (
-                <div className="p-4 space-y-4">
-                  {selectedCommunity.description && (
-                    <p className="text-sm text-muted-foreground bg-secondary/30 rounded-xl px-4 py-3">{selectedCommunity.description}</p>
-                  )}
-
-                  {/* Post input */}
-                  {selectedCommunity.isMember && (
-                    <div className="flex gap-2">
-                      <Textarea
-                        placeholder="Escreva algo para a comunidade..."
-                        className="text-sm resize-none min-h-[60px]"
-                        value={communityPostInput}
-                        onChange={(e) => setCommunityPostInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendCommunityPost(); } }}
-                      />
-                      <Button size="sm" className="self-end h-9 px-3" disabled={!communityPostInput.trim() || communityPostSending} onClick={handleSendCommunityPost}>
-                        <Send className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Posts */}
-                  <div className="space-y-3">
-                    {communityPosts.length === 0 && (
-                      <p className="text-center text-sm text-muted-foreground py-8">Nenhuma publicação ainda. Seja o primeiro!</p>
-                    )}
-                    {communityPosts.map((post) => (
-                      <CommunityPostCard
-                        key={post.id}
-                        post={{ ...post, likesCount: post.likesCount ?? 0, liked: post.liked ?? false, commentsCount: post.commentsCount ?? 0 }}
-                        communityName={selectedCommunity!.name}
-                        communityEmoji={selectedCommunity!.emoji}
-                        authHeaders={authHeaders}
-                        timeAgo={timeAgo}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Create community modal */}
-          {showCreateCommunity && (
-            <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-lg">Nova Comunidade</h3>
-                  <button onClick={() => setShowCreateCommunity(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <Input placeholder="Emoji" className="w-16 text-center text-xl" value={newCommunity.emoji} onChange={(e) => setNewCommunity((p) => ({ ...p, emoji: e.target.value }))} maxLength={2} />
-                    <Input placeholder="Nome da comunidade *" className="flex-1" value={newCommunity.name} onChange={(e) => setNewCommunity((p) => ({ ...p, name: e.target.value }))} />
-                  </div>
-                  <Textarea placeholder="Descrição (opcional)" className="resize-none text-sm" rows={3} value={newCommunity.description} onChange={(e) => setNewCommunity((p) => ({ ...p, description: e.target.value }))} />
-                  <select className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={newCommunity.category} onChange={(e) => setNewCommunity((p) => ({ ...p, category: e.target.value }))}>
-                    <option value="geral">Geral</option>
-                    <option value="tecnologia">Tecnologia</option>
-                    <option value="música">Música</option>
-                    <option value="esportes">Esportes</option>
-                    <option value="jogos">Jogos</option>
-                    <option value="arte">Arte</option>
-                    <option value="cinema">Cinema & Séries</option>
-                    <option value="livros">Livros</option>
-                    <option value="culinária">Culinária</option>
-                    <option value="viagens">Viagens</option>
-                    <option value="saúde">Saúde & Bem-estar</option>
-                    <option value="humor">Humor</option>
-                  </select>
-                </div>
-                <Button className="w-full" disabled={!newCommunity.name.trim() || creatingCommunity} onClick={handleCreateCommunity}>
-                  {creatingCommunity ? "Criando..." : "Criar Comunidade"}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Header */}
-          <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-2">
-            <Input
-              placeholder="Buscar comunidades..."
-              className="flex-1 h-8 text-sm"
-              value={communitySearch}
-              onChange={(e) => { setCommunitySearch(e.target.value); loadCommunities(e.target.value); }}
-            />
-            <Button size="sm" className="h-8 px-3 text-xs gap-1" onClick={() => setShowCreateCommunity(true)}>
-              <Plus className="w-3 h-3" /> Criar
-            </Button>
-          </div>
-
-          {/* My communities section */}
-          {communities.filter((c) => c.isMember).length > 0 && (
-            <div className="px-4 pt-4">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">MINHAS COMUNIDADES</p>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {communities.filter((c) => c.isMember).map((c) => (
-                  <button key={c.id} onClick={() => openCommunity(c.id)} className="flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-secondary/50 transition-colors w-16">
-                    <span className="text-2xl">{c.emoji}</span>
-                    <p className="text-xs text-center leading-tight line-clamp-2">{c.name}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* All communities */}
-          <div className="px-4 pt-4 pb-6 space-y-3">
-            {communities.filter((c) => !c.isMember).length > 0 && (
-              <p className="text-xs font-semibold text-muted-foreground">DESCOBRIR COMUNIDADES</p>
-            )}
-            {communitiesLoading && (
-              <p className="text-center text-sm text-muted-foreground py-8">Carregando...</p>
-            )}
-            {!communitiesLoading && communities.filter((c) => !c.isMember).length === 0 && communities.filter((c) => c.isMember).length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-12">Nenhuma comunidade encontrada.<br/>Que tal criar a primeira?</p>
-            )}
-            {communities.filter((c) => !c.isMember).map((c) => (
-              <div key={c.id} className="bg-secondary/30 rounded-xl p-4 flex items-start gap-3 cursor-pointer hover:bg-secondary/50 transition-colors" onClick={() => openCommunity(c.id)}>
-                <span className="text-3xl">{c.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-sm">{c.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{c.category} · {c.membersCount} {c.membersCount === 1 ? "membro" : "membros"}</p>
-                    </div>
-                    <Button size="sm" className="h-7 text-xs flex-shrink-0" disabled={communityJoining === c.id} onClick={(e) => { e.stopPropagation(); handleJoinCommunity(c.id); }}>
-                      {communityJoining === c.id ? "..." : "Entrar"}
-                    </Button>
-                  </div>
-                  {c.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
+          <CommunitiesPanel
+            communities={communities}
+            communitiesLoading={communitiesLoading}
+            communitySearch={communitySearch}
+            selectedCommunity={selectedCommunity}
+            communityPosts={communityPosts}
+            communityPostsLoading={communityPostsLoading}
+            communityPostInput={communityPostInput}
+            communityPostSending={communityPostSending}
+            showCreateCommunity={showCreateCommunity}
+            newCommunity={newCommunity}
+            creatingCommunity={creatingCommunity}
+            communityJoining={communityJoining}
+            onCommunitySearchChange={(value) => { setCommunitySearch(value); loadCommunities(value); }}
+            onOpenCommunity={openCommunity}
+            onJoinCommunity={handleJoinCommunity}
+            onLeaveCommunity={handleLeaveCommunity}
+            onCloseCommunity={() => setSelectedCommunity(null)}
+            onCommunityPostInputChange={setCommunityPostInput}
+            onSendCommunityPost={handleSendCommunityPost}
+            onShowCreateCommunity={setShowCreateCommunity}
+            onNewCommunityChange={setNewCommunity}
+            onCreateCommunity={handleCreateCommunity}
+            authHeaders={authHeaders}
+            timeAgo={timeAgo}
+          />
         </TabsContent>
 
       </Tabs>
@@ -2304,300 +1374,134 @@ export default function Home() {
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-background">
 
-      {/* ── Chat area — sempre visível no desktop, hidden em outras tabs no mobile ── */}
-      <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : ""}`}>
-        <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-3">
-              <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
-              <button
-                type="button"
-                onClick={() => setShowSettingsScreen(true)}
-                className="w-9 h-9 rounded-full border border-border overflow-hidden bg-primary/20 flex items-center justify-center shrink-0"
-                aria-label="Abrir configuracoes de perfil"
-              >
-                {profilePhotoUrl ? (
-                  <img src={profilePhotoUrl} alt="Foto de perfil" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xs font-bold">
-                    {(user?.username || "?")[0].toUpperCase()}
-                  </span>
-                )}
-              </button>
-              {user && <StreakDisplay streak={user.currentStreak} />}
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" onClick={() => setShowSettingsScreen(true)}>
-                Configuracoes
-              </Button>
-              <ThemeToggle />
-              <Button variant="outline" onClick={handleLogout}>
-                Sair
-              </Button>
-            </div>
-          </div>
-        </header>
+      <ChatWorkspace
+        mobileTab={mobileTab}
+        profilePhotoUrl={profilePhotoUrl}
+        user={user}
+        eyeExpression={eyeExpression}
+        showMsgSearch={showMsgSearch}
+        msgSearchQuery={msgSearchQuery}
+        messages={messages}
+        streamingText={streamingText}
+        processingConnectionRequestId={processingConnectionRequestId}
+        chatScrollRef={chatScrollRef}
+        chatEndRef={chatEndRef}
+        inputRef={inputRef}
+        inputValue={inputValue}
+        isLoading={isLoading}
+        postText={postText}
+        showInlinePost={showInlinePost}
+        isPosting={isPosting}
+        messageActionsRenderer={(message) => {
+          if (message.role !== "assistant") return null;
+          const meta = getMessageMeta(message.metadata);
+          if (!meta) return null;
 
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <div className="flex items-center justify-center py-4 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative">
-            <BeeEyes expression={eyeExpression} />
-            <button
-              type="button"
-              onClick={() => { setShowMsgSearch((v) => !v); setMsgSearchQuery(""); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-muted transition-colors"
-              aria-label="Buscar mensagens"
-            >
-              <Search size={18} className="text-muted-foreground" />
-            </button>
-          </div>
+          if (meta.type === "connection_request" && meta.connectionId) {
+            const connectionMeta = getConnectionRequestMeta(message.metadata);
+            if (!connectionMeta) return null;
+            const isBusy = processingConnectionRequestId === connectionMeta.connectionId;
+            return (
+              <div className="flex gap-2">
+                <Button size="sm" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "accept")}>
+                  {isBusy ? "Processando..." : "Aceitar"}
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "reject")}>
+                  Recusar
+                </Button>
+              </div>
+            );
+          }
 
-          {showMsgSearch && (
-            <div className="shrink-0 px-4 py-2 border-b bg-card/50 flex items-center gap-2">
-              <Search size={16} className="text-muted-foreground shrink-0" />
-              <input
-                autoFocus
-                type="text"
-                value={msgSearchQuery}
-                onChange={(e) => setMsgSearchQuery(e.target.value)}
-                placeholder="Buscar nas mensagens..."
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-              {msgSearchQuery && (
-                <button type="button" onClick={() => setMsgSearchQuery("")} className="text-muted-foreground hover:text-foreground">
-                  <X size={14} />
-                </button>
-              )}
-              <span className="text-xs text-muted-foreground shrink-0">
-                {msgSearchQuery
-                  ? `${messages.filter((m) => m.content.toLowerCase().includes(msgSearchQuery.toLowerCase())).length} resultado(s)`
-                  : ""}
-              </span>
-            </div>
-          )}
+          if ((meta.type === "news" || meta.type === "news_digest") && Array.isArray(meta.items)) {
+            return (
+              <div className="space-y-2">
+                {(meta.items as NewsItem[]).map((item, index) => (
+                  <NewsCard key={item.link + "-" + index} title={item.title} link={item.link} source={item.source} authHeaders={authHeaders} />
+                ))}
+              </div>
+            );
+          }
 
-          <div
-            ref={chatScrollRef}
-            className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3"
-            onScroll={() => {
-              const el = chatScrollRef.current;
-              if (!el) return;
-              isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-            }}
-          >
-            <AnimatePresence mode="popLayout">
-              {(msgSearchQuery
-                ? messages.filter((m) => m.content.toLowerCase().includes(msgSearchQuery.toLowerCase()))
-                : messages
-              ).map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  role={message.role}
-                  content={message.content}
-                  timestamp={message.timestamp}
-                  actions={(() => {
-                    if (message.role !== "assistant") return null;
-                    const meta = getMessageMeta(message.metadata);
-                    if (!meta) return null;
-
-                    if (meta.type === "connection_request" && meta.connectionId) {
-                      const connectionMeta = getConnectionRequestMeta(message.metadata);
-                      if (!connectionMeta) return null;
-                      const isBusy = processingConnectionRequestId === connectionMeta.connectionId;
-                      return (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="h-8 text-xs"
-                            disabled={!!processingConnectionRequestId}
-                            onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "accept")}
-                          >
-                            {isBusy ? "Processando..." : "Aceitar"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            disabled={!!processingConnectionRequestId}
-                            onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "reject")}
-                          >
-                            Recusar
-                          </Button>
-                        </div>
-                      );
-                    }
-
-                    if ((meta.type === "news" || meta.type === "news_digest") && Array.isArray(meta.items)) {
-                      return (
-                        <div className="space-y-2">
-                          {(meta.items as NewsItem[]).map((item, index) => (
-                            <NewsCard
-                              key={`${item.link}-${index}`}
-                              title={item.title}
-                              link={item.link}
-                              source={item.source}
-                              authHeaders={authHeaders}
-                            />
-                          ))}
-                        </div>
-                      );
-                    }
-
-                    if (meta.type === "feed_summary" && Array.isArray(meta.posts)) {
-                      return (
-                        <div className="space-y-2">
-                          {(meta.posts as ChatFeedSummaryPost[]).map((post) => (
-                            <FeedPostCard
-                              key={post.id}
-                              post={{ ...post, commentsCount: post.commentsCount ?? 0 }}
-                              authHeaders={authHeaders}
-                              timeAgo={timeAgo}
-                            />
-                          ))}
-                          <div className="flex justify-end">
-                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowInlinePost(true)}>
-                              Compartilhar algo
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    if (meta.type === "network_digest") {
-                      const digest = meta as NetworkDigestMeta;
-                      return (
-                        <div className="space-y-3">
-                          {Array.isArray(digest.feedPosts) && digest.feedPosts.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feed</p>
-                              {digest.feedPosts.map((post) => (
-                                <FeedPostCard
-                                  key={post.id}
-                                  post={{ ...post, commentsCount: (post as any).commentsCount ?? 0 }}
-                                  authHeaders={authHeaders}
-                                  timeAgo={timeAgo}
-                                />
-                              ))}
-                            </div>
-                          )}
-
-                          {Array.isArray(digest.newsItems) && digest.newsItems.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notícias</p>
-                              {digest.newsItems.map((item, index) => (
-                                <NewsCard
-                                  key={`${item.link}-${index}`}
-                                  title={item.title}
-                                  link={item.link}
-                                  source={item.source}
-                                  authHeaders={authHeaders}
-                                />
-                              ))}
-                            </div>
-                          )}
-
-                          {Array.isArray(digest.suggestions) && digest.suggestions.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rede</p>
-                              {digest.suggestions.map((suggestion) => (
-                                <div key={suggestion.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card/70 px-4 py-3">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold">{suggestion.displayName || suggestion.username}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground truncate">
-                                      {suggestion.commonInterests.slice(0, 2).join(" · ") || "Novo contato para conhecer"}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 text-xs"
-                                    disabled={connectingIds.has(suggestion.id)}
-                                    onClick={() => handleConnect(suggestion.id)}
-                                  >
-                                    Conectar
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    return null;
-                  })()}
-                />
-              ))}
-              {streamingText && (
-                <ChatMessage
-                  key="streaming"
-                  role="assistant"
-                  content={streamingText + "▌"}
-                  timestamp={new Date()}
-                />
-              )}
-            </AnimatePresence>
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className="border-t p-3 md:p-4 bg-card/50 backdrop-blur-sm shrink-0 pb-safe">
-            {showInlinePost && (
-              <div className="max-w-4xl mx-auto mb-3 rounded-2xl border border-border bg-background/80 p-3 space-y-3">
-                <Textarea
-                  value={postText}
-                  onChange={(e) => setPostText(e.target.value)}
-                  placeholder="Compartilhe uma atualização rápida com seus amigos..."
-                  className="min-h-[88px] resize-none text-sm"
-                  maxLength={500}
-                />
-                <div className="flex justify-between gap-2">
-                  <Button variant="ghost" className="text-xs" onClick={() => setShowInlinePost(false)}>
-                    Fechar
-                  </Button>
-                  <Button className="text-xs" disabled={!postText.trim() || isPosting} onClick={handleCreatePost}>
-                    {isPosting ? "Publicando..." : "Publicar"}
+          if (meta.type === "feed_summary" && Array.isArray(meta.posts)) {
+            return (
+              <div className="space-y-2">
+                {(meta.posts as ChatFeedSummaryPost[]).map((post) => (
+                  <FeedPostCard key={post.id} post={{ ...post, commentsCount: post.commentsCount ?? 0 }} authHeaders={authHeaders} timeAgo={timeAgo} />
+                ))}
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowInlinePost(true)}>
+                    Compartilhar algo
                   </Button>
                 </div>
               </div>
-            )}
+            );
+          }
 
-            <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2">
-              {[
-                { label: "/feed", onClick: () => { setMobileTab("feed"); loadFeed(); } },
-                { label: "/missões", onClick: handleMissionsCommand },
-                { label: "/notícias", onClick: handleNewsCommand },
-                { label: "/inbox", onClick: () => { setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); } },
-                { label: "/comunidades", onClick: () => { setMobileTab("communities"); loadCommunities(communitySearch); } },
-              ].map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={action.onClick}
-                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
+          if (meta.type === "network_digest") {
+            const digest = meta as NetworkDigestMeta;
+            return (
+              <div className="space-y-3">
+                {Array.isArray(digest.feedPosts) && digest.feedPosts.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feed</p>
+                    {digest.feedPosts.map((post) => (
+                      <FeedPostCard key={post.id} post={{ ...post, commentsCount: (post as any).commentsCount ?? 0 }} authHeaders={authHeaders} timeAgo={timeAgo} />
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(digest.newsItems) && digest.newsItems.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Not?cias</p>
+                    {digest.newsItems.map((item, index) => (
+                      <NewsCard key={item.link + "-" + index} title={item.title} link={item.link} source={item.source} authHeaders={authHeaders} />
+                    ))}
+                  </div>
+                )}
+                {Array.isArray(digest.suggestions) && digest.suggestions.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rede</p>
+                    {digest.suggestions.map((suggestion) => (
+                      <div key={suggestion.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card/70 px-4 py-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold">{suggestion.displayName || suggestion.username}</p>
+                          <p className="mt-1 text-xs text-muted-foreground truncate">{suggestion.commonInterests.slice(0, 2).join(" ? ") || "Novo contato para conhecer"}</p>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-8 text-xs" disabled={connectingIds.has(suggestion.id)} onClick={() => handleConnect(suggestion.id)}>
+                          Conectar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
 
-            <div className="flex gap-2 max-w-4xl mx-auto">
-              <Input
-                ref={inputRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Digite sua mensagem..."
-                className="flex-1"
-                disabled={isLoading}
-                autoFocus
-                data-testid="input-chat-message"
-              />
-              <Button onClick={handleSendMessage} size="icon" disabled={isLoading} data-testid="button-send-message">
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+          return null;
+        }}
+        onToggleSettings={() => setShowSettingsScreen(true)}
+        onLogout={handleLogout}
+        onToggleSearch={() => { setShowMsgSearch((value) => !value); setMsgSearchQuery(""); }}
+        onSearchQueryChange={setMsgSearchQuery}
+        onScrollStateChange={() => {
+          const el = chatScrollRef.current;
+          if (!el) return;
+          isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+        onInlinePostClose={() => setShowInlinePost(false)}
+        onPostTextChange={setPostText}
+        onCreatePost={handleCreatePost}
+        onInputChange={setInputValue}
+        onSendMessage={handleSendMessage}
+        onQuickAction={(action) => {
+          if (action === "feed") { setMobileTab("feed"); loadFeed(); }
+          if (action === "missions") handleMissionsCommand();
+          if (action === "news") handleNewsCommand();
+          if (action === "inbox") { setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }
+          if (action === "communities") { setMobileTab("communities"); loadCommunities(communitySearch); }
+        }}
+      />
 
       {/* ── Sidebar — sempre visível no desktop (384px), full-screen em outras tabs no mobile ── */}
       <aside className={`bg-card/30 backdrop-blur-sm min-h-0 ${
@@ -2665,216 +1569,28 @@ export default function Home() {
         onChange={handleProfileFileChange}
       />
 
-      <AnimatePresence>
-        {showSettingsScreen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background"
-          >
-            <div className="h-full overflow-y-auto">
-              <div className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur-sm">
-                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-primary" />
-                    <h2 className="font-display text-lg font-semibold">Configuracoes</h2>
-                  </div>
-                  <Button variant="outline" onClick={() => setShowSettingsScreen(false)}>Fechar</Button>
-                </div>
-              </div>
+            <SettingsScreen
+        show={showSettingsScreen}
+        user={user}
+        profilePhotoUrl={profilePhotoUrl}
+        themeMode={themeMode}
+        settingsMessage={settingsMessage}
+        onClose={() => setShowSettingsScreen(false)}
+        onSelectProfilePhoto={handleSelectProfilePhoto}
+        onRemoveProfilePhoto={handleRemoveProfilePhoto}
+        onThemeSelect={handleThemeSelect}
+      />
 
-              <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-4">
-                <Card className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-primary" />
-                    <p className="text-sm font-semibold">Foto de perfil</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {profilePhotoUrl ? (
-                      <img src={profilePhotoUrl} alt="Foto de perfil" className="w-16 h-16 rounded-full object-cover border" />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-lg font-black text-primary-foreground">
-                        {(user?.username || "?")[0].toUpperCase()}
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      Selecione uma imagem do seu computador. O app aplica recorte central e compressao automaticamente.
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button className="flex-1" onClick={handleSelectProfilePhoto}>Escolher do computador</Button>
-                    <Button className="flex-1" variant="outline" onClick={handleRemoveProfilePhoto}>Remover</Button>
-                  </div>
-                </Card>
-
-                <Card className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    {themeMode === "dark" ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
-                    <p className="text-sm font-semibold">Aparencia</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Escolha entre modo claro e modo escuro.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant={themeMode === "light" ? "default" : "outline"} onClick={() => handleThemeSelect("light")}>
-                      Modo claro
-                    </Button>
-                    <Button variant={themeMode === "dark" ? "default" : "outline"} onClick={() => handleThemeSelect("dark")}>
-                      Modo escuro
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="p-4 space-y-2">
-                  <p className="text-sm font-semibold">Outras configuracoes</p>
-                  <p className="text-xs text-muted-foreground">Notificacoes personalizadas (em breve)</p>
-                  <p className="text-xs text-muted-foreground">Privacidade e seguranca (em breve)</p>
-                  <p className="text-xs text-muted-foreground">Idioma e acessibilidade (em breve)</p>
-                </Card>
-
-                {settingsMessage && (
-                  <p className="text-xs rounded-lg border border-primary/40 bg-primary/10 p-2 text-primary">{settingsMessage}</p>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Friend Profile Modal ── */}
-      <AnimatePresence>
-        {(friendProfileLoading || selectedFriend) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm"
-            onClick={() => setSelectedFriend(null)}
-          >
-            <motion.div
-              initial={{ y: 80, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 80, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-background border shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {friendProfileLoading && (
-                <div className="flex items-center justify-center h-40">
-                  <p className="text-sm text-muted-foreground">Carregando perfil...</p>
-                </div>
-              )}
-
-              {selectedFriend && !friendProfileLoading && (() => {
-                const { user: f, recentPosts, interests, activeMissionsCount } = selectedFriend;
-                const name = f.displayName || f.username;
-                const canSendMessage = isFriendUser(f.id);
-                return (
-                  <div className="p-5 space-y-4">
-                    {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-2xl font-black">
-                          {name[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <h2 className="font-display text-xl font-bold">{name}</h2>
-                          <p className="text-sm text-muted-foreground">@{f.username}</p>
-                        </div>
-                      </div>
-                      <button onClick={() => setSelectedFriend(null)} className="text-muted-foreground hover:text-foreground transition-colors">
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {canSendMessage && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        disabled={!user || user.level < 2}
-                        title={user && user.level < 2 ? "🔒 Desbloqueado no Nível 2" : undefined}
-                        onClick={() =>
-                          openDMWithUser({
-                            id: f.id,
-                            username: f.username,
-                            displayName: f.displayName,
-                            level: f.level,
-                          })
-                        }
-                      >
-                        {user && user.level < 2 ? "🔒 Mensagem (Nível 2)" : "Enviar mensagem"}
-                      </Button>
-                    )}
-
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="bg-secondary/50 rounded-xl p-3 text-center">
-                        <Trophy className="w-4 h-4 mx-auto mb-1 text-primary" />
-                        <p className="text-sm font-bold">Nv {f.level}</p>
-                        <p className="text-xs text-muted-foreground">Nível</p>
-                      </div>
-                      <div className="bg-secondary/50 rounded-xl p-3 text-center">
-                        <Flame className="w-4 h-4 mx-auto mb-1 text-orange-500" />
-                        <p className="text-sm font-bold">{f.currentStreak}d</p>
-                        <p className="text-xs text-muted-foreground">Streak</p>
-                      </div>
-                      <div className="bg-secondary/50 rounded-xl p-3 text-center">
-                        <TrendingUp className="w-4 h-4 mx-auto mb-1 text-green-500" />
-                        <p className="text-sm font-bold">{activeMissionsCount}</p>
-                        <p className="text-xs text-muted-foreground">Missões</p>
-                      </div>
-                    </div>
-
-                    {/* Interests */}
-                    {interests.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground mb-2">INTERESSES</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {interests.slice(0, 8).map((i) => (
-                            <span key={i} className="text-xs px-2 py-1 rounded-full bg-primary/15 text-primary font-medium">{i}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Recent posts */}
-                    {recentPosts.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground mb-2">PUBLICAÇÕES RECENTES</p>
-                        <div className="space-y-2">
-                          {recentPosts.map((post) => (
-                            <div key={post.id} className="bg-secondary/30 rounded-xl p-3 space-y-1.5">
-                              <p className="text-sm leading-relaxed">{post.content}</p>
-                              {post.aiComment && (
-                                <div className="border-l-2 border-primary pl-2">
-                                  <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2">
-                                {post.sentimentLabel && (
-                                  <span className="text-xs text-muted-foreground">{post.sentimentLabel}</span>
-                                )}
-                                <span className="text-xs text-muted-foreground ml-auto">{timeAgo(post.createdAt)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {recentPosts.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-2">{name} ainda não publicou nada.</p>
-                    )}
-
-                    {f.lastActiveAt && (
-                      <p className="text-xs text-muted-foreground text-center">Último acesso: {timeAgo(f.lastActiveAt)}</p>
-                    )}
-                  </div>
-                );
-              })()}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <FriendProfileModal
+        open={friendProfileLoading || !!selectedFriend}
+        loading={friendProfileLoading}
+        selectedFriend={selectedFriend}
+        currentUser={user}
+        isFriendUser={isFriendUser}
+        onClose={() => setSelectedFriend(null)}
+        onOpenDMWithUser={openDMWithUser}
+        timeAgo={timeAgo}
+      />
 
       <AchievementPopup
         title={achievementData.title}
