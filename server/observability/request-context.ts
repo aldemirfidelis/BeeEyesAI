@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { createLogger } from "./logger";
 import { trackRequestEnd, trackRequestStart } from "./metrics";
+import { recordRequestTrace } from "./tracing";
 
 function getRouteKey(req: Request) {
   const routePath = req.route?.path;
@@ -34,6 +35,18 @@ export function requestContextMiddleware(req: Request, res: Response, next: Next
       statusCode: res.statusCode,
       durationMs,
       userId: req.userId ?? null,
+    });
+
+    recordRequestTrace({
+      traceId: requestId,
+      requestId,
+      method: req.method,
+      path: req.path,
+      route: typeof req.route?.path === "string" ? req.route.path : undefined,
+      statusCode: res.statusCode,
+      durationMs,
+      userId: req.userId ?? null,
+      timestamp: new Date().toISOString(),
     });
   });
 

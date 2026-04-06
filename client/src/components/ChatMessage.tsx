@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { User } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface ChatMessageProps {
@@ -7,42 +6,53 @@ interface ChatMessageProps {
   content: string;
   timestamp?: Date;
   actions?: ReactNode;
+  profilePhotoUrl?: string;
 }
 
-export default function ChatMessage({ role, content, timestamp, actions }: ChatMessageProps) {
+export default function ChatMessage({ role, content, timestamp, actions, profilePhotoUrl }: ChatMessageProps) {
   const isUser = role === "user";
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"} mb-4`}
+      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"} mb-3`}
     >
+      {/* Avatar */}
       <div
-        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden shadow-sm ${
           isUser ? "bg-primary" : "bg-secondary"
         }`}
       >
         {isUser ? (
-          <User className="w-4 h-4 text-primary-foreground" />
+          profilePhotoUrl ? (
+            <img src={profilePhotoUrl} alt="avatar" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-sm font-bold text-primary-foreground">U</span>
+          )
         ) : (
-          <span className="text-base leading-none">🐝</span>
+          <span className="text-lg leading-none">🐝</span>
         )}
       </div>
-      <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[80%]`}>
+
+      {/* Bubble + extras */}
+      <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[78%]`}>
         <div
-          className={`rounded-3xl px-4 py-3 ${
+          className={`rounded-3xl px-4 py-2.5 shadow-sm ${
             isUser
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-secondary-foreground"
+              ? "bg-primary text-primary-foreground rounded-tr-md"
+              : "bg-secondary text-secondary-foreground rounded-tl-md"
           }`}
         >
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>
         </div>
+
         {actions ? <div className="mt-2 w-full">{actions}</div> : null}
+
         {timestamp && (
-          <span className="text-xs text-muted-foreground mt-1 px-2">
-            {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          <span className="text-[11px] text-muted-foreground mt-1 px-1 select-none">
+            {timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
       </div>

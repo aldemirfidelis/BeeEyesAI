@@ -82,7 +82,16 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                       }
                     }}
                   />
-                  <Button size="sm" className="self-end h-9 px-3" disabled={!communityPostInput.trim() || communityPostSending} onClick={onSendCommunityPost}><Send className="w-4 h-4" /></Button>
+                  <Button
+                    size="sm"
+                    className="self-end h-9 px-3"
+                    disabled={!communityPostInput.trim() || communityPostSending}
+                    onClick={onSendCommunityPost}
+                    data-testid="community-post-submit"
+                    aria-label="Publicar na comunidade"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
                 </div>
               )}
               <div className="space-y-3">

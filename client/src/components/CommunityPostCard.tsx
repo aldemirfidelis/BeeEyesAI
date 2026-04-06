@@ -47,7 +47,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
   const [recommending, setRecommending] = useState(false);
   const [recommended, setRecommended] = useState(false);
 
-  const authorName = initialPost.displayName || initialPost.username || "Usuário";
+  const authorName = initialPost.displayName || initialPost.username || "UsuÃ¡rio";
 
   const handleLike = async () => {
     const newLiked = !liked;
@@ -139,7 +139,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
   };
 
   return (
-    <div className="bg-secondary/30 rounded-xl overflow-hidden">
+    <div className="bg-secondary/30 rounded-xl overflow-hidden" data-testid={`community-post-card-${initialPost.id}`}>
       {/* Header + Content */}
       <div className="p-4 space-y-2">
         <div className="flex items-center gap-2">
@@ -159,6 +159,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
         <button
           onClick={handleLike}
           className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
+          aria-label={liked ? "Descurtir publicação" : "Curtir publicação"}
         >
           <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
           {likesCount > 0 && likesCount}
@@ -167,6 +168,8 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
         <button
           onClick={handleToggleComments}
           className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${expanded ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+          data-testid={`community-comments-toggle-${initialPost.id}`}
+          aria-label={expanded ? "Ocultar comentários" : "Comentar"}
         >
           {expanded ? <ChevronUp className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
           {commentsCount > 0 ? commentsCount : "Comentar"}
@@ -176,6 +179,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
           onClick={handleRecommend}
           disabled={recommending || recommended}
           className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ml-auto ${recommended ? "text-green-500" : "text-muted-foreground hover:text-primary"}`}
+          aria-label={recommended ? "Recomendado" : "Recomendar publicação"}
         >
           <Share2 className="w-4 h-4" />
           {recommended ? "Recomendado!" : recommending ? "..." : "Recomendar"}
@@ -194,10 +198,10 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
           >
             <div className="px-4 pb-4 pt-3 border-t border-border/20 space-y-3">
               {commentsLoading && (
-                <p className="text-xs text-muted-foreground text-center py-1">Carregando comentários...</p>
+                <p className="text-xs text-muted-foreground text-center py-1">Carregando comentÃ¡rios...</p>
               )}
               {!commentsLoading && comments.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-1">Nenhum comentário ainda.</p>
+                <p className="text-xs text-muted-foreground text-center py-1">Nenhum comentÃ¡rio ainda.</p>
               )}
               {comments.map((comment) => {
                 const cName = comment.displayName || comment.username;
@@ -228,13 +232,13 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
 
               <div className="flex gap-2 pt-1">
                 <Input
-                  placeholder="Escreva um comentário..."
+                  placeholder="Escreva um comentário..." data-testid={`community-comment-input-${initialPost.id}`}
                   className="flex-1 h-8 text-xs"
                   value={commentInput}
                   onChange={(e) => setCommentInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleSendComment(); }}
                 />
-                <Button size="icon" className="h-8 w-8 shrink-0" disabled={!commentInput.trim() || sending} onClick={handleSendComment}>
+                <Button size="icon" className="h-8 w-8 shrink-0" disabled={!commentInput.trim() || sending} onClick={handleSendComment} data-testid={`community-comment-submit-${initialPost.id}`}>
                   <Send className="w-3.5 h-3.5" />
                 </Button>
               </div>

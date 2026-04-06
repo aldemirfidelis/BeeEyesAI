@@ -40,8 +40,8 @@ test("feed, missões, comunidade e dm entre dois usuários reais", async ({ brow
   await expect(page.getByText(/nível 2/i)).toBeVisible({ timeout: 15_000 });
 
   await openSidebarTab(page, "Amigos");
-  await page.getByTestId("friends-search-input").fill(userB.username);
-  const friendCard = page.locator('[class*="p-3"]').filter({ hasText: `@${userB.username}` }).first();
+  const friendCard = page.locator('[class*="p-3"]').filter({ hasText: userB.username }).first();
+  await expect(friendCard).toBeVisible({ timeout: 15_000 });
   await friendCard.getByRole("button", { name: /enviar mensagem/i }).click();
   await page.getByTestId("dm-input").fill(dmMessage);
   await page.getByTestId("dm-send-button").click();

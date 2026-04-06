@@ -1,14 +1,10 @@
-import type { ApiResponse } from "@shared/api";
-
-function isEnvelope<T>(value: unknown): value is ApiResponse<T> {
-  return Boolean(value && typeof value === "object" && "ok" in (value as Record<string, unknown>));
-}
+import { getApiErrorMessage as getSharedApiErrorMessage, isApiEnvelope } from "@shared/api";
 
 export async function parseApiResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;
 
-  if (isEnvelope<T>(payload)) {
+  if (isApiEnvelope<T>(payload)) {
     if (!payload.ok) {
       throw new Error(payload.error.message);
     }
@@ -42,5 +38,5 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
     return error.message;
   }
 
-  return fallback;
+  return getSharedApiErrorMessage(error, fallback);
 }

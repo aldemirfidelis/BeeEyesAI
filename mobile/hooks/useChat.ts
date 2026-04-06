@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import { useChatStore } from "../stores/chatStore";
 import { useUIStore } from "../stores/uiStore";
 import { useQueryClient } from "@tanstack/react-query";
-import { API_URL_RAW } from "../lib/api";
+import { API_URL_RAW, getApiErrorMessage } from "../lib/api";
 import { NewsDigestMeta } from "../lib/social";
 
 function cleanAIText(text: string): string {
@@ -52,11 +52,12 @@ export function useChat() {
         }
         if (response.status === 429) {
           const data = await response.json();
-          finalizeStream(data.message || "Voce enviou muitas mensagens. Tente novamente em alguns minutos.");
+          finalizeStream(getApiErrorMessage(data, "Você enviou muitas mensagens. Tente novamente em alguns minutos."));
           setEyeExpression("neutral");
           return;
         }
-        throw new Error(`HTTP ${response.status}`);
+        const failure = await response.json().catch(() => null);
+        throw new Error(getApiErrorMessage(failure, `HTTP ${response.status}`));
       }
 
       const raw = await response.text();
@@ -106,10 +107,11 @@ export function useChat() {
       queryClient.invalidateQueries({ queryKey: ["me"] });
     } catch (err) {
       console.error("[useChat] erro:", err);
-      finalizeStream("Não consegui me conectar agora. Verifique sua conexão e tente novamente!");
+      finalizeStream(getApiErrorMessage(err, "Não consegui me conectar agora. Verifique sua conexão e tente novamente!"));
       setEyeExpression("neutral");
     }
   }
 
   return { sendMessage };
 }
+
