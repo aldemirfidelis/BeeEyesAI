@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { ApiError } from "./api/errors";
 import { sendError } from "./api/response";
+import { ensureDatabaseCompatibility } from "./db";
 import { requestContextMiddleware } from "./observability/request-context";
 import { registerRoutes } from "./routes/index";
 import { applySecurityHeaders } from "./security";
@@ -15,6 +16,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 (async () => {
+  await ensureDatabaseCompatibility();
   const server = await registerRoutes(app);
 
   app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {

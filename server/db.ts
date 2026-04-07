@@ -10,5 +10,12 @@ if (!process.env.DATABASE_URL) {
 // Required for Node.js environments (not edge/serverless)
 neonConfig.webSocketConstructor = ws;
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
+
+export async function ensureDatabaseCompatibility() {
+  await pool.query(`
+    ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "anonymous_profile_visits_enabled" boolean NOT NULL DEFAULT false;
+  `);
+}
