@@ -246,7 +246,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
 
       {/* ── Edit community modal ──────────────────────────────── */}
       {editingCommunity && (
-        <div className="absolute inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">Editar Comunidade</h3>
@@ -300,7 +300,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
 
       {/* ── Create community modal ────────────────────────────── */}
       {showCreateCommunity && (
-        <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">Nova Comunidade</h3>
