@@ -1481,7 +1481,6 @@ export default function Home() {
           return null;
         }}
         onToggleSettings={() => setShowSettingsScreen(true)}
-        onLogout={handleLogout}
         onToggleSearch={() => { setShowMsgSearch((value) => !value); setMsgSearchQuery(""); }}
         onSearchQueryChange={setMsgSearchQuery}
         onScrollStateChange={() => {
@@ -1548,13 +1547,6 @@ export default function Home() {
         >
           <Users2 className="w-5 h-5" />
           Grupos
-        </button>
-        <button
-          onClick={() => setShowSettingsScreen(true)}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${showSettingsScreen ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <Settings className="w-5 h-5" />
-          Config.
         </button>
       </nav>
 

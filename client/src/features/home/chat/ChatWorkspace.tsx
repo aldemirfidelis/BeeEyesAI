@@ -2,7 +2,6 @@ import type { ReactNode, RefObject } from "react";
 import BeeEyes from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import StreakDisplay from "@/components/StreakDisplay";
-import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +29,6 @@ interface ChatWorkspaceProps {
   isPosting: boolean;
   messageActionsRenderer: (message: Message) => ReactNode;
   onToggleSettings: () => void;
-  onLogout: () => void;
   onToggleSearch: () => void;
   onSearchQueryChange: (value: string) => void;
   onScrollStateChange: () => void;
@@ -62,7 +60,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     isPosting,
     messageActionsRenderer,
     onToggleSettings,
-    onLogout,
     onToggleSearch,
     onSearchQueryChange,
     onScrollStateChange,
@@ -99,7 +96,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             >
               <Settings className="w-5 h-5" />
             </button>
-            <ThemeToggle />
           </div>
         </div>
       </header>
