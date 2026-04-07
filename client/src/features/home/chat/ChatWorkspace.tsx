@@ -138,20 +138,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2">
-            {[
-              { label: "/feed", value: "feed" as const },
-              { label: "/missões", value: "missions" as const },
-              { label: "/notícias", value: "news" as const },
-              { label: "/inbox", value: "inbox" as const },
-              { label: "/comunidades", value: "communities" as const },
-            ].map((action) => (
-              <button key={action.label} type="button" onClick={() => onQuickAction(action.value)} className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary">
-                {action.label}
-              </button>
-            ))}
-          </div>
-
           <div className="flex gap-2 max-w-4xl mx-auto">
             <Input ref={inputRef} value={inputValue} onChange={(event) => onInputChange(event.target.value)} onKeyDown={(event) => event.key === "Enter" && onSendMessage()} placeholder="Digite sua mensagem..." className="flex-1" disabled={isLoading} autoFocus data-testid="input-chat-message" />
             <Button onClick={onSendMessage} size="icon" disabled={isLoading} data-testid="button-send-message">
