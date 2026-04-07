@@ -87,6 +87,7 @@ export interface Community {
   description: string | null;
   category: string;
   emoji: string;
+  imageUrl?: string | null;
   ownerId: string;
   membersCount: number;
   createdAt: string;

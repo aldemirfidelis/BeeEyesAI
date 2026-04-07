@@ -101,7 +101,7 @@ export default function Home() {
   const [communityPostInput, setCommunityPostInput] = useState("");
   const [communityPostSending, setCommunityPostSending] = useState(false);
   const [showCreateCommunity, setShowCreateCommunity] = useState(false);
-  const [newCommunity, setNewCommunity] = useState({ name: "", description: "", category: "geral", emoji: "🐝" });
+  const [newCommunity, setNewCommunity] = useState({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" });
   const [creatingCommunity, setCreatingCommunity] = useState(false);
   const [communityJoining, setCommunityJoining] = useState<string | null>(null);
   const [friendSearch, setFriendSearch] = useState("");

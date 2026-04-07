@@ -164,6 +164,7 @@ export const communities = pgTable("communities", {
   description: text("description"),
   category: varchar("category", { length: 60 }).notNull().default("geral"),
   emoji: varchar("emoji", { length: 10 }).notNull().default("🐝"),
+  imageUrl: text("image_url"),
   ownerId: varchar("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   membersCount: integer("members_count").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),

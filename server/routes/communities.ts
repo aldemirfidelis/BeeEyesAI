@@ -21,7 +21,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
   }));
 
   router.post("/api/communities", requireAuth, asyncHandler(async (req, res) => {
-    const { name, description, category, emoji } = req.body ?? {};
+    const { name, description, category, emoji, imageUrl } = req.body ?? {};
     if (!name?.trim()) {
       throw badRequest("Nome obrigatório");
     }
@@ -31,6 +31,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
       description: description?.trim() || null,
       category: category || "geral",
       emoji: emoji || "🐝",
+      imageUrl: imageUrl || null,
       ownerId: req.userId!,
     });
 
