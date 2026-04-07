@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Moon, Settings, Sun } from "lucide-react";
+import { Camera, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { ThemeMode } from "@/lib/theme";
@@ -15,10 +15,11 @@ interface SettingsScreenProps {
   onSelectProfilePhoto: () => void;
   onRemoveProfilePhoto: () => void;
   onThemeSelect: (theme: ThemeMode) => void;
+  onLogout: () => void;
 }
 
 export function SettingsScreen(props: SettingsScreenProps) {
-  const { show, user, profilePhotoUrl, themeMode, settingsMessage, onClose, onSelectProfilePhoto, onRemoveProfilePhoto, onThemeSelect } = props;
+  const { show, user, profilePhotoUrl, themeMode, settingsMessage, onClose, onSelectProfilePhoto, onRemoveProfilePhoto, onThemeSelect, onLogout } = props;
 
   return (
     <AnimatePresence>
@@ -75,6 +76,15 @@ export function SettingsScreen(props: SettingsScreenProps) {
               </Card>
 
               {settingsMessage && <p className="text-xs rounded-lg border border-primary/40 bg-primary/10 p-2 text-primary">{settingsMessage}</p>}
+
+              <Button
+                variant="outline"
+                className="w-full flex items-center gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive/60"
+                onClick={onLogout}
+              >
+                <LogOut className="w-4 h-4" />
+                Sair da conta
+              </Button>
             </div>
           </div>
         </motion.div>

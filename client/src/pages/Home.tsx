@@ -1579,6 +1579,7 @@ export default function Home() {
         onSelectProfilePhoto={handleSelectProfilePhoto}
         onRemoveProfilePhoto={handleRemoveProfilePhoto}
         onThemeSelect={handleThemeSelect}
+        onLogout={handleLogout}
       />
 
       <FriendProfileModal

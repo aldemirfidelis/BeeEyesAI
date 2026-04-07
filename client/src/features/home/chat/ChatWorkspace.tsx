@@ -90,9 +90,16 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             {user && <StreakDisplay streak={user.currentStreak} />}
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="outline" onClick={onToggleSettings}>Configurações</Button>
+            <button
+              type="button"
+              onClick={onToggleSettings}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              aria-label="Configurações"
+              title="Configurações"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
             <ThemeToggle />
-            <Button variant="outline" onClick={onLogout}>Sair</Button>
           </div>
         </div>
       </header>
