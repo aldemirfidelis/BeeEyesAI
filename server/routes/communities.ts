@@ -39,6 +39,20 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
     return sendCreated(res, community);
   }));
 
+  router.patch("/api/communities/:id", requireAuth, asyncHandler(async (req, res) => {
+    const { name, description, imageUrl } = req.body ?? {};
+    if (name !== undefined && !String(name).trim()) {
+      throw badRequest("Nome não pode ficar vazio");
+    }
+    const updated = await storage.updateCommunity(req.params.id, req.userId!, {
+      name: name !== undefined ? String(name).trim() : undefined,
+      description: description !== undefined ? (description?.trim() || null) : undefined,
+      imageUrl: imageUrl !== undefined ? (imageUrl || null) : undefined,
+    });
+    if (!updated) throw forbidden("Apenas o fundador pode editar esta comunidade");
+    return sendOk(res, updated);
+  }));
+
   router.get("/api/communities/mine", requireAuth, asyncHandler(async (req, res) => {
     return sendOk(res, await storage.getUserCommunities(req.userId!));
   }));

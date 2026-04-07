@@ -1,10 +1,12 @@
 import { useRef } from "react";
-import { ImagePlus, Plus, Send, X } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Send, X } from "lucide-react";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { Community, CommunityPost } from "@/features/home/types";
+
+type EditingCommunity = { id: string; name: string; description: string; imageUrl: string } | null;
 
 interface CommunitiesPanelProps {
   communities: Community[];
@@ -19,6 +21,8 @@ interface CommunitiesPanelProps {
   newCommunity: { name: string; description: string; category: string; emoji: string; imageUrl: string };
   creatingCommunity: boolean;
   communityJoining: string | null;
+  editingCommunity: EditingCommunity;
+  savingCommunity: boolean;
   onCommunitySearchChange: (value: string) => void;
   onOpenCommunity: (communityId: string) => void;
   onJoinCommunity: (communityId: string) => void;
@@ -29,14 +33,30 @@ interface CommunitiesPanelProps {
   onShowCreateCommunity: (value: boolean) => void;
   onNewCommunityChange: (value: { name: string; description: string; category: string; emoji: string; imageUrl: string }) => void;
   onCreateCommunity: () => void;
+  onOpenEditCommunity: () => void;
+  onEditCommunityChange: (value: EditingCommunity) => void;
+  onSaveEditCommunity: () => void;
+  onCancelEditCommunity: () => void;
   authHeaders: () => Record<string, string>;
   timeAgo: (value: string | Date) => string;
 }
 
-/** Renders community avatar: image if available, else emoji, else first letter */
-function CommunityAvatar({ community, size = "md" }: { community: Pick<Community, "name" | "emoji" | "imageUrl">; size?: "sm" | "md" | "lg" }) {
-  const dim = size === "sm" ? "w-10 h-10 text-xl" : size === "lg" ? "w-14 h-14 text-3xl" : "w-12 h-12 text-2xl";
-  const imgDim = size === "sm" ? "w-10 h-10" : size === "lg" ? "w-14 h-14" : "w-12 h-12";
+/** Renders community avatar: image > emoji > initial */
+function CommunityAvatar({
+  community,
+  size = "md",
+}: {
+  community: Pick<Community, "name" | "emoji" | "imageUrl">;
+  size?: "sm" | "md" | "lg";
+}) {
+  const dim =
+    size === "sm" ? "w-10 h-10 text-xl" :
+    size === "lg" ? "w-14 h-14 text-3xl" :
+    "w-12 h-12 text-2xl";
+  const imgDim =
+    size === "sm" ? "w-10 h-10" :
+    size === "lg" ? "w-14 h-14" :
+    "w-12 h-12";
 
   if (community.imageUrl) {
     return (
@@ -47,12 +67,74 @@ function CommunityAvatar({ community, size = "md" }: { community: Pick<Community
       />
     );
   }
-  if (community.emoji && community.emoji !== "🐝") {
-    return <span className={`${dim} flex items-center justify-center shrink-0`}>{community.emoji}</span>;
+  if (community.emoji) {
+    return (
+      <span className={`${dim} flex items-center justify-center shrink-0`}>
+        {community.emoji}
+      </span>
+    );
   }
   return (
     <div className={`${dim} rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary shrink-0`}>
       {community.name[0]?.toUpperCase() ?? "?"}
+    </div>
+  );
+}
+
+/** Image picker button shared by create + edit modals */
+function ImagePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (dataUrl: string) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => onChange(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+      />
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="relative group w-20 h-20 rounded-full border-2 border-dashed border-border hover:border-primary transition-colors flex items-center justify-center overflow-hidden bg-secondary/30"
+      >
+        {value ? (
+          <>
+            <img src={value} alt="preview" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <ImagePlus className="w-5 h-5 text-white" />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-muted-foreground group-hover:text-primary transition-colors">
+            <ImagePlus className="w-6 h-6" />
+            <span className="text-[10px] font-medium">Foto</span>
+          </div>
+        )}
+      </button>
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+        >
+          Remover imagem
+        </button>
+      )}
     </div>
   );
 }
@@ -62,28 +144,22 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
     communities, communitiesLoading, communitySearch, selectedCommunity,
     communityPosts, communityPostsLoading, communityPostInput, communityPostSending,
     showCreateCommunity, newCommunity, creatingCommunity, communityJoining,
+    editingCommunity, savingCommunity,
     onCommunitySearchChange, onOpenCommunity, onJoinCommunity, onLeaveCommunity,
     onCloseCommunity, onCommunityPostInputChange, onSendCommunityPost,
-    onShowCreateCommunity, onNewCommunityChange, onCreateCommunity, authHeaders, timeAgo,
+    onShowCreateCommunity, onNewCommunityChange, onCreateCommunity,
+    onOpenEditCommunity, onEditCommunityChange, onSaveEditCommunity, onCancelEditCommunity,
+    authHeaders, timeAgo,
   } = props;
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const myCommunities = communities.filter((c) => c.isMember);
   const discoverCommunities = communities.filter((c) => !c.isMember);
-
-  function handleImageFile(file: File) {
-    if (!file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      onNewCommunityChange({ ...newCommunity, imageUrl: dataUrl });
-    };
-    reader.readAsDataURL(file);
-  }
+  const isOwner = selectedCommunity?.memberRole === "owner";
 
   return (
     <div className="flex-1 overflow-y-auto p-0 m-0 relative">
-      {/* Community detail view */}
+
+      {/* ── Community detail view ─────────────────────────────── */}
       {(communityPostsLoading || selectedCommunity) && (
         <div className="absolute inset-0 z-20 bg-background overflow-y-auto">
           <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-3">
@@ -91,13 +167,23 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
               <X className="w-5 h-5" />
             </button>
             {selectedCommunity && (
-              <div className="flex items-center gap-2 flex-1">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 <CommunityAvatar community={selectedCommunity} size="sm" />
-                <div>
-                  <h2 className="font-bold text-sm">{selectedCommunity.name}</h2>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-bold text-sm truncate">{selectedCommunity.name}</h2>
                   <p className="text-xs text-muted-foreground">{selectedCommunity.membersCount} membros</p>
                 </div>
-                <div className="ml-auto">
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Edit button — owner only */}
+                  {isOwner && (
+                    <button
+                      onClick={onOpenEditCommunity}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                      title="Editar comunidade"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
                   {selectedCommunity.memberRole === "owner" ? (
                     <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-medium">Fundador</span>
                   ) : selectedCommunity.isMember ? (
@@ -132,7 +218,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSendCommunityPost(); }
                     }}
                   />
-                  <Button size="sm" className="self-end h-9 px-3" disabled={!communityPostInput.trim() || communityPostSending} onClick={onSendCommunityPost} aria-label="Publicar na comunidade">
+                  <Button size="sm" className="self-end h-9 px-3" disabled={!communityPostInput.trim() || communityPostSending} onClick={onSendCommunityPost} aria-label="Publicar">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>
@@ -157,7 +243,61 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
         </div>
       )}
 
-      {/* Create community modal */}
+      {/* ── Edit community modal ──────────────────────────────── */}
+      {editingCommunity && (
+        <div className="absolute inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Editar Comunidade</h3>
+              <button onClick={onCancelEditCommunity}>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <ImagePicker
+                value={editingCommunity.imageUrl}
+                onChange={(dataUrl) => onEditCommunityChange({ ...editingCommunity, imageUrl: dataUrl })}
+              />
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
+                <Input
+                  placeholder="Nome da comunidade"
+                  value={editingCommunity.name}
+                  onChange={(e) => onEditCommunityChange({ ...editingCommunity, name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Descrição</label>
+                <Textarea
+                  placeholder="Descrição (opcional)"
+                  className="resize-none text-sm"
+                  rows={3}
+                  value={editingCommunity.description}
+                  onChange={(e) => onEditCommunityChange({ ...editingCommunity, description: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={onCancelEditCommunity}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!editingCommunity.name.trim() || savingCommunity}
+                onClick={onSaveEditCommunity}
+              >
+                {savingCommunity ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create community modal ────────────────────────────── */}
       {showCreateCommunity && (
         <div className="absolute inset-0 z-30 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">
@@ -169,46 +309,11 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
             </div>
 
             <div className="space-y-3">
-              {/* Image upload */}
-              <div className="flex flex-col items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="relative group w-20 h-20 rounded-full border-2 border-dashed border-border hover:border-primary transition-colors flex items-center justify-center overflow-hidden bg-secondary/30"
-                >
-                  {newCommunity.imageUrl ? (
-                    <>
-                      <img src={newCommunity.imageUrl} alt="preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <ImagePlus className="w-5 h-5 text-white" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 text-muted-foreground group-hover:text-primary transition-colors">
-                      <ImagePlus className="w-6 h-6" />
-                      <span className="text-[10px] font-medium">Foto</span>
-                    </div>
-                  )}
-                </button>
-                {newCommunity.imageUrl && (
-                  <button
-                    type="button"
-                    onClick={() => onNewCommunityChange({ ...newCommunity, imageUrl: "" })}
-                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    Remover imagem
-                  </button>
-                )}
-              </div>
+              <ImagePicker
+                value={newCommunity.imageUrl}
+                onChange={(dataUrl) => onNewCommunityChange({ ...newCommunity, imageUrl: dataUrl })}
+              />
 
-              {/* Emoji + Name */}
               <div className="flex gap-2">
                 <Input
                   placeholder="🐝"
@@ -265,7 +370,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
         </div>
       )}
 
-      {/* Search + Create button */}
+      {/* ── Search + Create button ────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-2">
         <Input
           placeholder="Buscar comunidades..."
@@ -280,7 +385,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
         </Button>
       </div>
 
-      {/* My communities */}
+      {/* ── My communities ────────────────────────────────────── */}
       {myCommunities.length > 0 && (
         <div className="px-4 pt-4">
           <p className="text-xs font-semibold text-muted-foreground mb-2">MINHAS COMUNIDADES</p>
@@ -299,7 +404,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
         </div>
       )}
 
-      {/* Discover */}
+      {/* ── Discover ─────────────────────────────────────────── */}
       <div className="px-4 pt-4 pb-6 space-y-3">
         <div>
           <p className="text-xs font-semibold text-muted-foreground">DESCOBRIR COMUNIDADES</p>

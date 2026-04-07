@@ -525,11 +525,49 @@ export default function Home() {
         const community = await res.json();
         setCommunities((prev) => [{ ...community, isMember: true }, ...prev]);
         setShowCreateCommunity(false);
-        setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝" });
+        setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" });
         setTimeout(loadMissions, 1000);
       }
     } finally {
       setCreatingCommunity(false);
+    }
+  };
+
+  // Community edit state
+  const [editingCommunity, setEditingCommunity] = useState<{ id: string; name: string; description: string; imageUrl: string } | null>(null);
+  const [savingCommunity, setSavingCommunity] = useState(false);
+
+  const handleOpenEditCommunity = () => {
+    if (!selectedCommunity) return;
+    setEditingCommunity({
+      id: selectedCommunity.id,
+      name: selectedCommunity.name,
+      description: selectedCommunity.description ?? "",
+      imageUrl: selectedCommunity.imageUrl ?? "",
+    });
+  };
+
+  const handleSaveEditCommunity = async () => {
+    if (!editingCommunity || savingCommunity) return;
+    setSavingCommunity(true);
+    try {
+      const res = await fetch(`/api/communities/${editingCommunity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          name: editingCommunity.name,
+          description: editingCommunity.description || null,
+          imageUrl: editingCommunity.imageUrl || null,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCommunities((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
+        setSelectedCommunity((prev) => prev ? { ...prev, ...updated } : prev);
+        setEditingCommunity(null);
+      }
+    } finally {
+      setSavingCommunity(false);
     }
   };
 
@@ -1362,6 +1400,12 @@ export default function Home() {
             onShowCreateCommunity={setShowCreateCommunity}
             onNewCommunityChange={setNewCommunity}
             onCreateCommunity={handleCreateCommunity}
+            editingCommunity={editingCommunity}
+            savingCommunity={savingCommunity}
+            onOpenEditCommunity={handleOpenEditCommunity}
+            onEditCommunityChange={setEditingCommunity}
+            onSaveEditCommunity={handleSaveEditCommunity}
+            onCancelEditCommunity={() => setEditingCommunity(null)}
             authHeaders={authHeaders}
             timeAgo={timeAgo}
           />

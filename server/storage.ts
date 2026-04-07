@@ -111,6 +111,7 @@ export interface IStorage {
   // Communities
   getCommunities(userId: string, search?: string): Promise<(Community & { isMember: boolean })[]>;
   createCommunity(data: InsertCommunity): Promise<Community>;
+  updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null>;
   getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null>;
   joinCommunity(communityId: string, userId: string): Promise<void>;
   leaveCommunity(communityId: string, userId: string): Promise<void>;
@@ -782,6 +783,18 @@ export class DrizzleStorage implements IStorage {
     const [community] = await db.insert(communities).values(data).returning();
     await db.insert(communityMembers).values({ communityId: community.id, userId: data.ownerId, role: "owner" });
     return community;
+  }
+
+  async updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null> {
+    const [existing] = await db.select().from(communities).where(eq(communities.id, id));
+    if (!existing || existing.ownerId !== ownerId) return null;
+    const updates: Record<string, unknown> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.imageUrl !== undefined) updates.imageUrl = data.imageUrl;
+    if (Object.keys(updates).length === 0) return existing;
+    const [updated] = await db.update(communities).set(updates).where(eq(communities.id, id)).returning();
+    return updated ?? null;
   }
 
   async getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null> {
