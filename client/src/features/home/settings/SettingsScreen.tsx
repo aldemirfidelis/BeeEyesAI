@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Camera, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import type { ThemeMode } from "@/lib/theme";
 import type { User } from "@/features/home/types";
 
@@ -11,15 +12,34 @@ interface SettingsScreenProps {
   profilePhotoUrl: string;
   themeMode: ThemeMode;
   settingsMessage: string;
+  anonymousProfileVisitsEnabled: boolean;
+  anonymousProfileVisitsUnlocked: boolean;
+  anonymousProfileVisitsUnlockHint: string;
   onClose: () => void;
   onSelectProfilePhoto: () => void;
   onRemoveProfilePhoto: () => void;
   onThemeSelect: (theme: ThemeMode) => void;
+  onAnonymousProfileVisitsToggle: (next: boolean) => void;
   onLogout: () => void;
 }
 
 export function SettingsScreen(props: SettingsScreenProps) {
-  const { show, user, profilePhotoUrl, themeMode, settingsMessage, onClose, onSelectProfilePhoto, onRemoveProfilePhoto, onThemeSelect, onLogout } = props;
+  const {
+    show,
+    user,
+    profilePhotoUrl,
+    themeMode,
+    settingsMessage,
+    anonymousProfileVisitsEnabled,
+    anonymousProfileVisitsUnlocked,
+    anonymousProfileVisitsUnlockHint,
+    onClose,
+    onSelectProfilePhoto,
+    onRemoveProfilePhoto,
+    onThemeSelect,
+    onAnonymousProfileVisitsToggle,
+    onLogout,
+  } = props;
 
   return (
     <AnimatePresence>
@@ -68,6 +88,31 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   <Button variant={themeMode === "light" ? "default" : "outline"} onClick={() => onThemeSelect("light")}>Modo claro</Button>
                   <Button variant={themeMode === "dark" ? "default" : "outline"} onClick={() => onThemeSelect("dark")}>Modo escuro</Button>
                 </div>
+              </Card>
+
+              <Card className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">Navegação anônima</p>
+                    <p className="text-xs text-muted-foreground">Suas visitas em perfis deixam de mostrar seu nome para a outra pessoa.</p>
+                  </div>
+                  <Switch
+                    checked={anonymousProfileVisitsEnabled}
+                    disabled={!anonymousProfileVisitsUnlocked}
+                    onCheckedChange={onAnonymousProfileVisitsToggle}
+                    aria-label="Ativar navegação anônima"
+                  />
+                </div>
+                <div className={`rounded-xl border px-3 py-2 text-xs ${anonymousProfileVisitsUnlocked ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-secondary/40 text-muted-foreground"}`}>
+                  {anonymousProfileVisitsUnlocked
+                    ? "Recurso liberado. Você pode ativar ou desativar quando quiser."
+                    : anonymousProfileVisitsUnlockHint}
+                </div>
+                {user && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Progresso atual: nível {user.level}. Complete missões para destravar opções premium do produto.
+                  </p>
+                )}
               </Card>
 
               <Card className="p-4 space-y-2">

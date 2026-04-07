@@ -7,26 +7,70 @@ import {
   Alert,
   Image,
   ScrollView,
+  Switch,
+  ActivityIndicator,
 } from "react-native";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
+import { api, getApiErrorMessage } from "@mobile/lib/api";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
+import { useAuthStore } from "@mobile/stores/authStore";
+import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
+
+type MeResponse = {
+  id: string;
+  username: string;
+  displayName?: string | null;
+  gender?: string | null;
+  level: number;
+  xp: number;
+  anonymousProfileVisitsEnabled?: boolean;
+  currentStreak: number;
+};
 
 export default function SettingsScreen() {
+  const queryClient = useQueryClient();
   const themeMode = useUIStore((state) => state.themeMode);
   const profileImageUri = useUIStore((state) => state.profileImageUri);
   const setThemeMode = useUIStore((state) => state.setThemeMode);
   const setProfileImageUri = useUIStore((state) => state.setProfileImageUri);
+  const authUser = useAuthStore((state) => state.user);
+  const setAuthUser = useAuthStore((state) => state.setUser);
+  const [privacyMessage, setPrivacyMessage] = useState("");
 
   const colors = getThemeColors(themeMode);
   const styles = makeStyles(colors);
 
+  const { data: me, isLoading: meLoading } = useQuery<MeResponse>({
+    queryKey: ["me"],
+    queryFn: () => api.get("/api/me").then((response) => response.data),
+    staleTime: 30_000,
+  });
+
+  const anonymousUnlocked = hasAnonymousProfileVisitsUnlocked(me ?? authUser);
+  const anonymousEnabled = Boolean(me?.anonymousProfileVisitsEnabled ?? authUser?.anonymousProfileVisitsEnabled);
+
+  const updatePreferences = useMutation({
+    mutationFn: (anonymousProfileVisitsEnabled: boolean) =>
+      api.patch("/api/me/preferences", { anonymousProfileVisitsEnabled }).then((response) => response.data as MeResponse),
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(["me"], updatedUser);
+      setAuthUser(updatedUser);
+      setPrivacyMessage(updatedUser.anonymousProfileVisitsEnabled ? "Navegação anônima ativada." : "Navegação anônima desativada.");
+    },
+    onError: (error: unknown) => {
+      setPrivacyMessage(getApiErrorMessage(error, "Não foi possível atualizar essa preferência agora."));
+    },
+  });
+
   async function handlePickFromGallery() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Permissao necessaria", "Permita acesso a galeria para escolher sua foto.");
+      Alert.alert("Permissão necessária", "Permita acesso à galeria para escolher sua foto.");
       return;
     }
 
@@ -54,6 +98,14 @@ export default function SettingsScreen() {
     Alert.alert("Foto removida", "Sua foto de perfil foi removida.");
   }
 
+  function handleToggleAnonymous(value: boolean) {
+    if (value && !anonymousUnlocked) {
+      setPrivacyMessage(getAnonymousProfileVisitsUnlockMessage());
+      return;
+    }
+    updatePreferences.mutate(value);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -61,7 +113,7 @@ export default function SettingsScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Text style={styles.backButtonText}>Voltar</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Configuracoes</Text>
+          <Text style={styles.title}>Configurações</Text>
           <View style={{ width: 68 }} />
         </View>
 
@@ -76,7 +128,7 @@ export default function SettingsScreen() {
               )}
             </View>
             <Text style={styles.previewHelp}>
-              Escolha uma foto da galeria. O app aplica ajuste e compressao automaticamente para avatar.
+              Escolha uma foto da galeria. O app aplica ajuste e compressão automaticamente para avatar.
             </Text>
           </View>
 
@@ -91,7 +143,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Aparencia</Text>
+          <Text style={styles.cardTitle}>Aparência</Text>
           <Text style={styles.cardSubTitle}>Escolha entre modo claro ou escuro.</Text>
           <View style={styles.themeButtons}>
             <TouchableOpacity
@@ -114,12 +166,48 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Outras configuracoes</Text>
+          <View style={styles.settingHeader}>
+            <View style={styles.settingHeaderCopy}>
+              <Text style={styles.cardTitle}>Navegação anônima</Text>
+              <Text style={styles.cardSubTitle}>
+                Suas visitas em perfis deixam de mostrar seu nome para a outra pessoa.
+              </Text>
+            </View>
+            {meLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Switch
+                value={anonymousEnabled}
+                onValueChange={handleToggleAnonymous}
+                disabled={!anonymousUnlocked || updatePreferences.isPending}
+                thumbColor={anonymousEnabled ? "#111827" : "#f4f4f5"}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            )}
+          </View>
+
+          <View style={[styles.unlockBox, anonymousUnlocked ? styles.unlockBoxActive : styles.unlockBoxLocked]}>
+            <Text style={[styles.unlockText, anonymousUnlocked ? styles.unlockTextActive : styles.unlockTextLocked]}>
+              {anonymousUnlocked
+                ? "Recurso liberado. Você pode ativar ou desativar quando quiser."
+                : getAnonymousProfileVisitsUnlockMessage()}
+            </Text>
+          </View>
+
+          <Text style={styles.progressHint}>
+            Progresso atual: nível {(me?.level ?? authUser?.level ?? 1)}. Continue ganhando XP nas missões.
+          </Text>
+
+          {privacyMessage ? <Text style={styles.feedbackMessage}>{privacyMessage}</Text> : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Outras configurações</Text>
           <TouchableOpacity style={styles.linkButton} onPress={() => router.push("/news" as never)}>
-            <Text style={styles.linkButtonText}>Abrir central de noticias</Text>
+            <Text style={styles.linkButtonText}>Abrir central de notícias</Text>
           </TouchableOpacity>
-          <Text style={styles.futureItem}>- Notificacoes personalizadas (em breve)</Text>
-          <Text style={styles.futureItem}>- Privacidade e seguranca (em breve)</Text>
+          <Text style={styles.futureItem}>- Notificações personalizadas (em breve)</Text>
+          <Text style={styles.futureItem}>- Privacidade e segurança (em breve)</Text>
           <Text style={styles.futureItem}>- Idioma e acessibilidade (em breve)</Text>
         </View>
       </ScrollView>
@@ -268,6 +356,54 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     themeButtonTextActive: {
       color: colors.primaryDark,
     },
+    settingHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    settingHeaderCopy: {
+      flex: 1,
+      gap: 4,
+    },
+    unlockBox: {
+      borderRadius: 12,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    unlockBoxActive: {
+      borderColor: colors.primary + "55",
+      backgroundColor: colors.primary + "1A",
+    },
+    unlockBoxLocked: {
+      borderColor: colors.border,
+      backgroundColor: colors.secondary,
+    },
+    unlockText: {
+      fontFamily: FONTS.sans,
+      fontSize: 12,
+      lineHeight: 18,
+    },
+    unlockTextActive: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
+    unlockTextLocked: {
+      color: colors.muted,
+    },
+    progressHint: {
+      fontFamily: FONTS.sans,
+      color: colors.muted,
+      fontSize: 12,
+      lineHeight: 18,
+    },
+    feedbackMessage: {
+      fontFamily: FONTS.sans,
+      fontSize: 12,
+      lineHeight: 18,
+      color: colors.primary,
+    },
     futureItem: {
       fontFamily: FONTS.sans,
       color: colors.muted,
@@ -290,4 +426,3 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
   });
 }
-

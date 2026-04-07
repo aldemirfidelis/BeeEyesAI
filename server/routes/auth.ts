@@ -1,12 +1,13 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { asyncHandler } from "../api/async-handler";
-import { badRequest, conflict, notFound, unauthorized, validationError } from "../api/errors";
+import { badRequest, conflict, forbidden, notFound, unauthorized, validationError } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
 import { hashPassword, signToken, verifyPassword } from "../auth";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { insertUserSchema } from "../../shared/schema";
+import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 
 function sanitizeUser(user: NonNullable<Awaited<ReturnType<typeof storage.getUser>>>) {
   if (!user) return null;
@@ -47,6 +48,7 @@ export function createAuthRouter() {
         gender: user.gender,
         level: user.level,
         xp: user.xp,
+        anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
         currentStreak: user.currentStreak,
       },
     });
@@ -102,6 +104,7 @@ export function createAuthRouter() {
         username: user.username,
         level: user.level,
         xp: user.xp,
+        anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
         currentStreak: user.currentStreak,
       },
     });
@@ -130,6 +133,7 @@ export function createAuthRouter() {
         gender: user.gender,
         level: user.level,
         xp: user.xp,
+        anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
         currentStreak: user.currentStreak,
       },
     });
@@ -142,6 +146,40 @@ export function createAuthRouter() {
     }
 
     return sendOk(res, sanitizeUser(user));
+  }));
+
+  router.patch("/api/me/preferences", requireAuth, asyncHandler(async (req, res) => {
+    const { anonymousProfileVisitsEnabled } = req.body ?? {};
+
+    if (typeof anonymousProfileVisitsEnabled !== "boolean") {
+      throw validationError("PreferÃªncias invÃ¡lidas", [
+        {
+          path: ["anonymousProfileVisitsEnabled"],
+          message: "Envie um valor booleano",
+          code: "invalid_type",
+        },
+      ]);
+    }
+
+    const user = await storage.getUser(req.userId!);
+    if (!user) {
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+    }
+
+    if (anonymousProfileVisitsEnabled && !hasAnonymousProfileVisitsUnlocked(user)) {
+      throw forbidden("NavegaÃ§Ã£o anÃ´nima desbloqueia no nÃ­vel 3 com XP de missÃµes");
+    }
+
+    const updatedUser = await storage.updateUserPreferences(req.userId!, {
+      anonymousProfileVisitsEnabled,
+    });
+
+    req.logger.info("user.preferences.updated", {
+      userId: updatedUser.id,
+      anonymousProfileVisitsEnabled: updatedUser.anonymousProfileVisitsEnabled,
+    });
+
+    return sendOk(res, sanitizeUser(updatedUser));
   }));
 
   return router;

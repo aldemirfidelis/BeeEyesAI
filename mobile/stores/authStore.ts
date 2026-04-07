@@ -8,6 +8,7 @@ interface UserBasic {
   gender?: string | null;
   level: number;
   xp: number;
+  anonymousProfileVisitsEnabled?: boolean;
   currentStreak: number;
 }
 

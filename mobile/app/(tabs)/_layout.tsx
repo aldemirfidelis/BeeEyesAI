@@ -80,14 +80,6 @@ export default function TabsLayout() {
           flex: 1,
           paddingTop: 2,
         },
-        // Active indicator: pill under icon
-        tabBarIndicatorStyle: {
-          backgroundColor: colors.primary,
-          height: 3,
-          borderRadius: 2,
-          bottom: undefined,
-          top: 0,
-        },
       }}
     >
       <Tabs.Screen

@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   googleId: text("google_id").unique(),
   level: integer("level").notNull().default(1),
   xp: integer("xp").notNull().default(0),
+  anonymousProfileVisitsEnabled: boolean("anonymous_profile_visits_enabled").notNull().default(false),
   currentStreak: integer("current_streak").notNull().default(0),
   longestStreak: integer("longest_streak").notNull().default(0),
   totalMessagesCount: integer("total_messages_count").notNull().default(0),

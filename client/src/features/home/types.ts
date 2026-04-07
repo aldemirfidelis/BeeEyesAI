@@ -20,9 +20,13 @@ export interface Mission {
 export interface User {
   id: string;
   username: string;
+  displayName?: string | null;
+  gender?: string | null;
   level: number;
   xp: number;
+  anonymousProfileVisitsEnabled?: boolean;
   currentStreak: number;
+  totalMessagesCount?: number;
 }
 
 export interface FeedPost {

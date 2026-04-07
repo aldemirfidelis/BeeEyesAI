@@ -29,6 +29,7 @@ import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import type { Message, Mission, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ChatFeedSummaryPost, NetworkDigestMeta } from "@/features/home/types";
+import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
 
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
@@ -288,6 +289,26 @@ export default function Home() {
       setFriendProfileLoading(false);
     }
   };
+
+  const handleAnonymousProfileVisitsToggle = useCallback(async (nextValue: boolean) => {
+    if (!token || !user) return;
+    if (nextValue && !hasAnonymousProfileVisitsUnlocked(user)) {
+      setSettingsMessage(getAnonymousProfileVisitsUnlockMessage());
+      return;
+    }
+
+    try {
+      const updatedUser = await apiFetch<User>("/api/me/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ anonymousProfileVisitsEnabled: nextValue }),
+      });
+      setUser(updatedUser);
+      setSettingsMessage(nextValue ? "Navegação anônima ativada." : "Navegação anônima desativada.");
+    } catch (error) {
+      setSettingsMessage(getApiErrorMessage(error, "Não foi possível atualizar sua preferência agora."));
+    }
+  }, [token, user]);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshSearchResults = useCallback(async (query?: string) => {
@@ -1605,16 +1626,20 @@ export default function Home() {
         onChange={handleProfileFileChange}
       />
 
-            <SettingsScreen
+      <SettingsScreen
         show={showSettingsScreen}
         user={user}
         profilePhotoUrl={profilePhotoUrl}
         themeMode={themeMode}
         settingsMessage={settingsMessage}
+        anonymousProfileVisitsEnabled={Boolean(user?.anonymousProfileVisitsEnabled)}
+        anonymousProfileVisitsUnlocked={hasAnonymousProfileVisitsUnlocked(user)}
+        anonymousProfileVisitsUnlockHint={getAnonymousProfileVisitsUnlockMessage()}
         onClose={() => setShowSettingsScreen(false)}
         onSelectProfilePhoto={handleSelectProfilePhoto}
         onRemoveProfilePhoto={handleRemoveProfilePhoto}
         onThemeSelect={handleThemeSelect}
+        onAnonymousProfileVisitsToggle={handleAnonymousProfileVisitsToggle}
         onLogout={handleLogout}
       />
 

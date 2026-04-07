@@ -29,6 +29,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User>;
+  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean }): Promise<User>;
   updateUserXP(userId: string, xpToAdd: number): Promise<User>;
   updateUserStreak(userId: string): Promise<User>;
   incrementMessageCount(userId: string): Promise<void>;
@@ -144,6 +145,33 @@ export class DrizzleStorage implements IStorage {
     const [user] = await db.insert(users).values(insertUser).returning();
     await db.insert(userPersonality).values({ userId: user.id });
     return user;
+  }
+
+  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean }): Promise<User> {
+    const updates: Partial<typeof users.$inferInsert> = {};
+    if (preferences.anonymousProfileVisitsEnabled !== undefined) {
+      updates.anonymousProfileVisitsEnabled = preferences.anonymousProfileVisitsEnabled;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      const user = await this.getUser(userId);
+      if (!user) {
+        throw new Error("User not found");
+      }
+      return user;
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (!updated) {
+      throw new Error("User not found");
+    }
+
+    return updated;
   }
 
   async getAllUsersExcept(userId: string): Promise<User[]> {

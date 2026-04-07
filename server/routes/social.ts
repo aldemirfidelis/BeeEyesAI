@@ -11,6 +11,7 @@ import {
 import { parseBoundedInt } from "../http";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
+import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 
 export function createSocialRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
   const router = Router();
@@ -369,15 +370,26 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       return sendOk(res, { ok: true });
     }
 
-    const visitorName = visitor.displayName || visitor.username;
-    generateVisitNotification(visitorName, visited, visitedPersonality)
-      .then((content) => storage.createMessage({
+    const anonymousVisit = visitor.anonymousProfileVisitsEnabled && hasAnonymousProfileVisitsUnlocked(visitor);
+
+    if (anonymousVisit) {
+      storage.createMessage({
         userId: visitedId,
         role: "assistant",
-        content,
-        metadata: JSON.stringify({ proactive: true, visitFrom: req.userId }),
-      }))
-      .catch(() => {});
+        content: "👻 Alguém visitou seu perfil anonimamente. Continue evoluindo nas missões para liberar novas formas de interação.",
+        metadata: JSON.stringify({ proactive: true, visitFrom: req.userId, anonymous: true }),
+      }).catch(() => {});
+    } else {
+      const visitorName = visitor.displayName || visitor.username;
+      generateVisitNotification(visitorName, visited, visitedPersonality)
+        .then((content) => storage.createMessage({
+          userId: visitedId,
+          role: "assistant",
+          content,
+          metadata: JSON.stringify({ proactive: true, visitFrom: req.userId, anonymous: false }),
+        }))
+        .catch(() => {});
+    }
 
     return sendOk(res, { ok: true });
   }));
