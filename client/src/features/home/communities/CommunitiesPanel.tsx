@@ -157,7 +157,8 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
   const isOwner = selectedCommunity?.memberRole === "owner";
 
   return (
-    <div className="flex-1 overflow-y-auto p-0 m-0 relative">
+    // Outer div: positioning context only — NO overflow here so absolute overlays stay visible
+    <div className="flex-1 flex flex-col min-h-0 relative">
 
       {/* ── Community detail view ─────────────────────────────── */}
       {(communityPostsLoading || selectedCommunity) && (
@@ -370,6 +371,9 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
         </div>
       )}
 
+      {/* ── Scrollable content (separate from positioning context) ── */}
+      <div className="flex-1 overflow-y-auto">
+
       {/* ── Search + Create button ────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-background border-b border-border/40 px-4 py-3 flex items-center gap-2">
         <Input
@@ -447,6 +451,8 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
           </div>
         ))}
       </div>
+
+      </div>{/* end scrollable wrapper */}
     </div>
   );
 }
