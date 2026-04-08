@@ -48,5 +48,13 @@ export function useMissions() {
     },
   });
 
-  return { missions, isLoading, seedMissions, completeMission };
+  const deleteMission = useMutation({
+    mutationFn: (id: string) =>
+      api.delete(`/api/missions/${id}`).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["missions"] });
+    },
+  });
+
+  return { missions, isLoading, seedMissions, completeMission, deleteMission };
 }

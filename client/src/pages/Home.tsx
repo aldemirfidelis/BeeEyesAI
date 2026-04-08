@@ -1357,7 +1357,7 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
-          <MissionsPanel user={user} missions={missions} />
+          <MissionsPanel user={user} missions={missions} onToggleMission={handleToggleMission} onDeleteMission={handleDeleteMission} />
         </TabsContent>
 
         <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
