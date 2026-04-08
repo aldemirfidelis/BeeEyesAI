@@ -4,9 +4,9 @@ import MissionCard from "@/components/MissionCard";
 import XPProgress from "@/components/XPProgress";
 import MoodSelector from "@/components/MoodSelector";
 import AchievementPopup from "@/components/AchievementPopup";
-import BeeEyes from "@/components/BeeEyes";
 import StreakDisplay from "@/components/StreakDisplay";
 import ThemeToggle from "@/components/ThemeToggle";
+import type { BeeEyesEvent, BeeEyesExpression } from "@/components/BeeEyes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -65,7 +65,11 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [inputValue, setInputValue] = useState("");
-  const [eyeExpression, setEyeExpression] = useState<any>("neutral");
+  const [eyeExpression, setEyeExpression] = useState<BeeEyesExpression>("neutral");
+  const [eyeEvent, setEyeEvent] = useState<BeeEyesEvent | null>(null);
+  const [eyeInputFocused, setEyeInputFocused] = useState(false);
+  const [eyeIsTyping, setEyeIsTyping] = useState(false);
+  const [eyeScrollProgress, setEyeScrollProgress] = useState(0.5);
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [showAchievement, setShowAchievement] = useState(false);
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
@@ -141,10 +145,48 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<Message[]>([]);
+  const eyeEventTimeoutRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const pulseEyeEvent = useCallback((event: BeeEyesEvent, duration = 1400) => {
+    setEyeEvent(event);
+    if (eyeEventTimeoutRef.current) window.clearTimeout(eyeEventTimeoutRef.current);
+    eyeEventTimeoutRef.current = window.setTimeout(() => {
+      setEyeEvent((current) => (current === event ? null : current));
+      eyeEventTimeoutRef.current = null;
+    }, duration);
+  }, []);
+
+  const handleEyeInputChange = useCallback((value: string) => {
+    setInputValue(value);
+    const hasText = value.trim().length > 0;
+    setEyeIsTyping(hasText);
+
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    if (hasText) {
+      pulseEyeEvent("user-typing", 900);
+      typingTimeoutRef.current = window.setTimeout(() => {
+        setEyeIsTyping(false);
+        typingTimeoutRef.current = null;
+      }, 850);
+    } else {
+      typingTimeoutRef.current = null;
+    }
+  }, [pulseEyeEvent]);
+
+  const handleEyeInputFocusChange = useCallback((focused: boolean) => {
+    setEyeInputFocused(focused);
+    if (focused) pulseEyeEvent("input-focus", 1200);
+  }, [pulseEyeEvent]);
+
+  useEffect(() => () => {
+    if (eyeEventTimeoutRef.current) window.clearTimeout(eyeEventTimeoutRef.current);
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     if (isNearBottomRef.current) {
@@ -724,14 +766,15 @@ export default function Home() {
             content: data.message,
             timestamp: new Date(),
           }]);
-          setEyeExpression("happy");
+          setEyeExpression("attentive");
+          pulseEyeEvent("message-received", 1600);
           setTimeout(() => setEyeExpression("neutral"), 4000);
         }
       } catch { /* ignore */ }
     };
     const interval = setInterval(poll, 3 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [pulseEyeEvent, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -790,6 +833,8 @@ export default function Home() {
       content: `Olá ${name}! Eu sou a BeeEyes 🐝, sua melhor amiga AI. Como posso te ajudar hoje?`,
       timestamp: new Date(),
     }]);
+    setEyeExpression("happy");
+    pulseEyeEvent("message-received", 1800);
   };
 
   const handleAuth = async () => {
@@ -834,6 +879,13 @@ export default function Home() {
     setMessages((prev) => [...prev, userMsg]);
     isNearBottomRef.current = true;
     setInputValue("");
+    setEyeIsTyping(false);
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    setEyeExpression("attentive");
+    pulseEyeEvent("user-typing", 900);
 
     if (slashCommand === "/feed") {
       setMobileTab("feed");
@@ -867,7 +919,8 @@ export default function Home() {
       return;
     }
 
-    setEyeExpression("curious");
+    setEyeExpression("thinking");
+    pulseEyeEvent("thinking", 1800);
     setIsLoading(true);
     setStreamingText("");
 
@@ -886,7 +939,8 @@ export default function Home() {
           content: data.message,
           timestamp: new Date(),
         }]);
-        setEyeExpression("neutral");
+        setEyeExpression("attentive");
+        pulseEyeEvent("message-received", 1500);
         setIsLoading(false);
         return;
       }
@@ -911,9 +965,11 @@ export default function Home() {
             const event = JSON.parse(line.slice(6));
 
             if (event.type === "chunk") {
+              const isFirstChunk = accumulated.length === 0;
               accumulated += event.text;
               setStreamingText(accumulated);
-              setEyeExpression("happy");
+              setEyeExpression("attentive");
+              if (isFirstChunk) pulseEyeEvent("message-received", 1400);
             } else if (event.type === "done") {
               setMessages((prev) => [...prev, {
                 id: assistantMsgId,
@@ -923,6 +979,7 @@ export default function Home() {
               }]);
               setStreamingText("");
               setEyeExpression("happy");
+              pulseEyeEvent("message-received", 1800);
               fetch("/api/me", { headers: authHeaders() })
                 .then((r) => r.json()).then(setUser).catch(() => {});
             } else if (event.type === "mission_created") {
@@ -930,7 +987,8 @@ export default function Home() {
             } else if (event.type === "achievement_unlocked") {
               setAchievementData({ title: event.achievement.title, description: event.achievement.description });
               setShowAchievement(true);
-              setEyeExpression("celebrating");
+              setEyeExpression("excited");
+              pulseEyeEvent("mission-complete", 2200);
               setTimeout(() => { setShowAchievement(false); setEyeExpression("happy"); }, 4000);
             } else if (event.type === "error") {
               setStreamingText("");
@@ -952,6 +1010,8 @@ export default function Home() {
         content: "Desculpe, ocorreu um erro de conexão. Tente novamente.",
         timestamp: new Date(),
       }]);
+      setEyeExpression("neutral");
+      pulseEyeEvent("message-received", 1200);
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -1044,7 +1104,8 @@ export default function Home() {
       const data = await res.json();
       setMissions((prev) => prev.map((m) => m.id === id ? { ...m, completed: true } : m));
       if (data.user) setUser(data.user);
-      setEyeExpression("celebrating");
+      setEyeExpression("excited");
+      pulseEyeEvent("mission-complete", 2200);
       setAchievementData({ title: "Missão Completa!", description: `+${mission.xpReward} XP ganhos!` });
       setShowAchievement(true);
       setTimeout(() => { setEyeExpression("happy"); setShowAchievement(false); }, 4000);
@@ -1060,7 +1121,8 @@ export default function Home() {
       if (!res.ok) return;
       setMissions((prev) => prev.filter((m) => m.id !== id));
 
-      setEyeExpression("curious");
+      setEyeExpression("thinking");
+      pulseEyeEvent("thinking", 1800);
       setIsLoading(true);
       setStreamingText("");
 
@@ -1084,11 +1146,18 @@ export default function Home() {
           if (!line.startsWith("data: ")) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === "chunk") { accumulated += event.text; setStreamingText(accumulated); setEyeExpression("happy"); }
+            if (event.type === "chunk") {
+              const isFirstChunk = accumulated.length === 0;
+              accumulated += event.text;
+              setStreamingText(accumulated);
+              setEyeExpression("attentive");
+              if (isFirstChunk) pulseEyeEvent("message-received", 1300);
+            }
             else if (event.type === "done") {
               setMessages((prev) => [...prev, { id: msgId, role: "assistant", content: event.cleanText ?? accumulated, timestamp: new Date() }]);
               setStreamingText("");
               setEyeExpression("happy");
+              pulseEyeEvent("message-received", 1700);
             }
           } catch { /* skip */ }
         }
@@ -1154,6 +1223,8 @@ export default function Home() {
     };
     setMessages((prev) => [...prev, msg]);
     isNearBottomRef.current = true;
+    setEyeExpression("attentive");
+    pulseEyeEvent("message-received", 1500);
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
 
@@ -1436,6 +1507,11 @@ export default function Home() {
     </>
   );
 
+  const eyeEngagementLevel = Math.min(
+    1,
+    ((user?.totalMessagesCount ?? messages.filter((message) => message.role === "user").length) + (selectedMood !== null && selectedMood >= 4 ? 8 : 0)) / 48,
+  );
+
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-background">
 
@@ -1444,6 +1520,11 @@ export default function Home() {
         profilePhotoUrl={profilePhotoUrl}
         user={user}
         eyeExpression={eyeExpression}
+        eyeEvent={eyeEvent}
+        eyeInputFocused={eyeInputFocused}
+        eyeIsTyping={eyeIsTyping}
+        eyeScrollProgress={eyeScrollProgress}
+        eyeEngagementLevel={eyeEngagementLevel}
         showMsgSearch={showMsgSearch}
         msgSearchQuery={msgSearchQuery}
         messages={messages}
@@ -1552,11 +1633,14 @@ export default function Home() {
           const el = chatScrollRef.current;
           if (!el) return;
           isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+          const maxScroll = Math.max(el.scrollHeight - el.clientHeight, 1);
+          setEyeScrollProgress(el.scrollTop / maxScroll);
         }}
         onInlinePostClose={() => setShowInlinePost(false)}
         onPostTextChange={setPostText}
         onCreatePost={handleCreatePost}
-        onInputChange={setInputValue}
+        onInputChange={handleEyeInputChange}
+        onInputFocusChange={handleEyeInputFocusChange}
         onSendMessage={handleSendMessage}
         onQuickAction={(action) => {
           if (action === "feed") { setMobileTab("feed"); loadFeed(); }

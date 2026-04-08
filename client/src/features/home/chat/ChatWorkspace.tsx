@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from "react";
-import BeeEyes from "@/components/BeeEyes";
+import BeeEyes, { type BeeEyesEvent, type BeeEyesExpression } from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import StreakDisplay from "@/components/StreakDisplay";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,12 @@ interface ChatWorkspaceProps {
   mobileTab: string;
   profilePhotoUrl: string;
   user: User | null;
-  eyeExpression: any;
+  eyeExpression: BeeEyesExpression;
+  eyeEvent: BeeEyesEvent | null;
+  eyeInputFocused: boolean;
+  eyeIsTyping: boolean;
+  eyeScrollProgress: number;
+  eyeEngagementLevel: number;
   showMsgSearch: boolean;
   msgSearchQuery: string;
   messages: Message[];
@@ -36,6 +41,7 @@ interface ChatWorkspaceProps {
   onPostTextChange: (value: string) => void;
   onCreatePost: () => void;
   onInputChange: (value: string) => void;
+  onInputFocusChange: (focused: boolean) => void;
   onSendMessage: () => void;
   onQuickAction: (action: "feed" | "missions" | "news" | "inbox" | "communities") => void;
 }
@@ -46,6 +52,11 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     profilePhotoUrl,
     user,
     eyeExpression,
+    eyeEvent,
+    eyeInputFocused,
+    eyeIsTyping,
+    eyeScrollProgress,
+    eyeEngagementLevel,
     showMsgSearch,
     msgSearchQuery,
     messages,
@@ -67,6 +78,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     onPostTextChange,
     onCreatePost,
     onInputChange,
+    onInputFocusChange,
     onSendMessage,
     onQuickAction,
   } = props;
@@ -102,7 +114,14 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         <div className="flex items-center justify-center py-4 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative">
-          <BeeEyes expression={eyeExpression} />
+          <BeeEyes
+            expression={eyeExpression}
+            event={eyeEvent}
+            inputFocused={eyeInputFocused}
+            isTyping={eyeIsTyping}
+            scrollProgress={eyeScrollProgress}
+            engagementLevel={eyeEngagementLevel}
+          />
           <button type="button" onClick={onToggleSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-muted transition-colors" aria-label="Buscar mensagens">
             <Search size={18} className="text-muted-foreground" />
           </button>
@@ -139,7 +158,19 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           )}
 
           <div className="flex gap-2 max-w-4xl mx-auto">
-            <Input ref={inputRef} value={inputValue} onChange={(event) => onInputChange(event.target.value)} onKeyDown={(event) => event.key === "Enter" && onSendMessage()} placeholder="Digite sua mensagem..." className="flex-1" disabled={isLoading} autoFocus data-testid="input-chat-message" />
+            <Input
+              ref={inputRef}
+              value={inputValue}
+              onChange={(event) => onInputChange(event.target.value)}
+              onFocus={() => onInputFocusChange(true)}
+              onBlur={() => onInputFocusChange(false)}
+              onKeyDown={(event) => event.key === "Enter" && onSendMessage()}
+              placeholder="Digite sua mensagem..."
+              className="flex-1"
+              disabled={isLoading}
+              autoFocus
+              data-testid="input-chat-message"
+            />
             <Button onClick={onSendMessage} size="icon" disabled={isLoading} data-testid="button-send-message">
               <Send className="w-4 h-4" />
             </Button>
