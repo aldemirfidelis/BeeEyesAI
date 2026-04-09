@@ -346,11 +346,10 @@ export default function BeeEyes({
                   background: "#8B5E1A",
                   opacity: 0.90,
                   transformOrigin: "center",
-                  x: "-50%",
                 }}
                 animate={{
-                  translateX: `calc(-50% + ${browX}px)`,
-                  translateY: browY,
+                  x: `calc(-50% + ${browX}px)`,
+                  y: browY,
                   rotate: browRotate,
                   width: 48 + normalizedEngagement * 6 + (side === "left" ? 2 : 0),
                   scaleX: 1,
