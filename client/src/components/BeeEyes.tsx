@@ -332,140 +332,90 @@ export default function BeeEyes({
           return (
             <motion.div
               key={side}
-              className="relative"
-              style={{ width: 96, height: 104 }}
+              className="relative flex flex-col items-center"
+              style={{ width: 96 }}
               animate={shellAnimate}
               transition={shellTransition}
             >
               {/* ── Eyebrow ── */}
               <motion.div
-                className="absolute left-1/2 top-[2px]"
                 style={{
                   height: 6,
                   borderRadius: 6,
                   background: "#8B5E1A",
                   opacity: 0.90,
-                  transformOrigin: "center",
+                  marginBottom: 10,
                 }}
                 animate={{
-                  x: `calc(-50% + ${browX}px)`,
+                  x: browX,
                   y: browY,
                   rotate: browRotate,
                   width: 48 + normalizedEngagement * 6 + (side === "left" ? 2 : 0),
-                  scaleX: 1,
                 }}
                 transition={{ duration: 0.42, ease: "easeInOut" }}
               />
 
-              {/* ── Sclera (esclera branca oval) ── */}
-              <motion.div
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 overflow-hidden"
-                style={{
-                  width: 88,
-                  height: 92,
-                  borderRadius: "50%",
-                  background: "white",
-                  border: "2px solid #E0E0E0",
-                  boxShadow: `0 0 ${glowRadius}px ${glowColor}`,
-                  rotate: `${eyeTilt}deg`,
-                }}
-                animate={{ scaleY: openness, scaleX: 0.97 + normalizedEngagement * 0.03 }}
-                transition={{ duration: isBlinking ? 0.1 : 0.36, ease: "easeInOut" }}
-              >
-                {/* Iris + pupil group */}
+              {/* ── Sclera wrapper ── */}
+              <div className="relative">
+                {/* ── Sclera (esclera branca oval) ── */}
                 <motion.div
-                  className="absolute left-1/2 top-1/2"
-                  style={{ width: 56, height: 56, x: "-50%", y: "-50%" }}
-                  animate={{ x: `calc(-50% + ${pupilX}px)`, y: `calc(-50% + ${pupilY + 4}px)`, scale: pupilScale }}
-                  transition={{ duration: effectiveEmotion === "thinking" ? 0.88 : 0.34, ease: "easeOut" }}
+                  className="overflow-hidden"
+                  style={{
+                    width: 88,
+                    height: 92,
+                    borderRadius: "50%",
+                    background: "white",
+                    border: "2px solid #E0E0E0",
+                    boxShadow: `0 0 ${glowRadius}px ${glowColor}`,
+                    rotate: `${eyeTilt}deg`,
+                  }}
+                  animate={{ scaleY: openness, scaleX: 0.97 + normalizedEngagement * 0.03 }}
+                  transition={{ duration: isBlinking ? 0.1 : 0.36, ease: "easeInOut" }}
                 >
-                  {/* Outer iris glow */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: -4,
-                      borderRadius: "50%",
-                      background: `radial-gradient(circle, rgba(255,216,77,${0.22 + glowStrength * 0.3}) 0%, transparent 72%)`,
-                      filter: "blur(4px)",
-                    }}
-                  />
-
-                  {/* Iris */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      borderRadius: "50%",
-                      background: "radial-gradient(circle at 40% 35%, #FFD84D 0%, #F5A800 60%, #C87A00 100%)",
-                      boxShadow: `0 0 ${10 + glowStrength * 18}px rgba(255,216,77,${0.3 + glowStrength * 0.3})`,
-                    }}
-                  />
-
-                  {/* Pupil */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      width: 30,
-                      height: 30,
-                      borderRadius: "50%",
-                      background: "radial-gradient(circle at 38% 32%, #5C3A1E 0%, #2A1A0A 100%)",
-                    }}
-                  />
-
-                  {/* Reflexo principal */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "14%",
-                      left: "12%",
-                      width: 12,
-                      height: 16,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.90)",
-                    }}
-                  />
-
-                  {/* Reflexo secundário */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "58%",
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.55)",
-                    }}
-                  />
+                  {/* Iris + pupil group */}
+                  <motion.div
+                    className="absolute left-1/2 top-1/2"
+                    style={{ width: 56, height: 56, x: "-50%", y: "-50%" }}
+                    animate={{ x: `calc(-50% + ${pupilX}px)`, y: `calc(-50% + ${pupilY + 4}px)`, scale: pupilScale }}
+                    transition={{ duration: effectiveEmotion === "thinking" ? 0.88 : 0.34, ease: "easeOut" }}
+                  >
+                    {/* Outer iris glow */}
+                    <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: `radial-gradient(circle, rgba(255,216,77,${0.22 + glowStrength * 0.3}) 0%, transparent 72%)`, filter: "blur(4px)" }} />
+                    {/* Iris */}
+                    <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle at 40% 35%, #FFD84D 0%, #F5A800 60%, #C87A00 100%)", boxShadow: `0 0 ${10 + glowStrength * 18}px rgba(255,216,77,${0.3 + glowStrength * 0.3})` }} />
+                    {/* Pupil */}
+                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 30, height: 30, borderRadius: "50%", background: "radial-gradient(circle at 38% 32%, #5C3A1E 0%, #2A1A0A 100%)" }} />
+                    {/* Reflexo principal */}
+                    <div style={{ position: "absolute", top: "14%", left: "12%", width: 12, height: 16, borderRadius: "50%", background: "rgba(255,255,255,0.90)" }} />
+                    {/* Reflexo secundário */}
+                    <div style={{ position: "absolute", top: "50%", left: "58%", width: 7, height: 7, borderRadius: "50%", background: "rgba(255,255,255,0.55)" }} />
+                  </motion.div>
                 </motion.div>
-              </motion.div>
 
-              {/* ── Mission-complete sparkles ── */}
-              {activeEvent === "mission-complete" && (
-                <>
-                  <motion.div
-                    className="absolute right-1 top-4 h-2.5 w-2.5 rounded-full blur-[1px]"
-                    style={{ background: "rgba(255,210,50,0.9)" }}
-                    animate={{ opacity: [0, 1, 0], y: [0, -10, -18], scale: [0.8, 1.2, 0.3] }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0 : 0.18 }}
-                  />
-                  <motion.div
-                    className="absolute left-3 top-7 h-2 w-2 rounded-full"
-                    style={{ background: "rgba(255,255,255,0.92)" }}
-                    animate={{ opacity: [0, 1, 0], y: [0, -8, -14], x: [0, side === "left" ? -4 : 4, 0], scale: [0.6, 1.1, 0.2] }}
-                    transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.25 : 0.4 }}
-                  />
-                  <motion.div
-                    className="absolute right-4 top-10 h-1.5 w-1.5 rounded-full"
-                    style={{ background: "rgba(255,196,40,0.8)" }}
-                    animate={{ opacity: [0, 1, 0], y: [0, -12, -20], scale: [0.5, 1, 0.1] }}
-                    transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.5 : 0.1 }}
-                  />
-                </>
-              )}
+                {/* ── Mission-complete sparkles ── */}
+                {activeEvent === "mission-complete" && (
+                  <>
+                    <motion.div
+                      className="absolute right-1 top-4 h-2.5 w-2.5 rounded-full blur-[1px]"
+                      style={{ background: "rgba(255,210,50,0.9)" }}
+                      animate={{ opacity: [0, 1, 0], y: [0, -10, -18], scale: [0.8, 1.2, 0.3] }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0 : 0.18 }}
+                    />
+                    <motion.div
+                      className="absolute left-3 top-7 h-2 w-2 rounded-full"
+                      style={{ background: "rgba(255,255,255,0.92)" }}
+                      animate={{ opacity: [0, 1, 0], y: [0, -8, -14], x: [0, side === "left" ? -4 : 4, 0], scale: [0.6, 1.1, 0.2] }}
+                      transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.25 : 0.4 }}
+                    />
+                    <motion.div
+                      className="absolute right-4 top-10 h-1.5 w-1.5 rounded-full"
+                      style={{ background: "rgba(255,196,40,0.8)" }}
+                      animate={{ opacity: [0, 1, 0], y: [0, -12, -20], scale: [0.5, 1, 0.1] }}
+                      transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.5 : 0.1 }}
+                    />
+                  </>
+                )}
+              </div>
             </motion.div>
           );
         })}
