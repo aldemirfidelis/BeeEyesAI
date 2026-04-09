@@ -4,7 +4,10 @@ const { getDefaultConfig } = require("expo/metro-config");
 const config = getDefaultConfig(__dirname);
 const shimPath = path.resolve(__dirname, "shims/react-dom-client.js");
 const mobileRoot = __dirname;
+const workspaceRoot = path.resolve(__dirname, "..");
 const sharedRoot = path.resolve(__dirname, "../shared");
+
+config.watchFolders = [...new Set([...(config.watchFolders ?? []), workspaceRoot, sharedRoot])];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === "react-dom/client") {

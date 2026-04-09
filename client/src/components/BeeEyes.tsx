@@ -319,45 +319,39 @@ export default function BeeEyes({
         />
 
         {(["left", "right"] as const).map((side) => {
-          const personalityLift = side === "left" ? -2.5 : 0.8;
-          const browY      = browLift + personalityLift;
-          const browRotate = side === "left"
-            ? -(browArch + 3) - browPinch * 0.6
-            :   browArch + 3  + browPinch * 0.6;
-          const browX      = side === "left" ?  6 + browPinch * 0.4 : -6 - browPinch * 0.4;
-          const eyeTilt    = side === "left" ? -4 : 4;          // inward tilt for warmth
-          const pupilX     = clamp(basePupilX + (side === "left" ? -0.6 : 0.6), -11, 11);
-          const pupilY     = clamp(basePupilY + (side === "left" ? -0.3 : 0.2), -8, 10);
+          const eyeTilt = side === "left" ? -3 : 3;
+          const pupilX  = clamp(basePupilX + (side === "left" ? -0.6 : 0.6), -11, 11);
+          const pupilY  = clamp(basePupilY + (side === "left" ? -0.3 : 0.2), -8, 10);
+          const mirror  = side === "right" ? "scale(-1,1) translate(-88,0)" : undefined;
 
           return (
             <motion.div
               key={side}
-              className="relative flex flex-col items-center"
-              style={{ width: 96 }}
+              className="relative"
               animate={shellAnimate}
               transition={shellTransition}
             >
-              {/* ── Eyebrow ── */}
-              <motion.div
-                style={{
-                  height: 6,
-                  borderRadius: 6,
-                  background: "#8B5E1A",
-                  opacity: 0.90,
-                  marginBottom: 10,
-                }}
-                animate={{
-                  x: browX,
-                  y: browY,
-                  rotate: browRotate,
-                  width: 48 + normalizedEngagement * 6 + (side === "left" ? 2 : 0),
-                }}
-                transition={{ duration: 0.42, ease: "easeInOut" }}
-              />
-
-              {/* ── Sclera wrapper ── */}
               <div className="relative">
-                {/* ── Sclera (esclera branca oval) ── */}
+                {/* ── Cílios (SVG overlay) ── */}
+                <svg
+                  width="88"
+                  height="56"
+                  viewBox="0 0 88 56"
+                  style={{ position: "absolute", top: -40, left: 0, overflow: "visible", pointerEvents: "none", zIndex: 2 }}
+                >
+                  <g stroke="#1a1a1a" strokeWidth="3.5" strokeLinecap="round" fill="none" transform={mirror}>
+                    {/* Base dos cílios acompanha o arco superior da esclera (88x92 oval) */}
+                    <path d="M 10,54 Q -2,38 -6,26" />   {/* externo esq. — varre forte à esquerda */}
+                    <path d="M 22,46 Q 12,28 10,14" />   {/* segundo */}
+                    <path d="M 34,41 Q 26,22 28,8"  />   {/* terceiro */}
+                    <path d="M 44,39 Q 40,20 43,5"  />   {/* centro */}
+                    <path d="M 54,41 Q 60,22 62,8"  />   {/* quarto */}
+                    <path d="M 66,46 Q 78,28 80,14" />   {/* quinto */}
+                    <path d="M 78,54 Q 92,38 96,26" />   {/* externo dir. — varre forte à direita */}
+                  </g>
+                </svg>
+
+                {/* ── Sclera ── */}
                 <motion.div
                   className="overflow-hidden"
                   style={{
@@ -365,54 +359,34 @@ export default function BeeEyes({
                     height: 92,
                     borderRadius: "50%",
                     background: "white",
-                    border: "2px solid #E0E0E0",
-                    boxShadow: `0 0 ${glowRadius}px ${glowColor}`,
+                    border: "3px solid #1a1a1a",
                     rotate: `${eyeTilt}deg`,
                   }}
                   animate={{ scaleY: openness, scaleX: 0.97 + normalizedEngagement * 0.03 }}
                   transition={{ duration: isBlinking ? 0.1 : 0.36, ease: "easeInOut" }}
                 >
-                  {/* Iris + pupil group */}
+                  {/* Iris + pupila */}
                   <motion.div
                     className="absolute left-1/2 top-1/2"
-                    style={{ width: 56, height: 56, x: "-50%", y: "-50%" }}
+                    style={{ width: 62, height: 62, x: "-50%", y: "-50%" }}
                     animate={{ x: `calc(-50% + ${pupilX}px)`, y: `calc(-50% + ${pupilY + 4}px)`, scale: pupilScale }}
                     transition={{ duration: effectiveEmotion === "thinking" ? 0.88 : 0.34, ease: "easeOut" }}
                   >
-                    {/* Outer iris glow */}
-                    <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: `radial-gradient(circle, rgba(255,216,77,${0.22 + glowStrength * 0.3}) 0%, transparent 72%)`, filter: "blur(4px)" }} />
-                    {/* Iris */}
-                    <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle at 40% 35%, #FFD84D 0%, #F5A800 60%, #C87A00 100%)", boxShadow: `0 0 ${10 + glowStrength * 18}px rgba(255,216,77,${0.3 + glowStrength * 0.3})` }} />
-                    {/* Pupil */}
-                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 30, height: 30, borderRadius: "50%", background: "radial-gradient(circle at 38% 32%, #5C3A1E 0%, #2A1A0A 100%)" }} />
-                    {/* Reflexo principal */}
-                    <div style={{ position: "absolute", top: "14%", left: "12%", width: 12, height: 16, borderRadius: "50%", background: "rgba(255,255,255,0.90)" }} />
-                    {/* Reflexo secundário */}
-                    <div style={{ position: "absolute", top: "50%", left: "58%", width: 7, height: 7, borderRadius: "50%", background: "rgba(255,255,255,0.55)" }} />
+                    {/* Íris verde sage */}
+                    <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle at 38% 35%, #C8E8DC 0%, #8CC4A8 45%, #5FA88A 100%)" }} />
+                    {/* Pupila preta grande */}
+                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 40, height: 46, borderRadius: "50%", background: "#0d0d0d" }} />
+                    {/* Reflexo branco */}
+                    <div style={{ position: "absolute", top: "12%", left: "14%", width: 13, height: 18, borderRadius: "50%", background: "rgba(255,255,255,0.95)" }} />
                   </motion.div>
                 </motion.div>
 
                 {/* ── Mission-complete sparkles ── */}
                 {activeEvent === "mission-complete" && (
                   <>
-                    <motion.div
-                      className="absolute right-1 top-4 h-2.5 w-2.5 rounded-full blur-[1px]"
-                      style={{ background: "rgba(255,210,50,0.9)" }}
-                      animate={{ opacity: [0, 1, 0], y: [0, -10, -18], scale: [0.8, 1.2, 0.3] }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0 : 0.18 }}
-                    />
-                    <motion.div
-                      className="absolute left-3 top-7 h-2 w-2 rounded-full"
-                      style={{ background: "rgba(255,255,255,0.92)" }}
-                      animate={{ opacity: [0, 1, 0], y: [0, -8, -14], x: [0, side === "left" ? -4 : 4, 0], scale: [0.6, 1.1, 0.2] }}
-                      transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.25 : 0.4 }}
-                    />
-                    <motion.div
-                      className="absolute right-4 top-10 h-1.5 w-1.5 rounded-full"
-                      style={{ background: "rgba(255,196,40,0.8)" }}
-                      animate={{ opacity: [0, 1, 0], y: [0, -12, -20], scale: [0.5, 1, 0.1] }}
-                      transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.5 : 0.1 }}
-                    />
+                    <motion.div className="absolute right-1 top-4 h-2.5 w-2.5 rounded-full blur-[1px]" style={{ background: "rgba(140,196,168,0.9)" }} animate={{ opacity: [0, 1, 0], y: [0, -10, -18], scale: [0.8, 1.2, 0.3] }} transition={{ duration: 1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0 : 0.18 }} />
+                    <motion.div className="absolute left-3 top-7 h-2 w-2 rounded-full" style={{ background: "rgba(255,255,255,0.92)" }} animate={{ opacity: [0, 1, 0], y: [0, -8, -14], x: [0, side === "left" ? -4 : 4, 0], scale: [0.6, 1.1, 0.2] }} transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.25 : 0.4 }} />
+                    <motion.div className="absolute right-4 top-10 h-1.5 w-1.5 rounded-full" style={{ background: "rgba(140,196,168,0.8)" }} animate={{ opacity: [0, 1, 0], y: [0, -12, -20], scale: [0.5, 1, 0.1] }} transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.5 : 0.1 }} />
                   </>
                 )}
               </div>
