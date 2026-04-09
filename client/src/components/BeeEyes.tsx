@@ -333,7 +333,7 @@ export default function BeeEyes({
             <motion.div
               key={side}
               className="relative"
-              style={{ width: 96, height: 96 }}
+              style={{ width: 96, height: 104 }}
               animate={shellAnimate}
               transition={shellTransition}
             >
@@ -343,8 +343,8 @@ export default function BeeEyes({
                 style={{
                   height: 6,
                   borderRadius: 6,
-                  background: "var(--foreground)",
-                  opacity: 0.85,
+                  background: "#8B5E1A",
+                  opacity: 0.90,
                   transformOrigin: "center",
                   x: "-50%",
                 }}
@@ -358,29 +358,16 @@ export default function BeeEyes({
                 transition={{ duration: 0.42, ease: "easeInOut" }}
               />
 
-              {/* ── Eye socket (outer glow ring) ── */}
-              <div
-                className="absolute bottom-0 left-1/2 -translate-x-1/2"
-                style={{
-                  width: 90,
-                  height: 63,
-                  borderRadius: 48,
-                  background: `rgba(255,196,40,${0.06 + glowStrength * 0.1})`,
-                  boxShadow: `0 0 ${glowRadius}px ${glowColor}, 0 0 ${glowRadius * 0.5}px ${glowColor}`,
-                  rotate: `${eyeTilt}deg`,
-                  filter: `blur(1px)`,
-                }}
-              />
-
-              {/* ── Eye shell — pill shape ── */}
+              {/* ── Sclera (esclera branca oval) ── */}
               <motion.div
                 className="absolute bottom-0 left-1/2 -translate-x-1/2 overflow-hidden"
                 style={{
                   width: 88,
-                  height: 60,
-                  borderRadius: 48,
-                  background: "linear-gradient(180deg, #0F0F1A 0%, #08080E 55%, #050508 100%)",
-                  boxShadow: `0 0 ${glowRadius}px ${glowColor}, 0 10px 28px rgba(8,8,14,0.6), inset 0 -3px 10px rgba(255,196,40,${0.04 + glowStrength * 0.1})`,
+                  height: 92,
+                  borderRadius: "50%",
+                  background: "white",
+                  border: "2px solid #E0E0E0",
+                  boxShadow: `0 0 ${glowRadius}px ${glowColor}`,
                   rotate: `${eyeTilt}deg`,
                 }}
                 animate={{ scaleY: openness, scaleX: 0.97 + normalizedEngagement * 0.03 }}
@@ -389,8 +376,8 @@ export default function BeeEyes({
                 {/* Iris + pupil group */}
                 <motion.div
                   className="absolute left-1/2 top-1/2"
-                  style={{ width: 44, height: 44, x: "-50%", y: "-50%" }}
-                  animate={{ x: `calc(-50% + ${pupilX}px)`, y: `calc(-50% + ${pupilY}px)`, scale: pupilScale }}
+                  style={{ width: 56, height: 56, x: "-50%", y: "-50%" }}
+                  animate={{ x: `calc(-50% + ${pupilX}px)`, y: `calc(-50% + ${pupilY + 4}px)`, scale: pupilScale }}
                   transition={{ duration: effectiveEmotion === "thinking" ? 0.88 : 0.34, ease: "easeOut" }}
                 >
                   {/* Outer iris glow */}
@@ -399,7 +386,7 @@ export default function BeeEyes({
                       position: "absolute",
                       inset: -4,
                       borderRadius: "50%",
-                      background: `radial-gradient(circle, rgba(255,196,40,${0.22 + glowStrength * 0.3}) 0%, transparent 72%)`,
+                      background: `radial-gradient(circle, rgba(255,216,77,${0.22 + glowStrength * 0.3}) 0%, transparent 72%)`,
                       filter: "blur(4px)",
                     }}
                   />
@@ -410,20 +397,8 @@ export default function BeeEyes({
                       position: "absolute",
                       inset: 0,
                       borderRadius: "50%",
-                      background:
-                        "radial-gradient(circle at 42% 38%, #FFF8CC 0%, #FFE566 18%, #FFD020 40%, #FFC107 62%, #E8920A 82%, #B36200 100%)",
-                      boxShadow: `0 0 ${14 + glowStrength * 22}px rgba(255,196,40,${0.24 + glowStrength * 0.38})`,
-                    }}
-                  />
-
-                  {/* Iris inner detail (depth ring) */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 7,
-                      borderRadius: "50%",
-                      background: "radial-gradient(circle at 44% 40%, rgba(255,240,180,0.18) 0%, transparent 55%)",
-                      border: "1.5px solid rgba(200, 120, 0, 0.28)",
+                      background: "radial-gradient(circle at 40% 35%, #FFD84D 0%, #F5A800 60%, #C87A00 100%)",
+                      boxShadow: `0 0 ${10 + glowStrength * 18}px rgba(255,216,77,${0.3 + glowStrength * 0.3})`,
                     }}
                   />
 
@@ -434,82 +409,39 @@ export default function BeeEyes({
                       top: "50%",
                       left: "50%",
                       transform: "translate(-50%, -50%)",
-                      width: 20,
-                      height: 20,
+                      width: 30,
+                      height: 30,
                       borderRadius: "50%",
-                      background: "radial-gradient(circle at 40% 36%, #18182C 0%, #05050A 65%)",
+                      background: "radial-gradient(circle at 38% 32%, #5C3A1E 0%, #2A1A0A 100%)",
                     }}
                   />
 
-                  {/* Primary highlight */}
+                  {/* Reflexo principal */}
                   <div
                     style={{
                       position: "absolute",
-                      top: "19%",
-                      left: "21%",
-                      width: 10,
-                      height: 10,
+                      top: "14%",
+                      left: "12%",
+                      width: 12,
+                      height: 16,
                       borderRadius: "50%",
-                      background: "rgba(255,255,255,0.97)",
-                      boxShadow: "0 0 7px rgba(255,255,255,0.5)",
+                      background: "rgba(255,255,255,0.90)",
                     }}
                   />
 
-                  {/* Secondary highlight */}
+                  {/* Reflexo secundário */}
                   <div
                     style={{
                       position: "absolute",
-                      top: "34%",
-                      left: "34%",
-                      width: 4.5,
-                      height: 4.5,
+                      top: "50%",
+                      left: "58%",
+                      width: 7,
+                      height: 7,
                       borderRadius: "50%",
-                      background: "rgba(255,255,255,0.58)",
-                    }}
-                  />
-
-                  {/* Tiny third catch light */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: "22%",
-                      right: "20%",
-                      width: 3,
-                      height: 3,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.28)",
+                      background: "rgba(255,255,255,0.55)",
                     }}
                   />
                 </motion.div>
-
-                {/* Top eyelid soft reflection */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 20,
-                    borderRadius: "48px 48px 0 0",
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.09) 0%, transparent 100%)",
-                    pointerEvents: "none",
-                  }}
-                />
-
-                {/* Bottom inner reflection */}
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: "22%",
-                    right: "22%",
-                    height: 7,
-                    borderRadius: "0 0 48px 48px",
-                    background: `rgba(255,196,40,${0.06 + glowStrength * 0.14})`,
-                    filter: "blur(3px)",
-                    pointerEvents: "none",
-                  }}
-                />
               </motion.div>
 
               {/* ── Mission-complete sparkles ── */}

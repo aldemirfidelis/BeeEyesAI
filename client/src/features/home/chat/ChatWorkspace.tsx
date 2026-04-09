@@ -1,6 +1,5 @@
 import type { ReactNode, RefObject } from "react";
-import BeeEyesSVG from "@/components/BeeEyesSVG";
-import type { BeeEyesEvent, BeeEyesExpression } from "@/components/BeeEyes";
+import BeeEyes, { type BeeEyesEvent, type BeeEyesExpression } from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import StreakDisplay from "@/components/StreakDisplay";
 import { Button } from "@/components/ui/button";
@@ -115,9 +114,14 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         <div className="flex items-center justify-center py-4 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative">
-          <div className="w-full max-w-sm px-4">
-            <BeeEyesSVG />
-          </div>
+          <BeeEyes
+            expression={eyeExpression}
+            event={eyeEvent}
+            inputFocused={eyeInputFocused}
+            isTyping={eyeIsTyping}
+            scrollProgress={eyeScrollProgress}
+            engagementLevel={eyeEngagementLevel}
+          />
           <button type="button" onClick={onToggleSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-muted transition-colors" aria-label="Buscar mensagens">
             <Search size={18} className="text-muted-foreground" />
           </button>
