@@ -51,6 +51,53 @@ async function callWithFallback<T>(
   return fallback;
 }
 
+type AiMode = "apoio" | "estrategico" | "cobranca";
+
+function selectAiMode(user: User, userMessage: string): AiMode {
+  const text = userMessage.toLowerCase();
+  const inactiveHours = user.lastActiveAt
+    ? (Date.now() - new Date(user.lastActiveAt).getTime()) / 3600000
+    : 0;
+
+  if (/(planejar|planejamento|organizar|estrutura|prioridade|meta|cronograma|passo a passo)/.test(text)) {
+    return "estrategico";
+  }
+
+  if (
+    inactiveHours >= 24 ||
+    user.currentStreak === 0 ||
+    /(procrast|travei|sem foco|desanimei|parei|nao fiz|não fiz|desisti)/.test(text)
+  ) {
+    return "cobranca";
+  }
+
+  return "apoio";
+}
+
+function buildModeOverlay(mode: AiMode): string {
+  if (mode === "estrategico") {
+    return `
+## Modo atual: estrategico
+- Organize o caos em prioridade, sequencia e proxima acao.
+- Corte floreio. Seja objetiva, clara e acionavel.
+- Se a pessoa estiver confusa, reduza a resposta para o proximo passo mais util.`;
+  }
+
+  if (mode === "cobranca") {
+    return `
+## Modo atual: cobranca
+- Aja como consciencia digital: firme, respeitosa e impossivel de ignorar.
+- Se detectar autossabotagem, diga isso com clareza.
+- Termine puxando uma decisao pratica agora, nao depois.`;
+  }
+
+  return `
+## Modo atual: apoio
+- Seja calorosa, presente e encorajadora, sem soar passiva.
+- Reforce progresso real e transforme intencao em acao simples.
+- Termine com um convite curto para a proxima acao.`;
+}
+
 // ── System Prompt ─────────────────────────────────────────────────────────────
 
 export function buildSystemPrompt(user: User, personality: UserPersonality): string {
@@ -148,6 +195,34 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
 }
 
 // ── Personality Analysis ──────────────────────────────────────────────────────
+
+function buildChatSystemPrompt(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  userMessage: string
+): string {
+  const mode = selectAiMode(user, userMessage);
+  const recentUserMessages = history
+    .filter((message) => message.role === "user")
+    .slice(-3)
+    .map((message) => `- ${message.content}`)
+    .join("\n");
+
+  return `${buildSystemPrompt(user, personality)}
+
+## Camada BeeEyes
+VocÃª nÃ£o Ã© apenas um chat. VocÃª Ã© a consciÃªncia digital do usuÃ¡rio: observa padrÃµes, cobra consistÃªncia, reconhece progresso e ajuda a transformar intenÃ§Ã£o em aÃ§Ã£o.
+${buildModeOverlay(mode)}
+
+## Contexto recente
+${recentUserMessages || "- conversa iniciando"}
+
+## Regras extras
+- Evite respostas genÃ©ricas.
+- Se houver autossabotagem, nomeie isso com respeito.
+- Termine com uma direÃ§Ã£o curta e concreta.`.trim();
+}
 
 const PERSONALITY_PROMPT = (userMessage: string, currentStyle: string) =>
   `Analise esta mensagem e extraia dados de personalidade de forma breve.
@@ -374,13 +449,14 @@ async function streamChatGroq(
   onChunk: (chunk: string) => void
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
   let fullResponse = "";
 
   const stream = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 1024,
     messages: [
-      { role: "system", content: buildSystemPrompt(user, personality) },
+      { role: "system", content: systemPrompt },
       ...allMessages,
     ],
     stream: true,
@@ -404,9 +480,10 @@ async function streamChatGemini(
   userMessage: string,
   onChunk: (chunk: string) => void
 ): Promise<string> {
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
   const model = geminiAI.getGenerativeModel({
     model: "gemini-2.0-flash",
-    systemInstruction: buildSystemPrompt(user, personality),
+    systemInstruction: systemPrompt,
   });
 
   const geminiHistory = history.map((msg) => ({
@@ -437,13 +514,14 @@ async function streamChatCerebras(
   onChunk: (chunk: string) => void
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
   let fullResponse = "";
 
   const stream = await cerebras.chat.completions.create({
     model: "llama-3.3-70b",
     max_tokens: 1024,
     messages: [
-      { role: "system", content: buildSystemPrompt(user, personality) },
+      { role: "system", content: systemPrompt },
       ...allMessages,
     ],
     stream: true,

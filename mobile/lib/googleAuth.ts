@@ -1,10 +1,18 @@
 import { Platform } from "react-native";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
+
+// @react-native-google-signin requer Development Build (não funciona no Expo Go)
+// Para usar Google Sign-In execute: npx expo run:android
+let GoogleSignin: any = null;
+try {
+  GoogleSignin = require("@react-native-google-signin/google-signin").GoogleSignin;
+} catch {
+  // módulo nativo não disponível (Expo Go)
+}
 
 let isConfigured = false;
 
 export function configureGoogleSignin() {
-  if (isConfigured || Platform.OS === "web") {
+  if (isConfigured || Platform.OS === "web" || !GoogleSignin) {
     return;
   }
 
@@ -17,7 +25,12 @@ export function configureGoogleSignin() {
   isConfigured = true;
 }
 
-export async function signInWithGoogleNative() {
+export async function signInWithGoogleNative(): Promise<string | null> {
+  if (!GoogleSignin) {
+    console.warn("Google Sign-In não disponível no Expo Go. Use: npx expo run:android");
+    return null;
+  }
+
   configureGoogleSignin();
 
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });

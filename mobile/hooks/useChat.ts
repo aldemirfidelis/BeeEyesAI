@@ -63,6 +63,7 @@ export function useChat() {
       const raw = await response.text();
       let fullText = "";
       let newsFetched: { query: string; items: any[] } | null = null;
+      let reactedToResponse = false;
 
       const lines = raw.split("\n");
       for (const line of lines) {
@@ -74,6 +75,10 @@ export function useChat() {
           if (event.type === "chunk") {
             fullText += event.text;
             appendStream(cleanAIText(event.text));
+            if (!reactedToResponse) {
+              reactedToResponse = true;
+              setEyeExpression("excited");
+            }
           } else if (event.type === "mission_created") {
             queryClient.invalidateQueries({ queryKey: ["missions"] });
           } else if (event.type === "achievement_unlocked") {
@@ -82,6 +87,7 @@ export function useChat() {
             setTimeout(() => setEyeExpression("happy"), 3000);
           } else if (event.type === "news_fetched") {
             newsFetched = { query: event.query, items: event.items };
+            setEyeExpression("excited");
           }
         } catch { /* skip malformed */ }
       }
