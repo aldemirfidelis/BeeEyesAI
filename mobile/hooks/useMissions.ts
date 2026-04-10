@@ -23,6 +23,13 @@ export function useMissions() {
     },
   });
 
+  const refreshDailyMissions = useMutation({
+    mutationFn: () => api.post("/api/missions/daily-refresh").then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["missions"] });
+    },
+  });
+
   // Complete a mission manually (e.g. if triggered from UI)
   const completeMission = useMutation({
     mutationFn: (id: string) =>
@@ -30,6 +37,7 @@ export function useMissions() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["missions"] });
       queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
       setEyeExpression("celebrating");
       setTimeout(() => setEyeExpression("happy"), 3000);
 
@@ -56,5 +64,5 @@ export function useMissions() {
     },
   });
 
-  return { missions, isLoading, seedMissions, completeMission, deleteMission };
+  return { missions, isLoading, seedMissions, refreshDailyMissions, completeMission, deleteMission };
 }

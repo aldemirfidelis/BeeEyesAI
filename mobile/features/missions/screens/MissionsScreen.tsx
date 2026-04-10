@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import {
   View, Text, StyleSheet,
   ScrollView, ActivityIndicator,
+  TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
@@ -32,7 +33,7 @@ export default function MissionsScreen() {
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const { missions, isLoading, seedMissions } = useMissions();
+  const { missions, isLoading, seedMissions, refreshDailyMissions, completeMission } = useMissions();
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -40,9 +41,16 @@ export default function MissionsScreen() {
     staleTime: 30 * 1000,
   });
 
+  const { data: weeklyReport } = useQuery({
+    queryKey: ["weekly-report"],
+    queryFn: () => api.get("/api/reports/weekly").then((r) => r.data),
+    staleTime: 60 * 1000,
+  });
+
   // Seed on mount (idempotent)
   useEffect(() => {
     seedMissions.mutate();
+    refreshDailyMissions.mutate();
   }, []);
 
   const level = me?.level ?? 1;
@@ -50,7 +58,7 @@ export default function MissionsScreen() {
   const xpNeeded = xpForLevel(level);
   const progress = Math.min(xp / xpNeeded, 1);
 
-  // Group by tier
+  const dailyMissions = missions.filter((m: any) => m.type === "ai_daily");
   const systemMissions = missions.filter((m: any) => m.type === "system");
   const byTier: Record<number, any[]> = { 1: [], 2: [], 3: [], 4: [] };
   for (const m of systemMissions) {
@@ -104,6 +112,50 @@ export default function MissionsScreen() {
         </View>
       )}
 
+      {weeklyReport ? (
+        <View style={styles.reportCard}>
+          <View style={styles.reportHeader}>
+            <Text style={styles.reportTitle}>Resumo semanal</Text>
+            <View style={styles.reportScores}>
+              <Text style={styles.reportScore}>{weeklyReport.consistencyScore}% constancia</Text>
+              <Text style={styles.reportScore}>{weeklyReport.disciplineScore}% disciplina</Text>
+            </View>
+          </View>
+          <Text style={styles.reportSummary}>{weeklyReport.summary}</Text>
+          <Text style={styles.reportLine}><Text style={styles.reportLabel}>Ponto forte:</Text> {weeklyReport.positive}</Text>
+          <Text style={styles.reportLine}><Text style={styles.reportLabel}>Atencao:</Text> {weeklyReport.attention}</Text>
+          <Text style={styles.reportLine}><Text style={styles.reportLabel}>Proximo passo:</Text> {weeklyReport.nextAction}</Text>
+        </View>
+      ) : null}
+
+      {dailyMissions.length > 0 ? (
+        <View style={styles.dailySection}>
+          <View style={styles.dailyHeader}>
+            <Text style={styles.dailyTitle}>Missoes da Bee para hoje</Text>
+            <Text style={styles.dailyHint}>toque para concluir</Text>
+          </View>
+          {dailyMissions.map((mission: any) => (
+            <TouchableOpacity
+              key={mission.id}
+              style={[styles.dailyMissionRow, mission.completed && styles.missionRowDone]}
+              disabled={mission.completed || completeMission.isPending}
+              onPress={() => completeMission.mutate(mission.id)}
+            >
+              <View style={[styles.missionCheck, mission.completed && styles.missionCheckDone]}>
+                {mission.completed && <Text style={styles.missionCheckTick}>✓</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.missionTitle, mission.completed && styles.missionTitleDone]}>{mission.title}</Text>
+                {mission.description ? <Text style={styles.missionDesc}>{mission.description}</Text> : null}
+              </View>
+              <View style={[styles.xpBadge, mission.completed && styles.xpBadgeDone]}>
+                <Text style={[styles.xpBadgeText, mission.completed && styles.xpBadgeTextDone]}>+{mission.xpReward} XP</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+
       {/* Unlocked features */}
       {Object.entries(LEVEL_UNLOCKS)
         .filter(([lvl]) => Number(lvl) <= level)
@@ -131,9 +183,11 @@ export default function MissionsScreen() {
                 {allDone && <Text style={styles.tierDone}>✓ Completo</Text>}
               </View>
               {tierMissions.map((m: any) => (
-                <View
+                <TouchableOpacity
                   key={m.id}
                   style={[styles.missionRow, m.completed && styles.missionRowDone]}
+                  disabled={m.completed || completeMission.isPending}
+                  onPress={() => !m.completed && completeMission.mutate(m.id)}
                 >
                   <View style={[styles.missionCheck, m.completed && styles.missionCheckDone]}>
                     {m.completed && <Text style={styles.missionCheckTick}>✓</Text>}
@@ -151,7 +205,7 @@ export default function MissionsScreen() {
                       +{m.xpReward} XP
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           );
@@ -222,6 +276,51 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     unlockedIcon: { fontSize: 20 },
     unlockedLabel: { fontFamily: FONTS.sans, fontSize: 13, color: "#10B981", fontWeight: "600", flex: 1 },
+
+    reportCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 8,
+    },
+    reportHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    reportTitle: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "800", color: colors.foreground },
+    reportScores: { alignItems: "flex-end", gap: 2 },
+    reportScore: { fontFamily: FONTS.mono, fontSize: 11, color: colors.primaryDark, fontWeight: "700" },
+    reportSummary: { fontFamily: FONTS.sans, fontSize: 13, color: colors.foreground, lineHeight: 19 },
+    reportLine: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, lineHeight: 18 },
+    reportLabel: { color: colors.foreground, fontWeight: "700" },
+
+    dailySection: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    dailyHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dailyTitle: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "800", color: colors.foreground },
+    dailyHint: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted },
+    dailyMissionRow: {
+      flexDirection: "row", alignItems: "center",
+      gap: 12, paddingHorizontal: 16, paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+    },
 
     tierSection: {
       backgroundColor: colors.card,

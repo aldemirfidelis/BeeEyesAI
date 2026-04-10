@@ -773,6 +773,164 @@ function fallbackCelebration(missionTitle: string, xpEarned: number): string {
   return `Uau, você completou "${missionTitle}"! 🎉 Isso é incrível — você ganhou ${xpEarned} XP e merece muito esse reconhecimento. Fico tão feliz por você!`;
 }
 
+export interface DailyMissionDraft {
+  title: string;
+  description: string;
+  xpReward: number;
+  tier: number;
+  type: "ai_daily";
+}
+
+export interface WeeklyReport {
+  summary: string;
+  positive: string;
+  attention: string;
+  nextAction: string;
+  consistencyScore: number;
+  disciplineScore: number;
+  completedMissions: number;
+  activeDays: number;
+  strongestDay: string;
+  weakestDay: string;
+}
+
+function pickPrimaryFocus(personality: UserPersonality, history: ChatMessage[]): string {
+  const topics = JSON.parse(personality.recentTopics || "[]") as string[];
+  if (topics.length > 0) return topics[0];
+
+  const lastUserMessage = [...history].reverse().find((message) => message.role === "user")?.content ?? "";
+  if (/trein|academ|sa[úu]de|sono/i.test(lastUserMessage)) return "saude";
+  if (/estud|curso|ler|prova/i.test(lastUserMessage)) return "estudos";
+  if (/trabalh|carreira|projeto|produto|bee/i.test(lastUserMessage)) return "trabalho";
+  return "consistencia";
+}
+
+export function generateDailyMissionPlan(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  pendingSystemMissions: Mission[]
+): DailyMissionDraft[] {
+  const focus = pickPrimaryFocus(personality, history);
+  const incompleteSystemCount = pendingSystemMissions.filter((mission) => !mission.completed).length;
+
+  const focusMission =
+    focus === "saude"
+      ? {
+          title: "Cuidar do corpo hoje",
+          description: "Faça 10 minutos de movimento ou organize um momento real de descanso.",
+          xpReward: 18,
+          tier: 2,
+          type: "ai_daily" as const,
+        }
+      : focus === "estudos"
+      ? {
+          title: "Estudo com prova de foco",
+          description: "Estude por 20 minutos sem trocar de tarefa no meio.",
+          xpReward: 22,
+          tier: 2,
+          type: "ai_daily" as const,
+        }
+      : focus === "trabalho"
+      ? {
+          title: "Entregar algo visível",
+          description: "Feche uma entrega pequena do seu projeto antes de abrir outra frente.",
+          xpReward: 24,
+          tier: 3,
+          type: "ai_daily" as const,
+        }
+      : {
+          title: "Uma ação sem desculpa",
+          description: "Conclua uma tarefa simples agora para tirar o dia da inércia.",
+          xpReward: 16,
+          tier: 1,
+          type: "ai_daily" as const,
+        };
+
+  const consistencyMission =
+    user.currentStreak === 0
+      ? {
+          title: "Reativar sua sequência",
+          description: "Marque uma vitória concreta hoje para voltar ao ritmo.",
+          xpReward: 16,
+          tier: 1,
+          type: "ai_daily" as const,
+        }
+      : {
+          title: "Proteger o ritmo do dia",
+          description: `Sua sequência está em ${user.currentStreak} dia${user.currentStreak > 1 ? "s" : ""}. Não deixe hoje passar em branco.`,
+          xpReward: 14,
+          tier: 1,
+          type: "ai_daily" as const,
+        };
+
+  const productMission =
+    incompleteSystemCount > 0
+      ? {
+          title: "Fechar pendência do app",
+          description: "Conclua uma missão pendente antes de buscar novidade.",
+          xpReward: 20,
+          tier: 2,
+          type: "ai_daily" as const,
+        }
+      : {
+          title: "Gerar evidência de evolução",
+          description: "Compartilhe um progresso no feed ou registre uma decisão importante no chat.",
+          xpReward: 18,
+          tier: 2,
+          type: "ai_daily" as const,
+        };
+
+  return [consistencyMission, focusMission, productMission];
+}
+
+export function buildWeeklyReport(input: {
+  activeDays: number;
+  completedMissions: number;
+  totalMissionsTouched: number;
+  strongestDay: string;
+  weakestDay: string;
+  streak: number;
+}): WeeklyReport {
+  const consistencyScore = Math.round((input.activeDays / 7) * 100);
+  const disciplineScore = input.totalMissionsTouched > 0
+    ? Math.round((input.completedMissions / input.totalMissionsTouched) * 100)
+    : 0;
+
+  const summary =
+    consistencyScore >= 70
+      ? `Sua semana teve presença real: ${input.activeDays} dias ativos e ${input.completedMissions} missões concluídas.`
+      : `Sua semana ficou irregular: ${input.activeDays} dias ativos e ${input.completedMissions} missões concluídas.`;
+
+  const positive =
+    input.completedMissions > 0
+      ? `Seu melhor sinal foi transformar intenção em entrega ${input.completedMissions} vez${input.completedMissions > 1 ? "es" : ""}.`
+      : "O ponto positivo é que ainda existe espaço claro para recuperar o ritmo rapidamente.";
+
+  const attention =
+    consistencyScore < 50
+      ? `Seu maior ponto de atenção foi a quebra de ritmo. ${input.weakestDay} foi o dia mais fraco da semana.`
+      : `Seu ponto de atenção foi manter constância entre os dias. ${input.weakestDay} ainda puxou sua semana para baixo.`;
+
+  const nextAction =
+    input.streak === 0
+      ? "Comece a próxima semana protegendo um único compromisso diário."
+      : `Repita o padrão de ${input.strongestDay} e transforme isso no seu bloco fixo da semana.`;
+
+  return {
+    summary,
+    positive,
+    attention,
+    nextAction,
+    consistencyScore,
+    disciplineScore,
+    completedMissions: input.completedMissions,
+    activeDays: input.activeDays,
+    strongestDay: input.strongestDay,
+    weakestDay: input.weakestDay,
+  };
+}
+
 // ── Visit Notification ────────────────────────────────────────────────────────
 
 export async function generateVisitNotification(
