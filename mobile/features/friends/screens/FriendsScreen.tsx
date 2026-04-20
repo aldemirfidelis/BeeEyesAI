@@ -7,6 +7,7 @@ import { useState, useCallback, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@mobile/lib/api";
+import type { ConnectionSuggestion } from "@mobile/lib/social";
 import { COLORS, FONTS } from "@mobile/lib/theme";
 
 interface SearchUser {
@@ -76,6 +77,12 @@ export default function FriendsScreen() {
     queryKey: ["friends"],
     queryFn: () => api.get("/api/friends").then((r) => r.data),
     staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: suggestions = [] } = useQuery<ConnectionSuggestion[]>({
+    queryKey: ["connection-suggestions"],
+    queryFn: () => api.get("/api/connections/suggestions").then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
   });
 
   const onRefresh = useCallback(async () => {
@@ -202,6 +209,46 @@ export default function FriendsScreen() {
         {/* Friends list — only when not searching */}
         {!searchQuery.trim() && (
           <>
+            {suggestions.length > 0 && (
+              <View style={styles.matchSection}>
+                <Text style={styles.sectionHeader}>MATCHES DA BEE</Text>
+                {suggestions.slice(0, 3).map((suggestion) => {
+                  const name = suggestion.displayName || suggestion.username;
+                  return (
+                    <View key={suggestion.id} style={styles.matchCard}>
+                      <View style={styles.matchAvatar}>
+                        <Text style={styles.matchAvatarText}>{name[0].toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.matchTopRow}>
+                          <Text style={styles.friendName}>{name}</Text>
+                          {typeof suggestion.matchScore === "number" ? (
+                            <View style={styles.matchBadge}>
+                              <Text style={styles.matchBadgeText}>{suggestion.matchScore}%</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.matchReason}>{suggestion.matchReason || suggestion.suggestionMessage || "Boa conexao para voce."}</Text>
+                        {suggestion.matchSignals?.length ? (
+                          <Text style={styles.matchSignals} numberOfLines={1}>{suggestion.matchSignals.join(" • ")}</Text>
+                        ) : null}
+                        {suggestion.suggestedIntro ? (
+                          <Text style={styles.matchIntro}>{suggestion.suggestedIntro}</Text>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        style={styles.connectBtn}
+                        onPress={() => handleConnect(suggestion.id)}
+                        disabled={connecting.has(suggestion.id)}
+                      >
+                        <Text style={styles.connectBtnText}>{connecting.has(suggestion.id) ? "..." : "Conectar"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {isLoading && (
               <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
             )}
@@ -405,6 +452,40 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 16,
   },
+  sectionHeader: { fontFamily: FONTS.mono, fontSize: 11, fontWeight: "700", color: COLORS.muted, letterSpacing: 1 },
+  matchSection: { gap: 10 },
+  matchCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "33",
+  },
+  matchAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: COLORS.secondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchAvatarText: { fontFamily: FONTS.display, fontSize: 20, fontWeight: "700", color: COLORS.foreground },
+  matchTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  matchBadge: {
+    backgroundColor: COLORS.primary + "22",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "44",
+  },
+  matchBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "700", color: COLORS.primary },
+  matchReason: { fontFamily: FONTS.sans, fontSize: 12, color: COLORS.foreground, lineHeight: 18, marginTop: 3 },
+  matchSignals: { fontFamily: FONTS.mono, fontSize: 10, color: COLORS.primary, marginTop: 4 },
+  matchIntro: { fontFamily: FONTS.sans, fontSize: 11, color: COLORS.muted, lineHeight: 16, marginTop: 4 },
   friendCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   friendTag: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "600", color: "#16a34a" },
   pendingTag: { fontFamily: FONTS.sans, fontSize: 12, color: COLORS.muted },

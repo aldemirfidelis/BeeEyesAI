@@ -4,7 +4,10 @@ import { badRequest, conflict, notFound } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
 import {
   analyzePost,
+  buildConnectionMatchSummary,
   buildConnectionSuggestionMessage,
+  buildFeedInsight,
+  buildPersonalizedFeedInsight,
   generateVisitNotification,
   summarizeInterestsForProfile,
 } from "../ai";
@@ -22,7 +25,15 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
 
   router.get("/api/feed", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 30, min: 1, max: 100 });
-    const feed = await storage.getFeedForUser(req.userId!, limit);
+    const [viewer, viewerPersonality, feed] = await Promise.all([
+      storage.getUser(req.userId!),
+      storage.getPersonality(req.userId!),
+      storage.getFeedForUser(req.userId!, limit),
+    ]);
+
+    if (!viewer) {
+      throw notFound("Usuário não encontrado");
+    }
 
     const enriched = await Promise.all(feed.map(async (post) => {
       const [likesCount, liked, commentsCount] = await Promise.all([
@@ -30,10 +41,33 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
         storage.hasLikedPost(post.id, req.userId!),
         storage.getCommentCount(post.id),
       ]);
-      return { ...post, likesCount, liked, commentsCount };
+      const feedInsight = buildFeedInsight(post.content, post.sentimentLabel);
+      const personalizedInsight = buildPersonalizedFeedInsight({
+        viewer,
+        viewerPersonality,
+        postContent: post.content,
+        postAuthorName: post.author.displayName || post.author.username,
+        baseAngle: feedInsight.angle,
+      });
+      return {
+        ...post,
+        likesCount,
+        liked,
+        commentsCount,
+        feedInsight,
+        personalizedInsight,
+        aiComment: post.aiComment || feedInsight.comment,
+      };
     }));
 
-    return sendOk(res, enriched);
+    const ranked = enriched.sort((a, b) => {
+      const aScore = a.personalizedInsight?.relevanceScore ?? 0;
+      const bScore = b.personalizedInsight?.relevanceScore ?? 0;
+      if (bScore !== aScore) return bScore - aScore;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return sendOk(res, ranked);
   }));
 
   router.get("/api/posts", requireAuth, asyncHandler(async (req, res) => {
@@ -161,15 +195,38 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
   router.get("/api/connections/suggestions", requireAuth, asyncHandler(async (req, res) => {
     try {
       const limit = parseBoundedInt(req.query.limit, { fallback: 5, min: 1, max: 20 });
-      const suggestions = await storage.getSuggestedConnections(req.userId!, limit);
-      return sendOk(res, suggestions.map((user) => ({
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        level: user.level,
-        commonInterests: user.commonInterests,
-        suggestionMessage: buildConnectionSuggestionMessage("", user.displayName || user.username, user.commonInterests),
-      })));
+      const [me, myPersonality, suggestions] = await Promise.all([
+        storage.getUser(req.userId!),
+        storage.getPersonality(req.userId!),
+        storage.getSuggestedConnections(req.userId!, limit),
+      ]);
+
+      if (!me) {
+        throw notFound("Usuário não encontrado");
+      }
+
+      return sendOk(res, suggestions.map((user) => {
+        const match = buildConnectionMatchSummary({
+          me,
+          myPersonality,
+          target: user,
+          targetPersonality: user.personality,
+          commonInterests: user.commonInterests,
+        });
+
+        return {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          level: user.level,
+          commonInterests: user.commonInterests,
+          suggestionMessage: buildConnectionSuggestionMessage("", user.displayName || user.username, user.commonInterests),
+          matchScore: match.matchScore,
+          matchReason: match.reason,
+          suggestedIntro: match.suggestedIntro,
+          matchSignals: match.matchSignals,
+        };
+      }));
     } catch (error) {
       req.logger.warn("connections.suggestions.failed", {
         message: error instanceof Error ? error.message : "unknown",

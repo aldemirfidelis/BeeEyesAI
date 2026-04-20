@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@mobile/lib/api";
+import type { NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { queryClient } from "@mobile/lib/queryClient";
 import XPProgress from "@mobile/components/XPProgress";
@@ -34,19 +35,40 @@ export default function ProfileScreen() {
     queryKey: ["me"],
     queryFn: () => api.get("/api/me").then((r) => r.data),
     staleTime: 30 * 1000,
+    retry: false,
   });
 
   const { data: achievements = [] } = useQuery({
     queryKey: ["achievements"],
     queryFn: () => api.get("/api/achievements").then((r) => r.data),
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
   const { data: missions = [] } = useQuery({
     queryKey: ["missions"],
     queryFn: () => api.get("/api/missions").then((r) => r.data),
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
+
+  const { data: score } = useQuery<ScoreSnapshot>({
+    queryKey: ["score"],
+    queryFn: () => api.get("/api/score").then((r) => r.data),
+    staleTime: 30 * 1000,
+    retry: false,
+  });
+
+  const { data: notificationCenter = [] } = useQuery<NotificationCenterItem[]>({
+    queryKey: ["notifications-center"],
+    queryFn: () => api.get("/api/notifications/center").then((r) => r.data),
+    staleTime: 45 * 1000,
+    retry: false,
+  });
+  const safeNotificationCenter = Array.isArray(notificationCenter) ? notificationCenter : [];
+  const safeAchievements = Array.isArray(achievements) ? achievements : [];
+  const safeMissions = Array.isArray(missions) ? missions : [];
+  const unreadNotificationCount = safeNotificationCenter.filter((item) => !item.read).length;
 
   async function handleLogout() {
     Alert.alert("Sair", "Tem certeza que deseja sair?", [
@@ -63,13 +85,23 @@ export default function ProfileScreen() {
     ]);
   }
 
-  const completedMissions = missions.filter((m: any) => m.completed).length;
+  const completedMissions = safeMissions.filter((m: any) => m.completed).length;
   const profile = me || user;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.topActions}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/notifications" as never)}>
+            <View>
+              <Feather name="bell" size={20} color={colors.muted} />
+              {unreadNotificationCount > 0 ? (
+                <View style={styles.topBadge}>
+                  <Text style={styles.topBadgeText}>{Math.min(unreadNotificationCount, 9)}</Text>
+                </View>
+              ) : null}
+            </View>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push("/settings" as never)}>
             <Feather name="settings" size={20} color={colors.muted} />
           </TouchableOpacity>
@@ -99,17 +131,37 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {score ? (
+          <View style={styles.scoreCard}>
+            <View style={styles.scoreHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Ritmo atual</Text>
+                <Text style={styles.scoreSummary}>{score.summary}</Text>
+              </View>
+              <View style={styles.scoreChip}>
+                <Text style={styles.scoreChipValue}>{score.focusScore}</Text>
+                <Text style={styles.scoreChipLabel}>{score.scoreTone}</Text>
+              </View>
+            </View>
+            <View style={styles.scoreMetaRow}>
+              <Text style={styles.scoreMeta}>{score.consistencyScore}% constancia</Text>
+              <Text style={styles.scoreMeta}>{score.disciplineScore}% disciplina</Text>
+            </View>
+            <Text style={styles.scoreInsight}>{score.insight}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.statsGrid}>
           <StatCard emoji="🎯" label="Missoes" value={completedMissions.toString()} colors={colors} />
           <StatCard emoji="🔥" label="Streak" value={`${profile?.currentStreak ?? 0} dias`} colors={colors} />
           <StatCard emoji="💬" label="Mensagens" value={(me?.totalMessagesCount ?? 0).toString()} colors={colors} />
-          <StatCard emoji="🏆" label="Conquistas" value={achievements.length.toString()} colors={colors} />
+          <StatCard emoji="🏆" label="Conquistas" value={safeAchievements.length.toString()} colors={colors} />
         </View>
 
-        {achievements.length > 0 && (
+        {safeAchievements.length > 0 && (
           <View style={styles.achievementsSection}>
             <Text style={styles.sectionTitle}>Conquistas</Text>
-            {achievements.map((a: any) => (
+            {safeAchievements.map((a: any) => (
               <View key={a.id} style={styles.achievementRow}>
                 <View style={styles.achievementIcon}>
                   <Text style={styles.achievementEmoji}>🏅</Text>
@@ -157,10 +209,27 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20, gap: 16 },
-    topActions: { alignItems: "flex-end" },
+    topActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
+    iconButton: {
+      padding: 8,
+      position: "relative",
+    },
     settingsButton: {
       padding: 8,
     },
+    topBadge: {
+      position: "absolute",
+      top: -6,
+      right: -8,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.destructive,
+    },
+    topBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "800", color: "#fff" },
     avatarSection: { alignItems: "center", paddingVertical: 8, gap: 8 },
     avatar: {
       width: 80,
@@ -188,6 +257,22 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderRadius: 20,
       padding: 16,
     },
+    scoreCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 16,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    scoreHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
+    scoreSummary: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.muted, marginTop: 2, maxWidth: 220 },
+    scoreChip: { minWidth: 78, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.secondary, alignItems: "center", gap: 2 },
+    scoreChipValue: { fontFamily: FONTS.display, fontSize: 26, fontWeight: "800", color: colors.foreground },
+    scoreChipLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark, textTransform: "uppercase" },
+    scoreMetaRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+    scoreMeta: { fontFamily: FONTS.mono, fontSize: 12, fontWeight: "700", color: colors.foreground },
+    scoreInsight: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground },
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",

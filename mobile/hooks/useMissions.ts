@@ -38,6 +38,9 @@ export function useMissions() {
       queryClient.invalidateQueries({ queryKey: ["missions"] });
       queryClient.invalidateQueries({ queryKey: ["me"] });
       queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["score"] });
+      queryClient.invalidateQueries({ queryKey: ["intelligent-notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-center"] });
       setEyeExpression("celebrating");
       setTimeout(() => setEyeExpression("happy"), 3000);
 

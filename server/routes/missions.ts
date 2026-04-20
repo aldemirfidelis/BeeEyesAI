@@ -2,7 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../api/async-handler";
 import { notFound, validationError } from "../api/errors";
 import { sendCreated, sendNoContent, sendOk } from "../api/response";
-import { buildWeeklyReport, generateDailyMissionPlan, generateMissionCelebration } from "../ai";
+import { buildDailyContext, buildWeeklyReport, generateAdaptiveDailyMissionPlan, generateMissionCelebration } from "../ai";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { insertMissionSchema } from "../../shared/schema";
@@ -11,11 +11,12 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
   const router = Router();
 
   async function ensureDailyMissions(userId: string) {
-    const [user, personality, history, allMissions] = await Promise.all([
+    const [user, personality, history, allMissions, recentMoods] = await Promise.all([
       storage.getUser(userId),
       storage.getPersonality(userId),
       storage.getMessagesByUser(userId, 30),
       storage.getMissionsByUser(userId),
+      storage.getMoodEntriesByUser(userId, 3),
     ]);
 
     if (!user || !personality) {
@@ -43,7 +44,7 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
       content: message.content,
     }));
 
-    const drafts = generateDailyMissionPlan(user, personality, chatHistory, pendingSystemMissions);
+    const drafts = generateAdaptiveDailyMissionPlan(user, personality, chatHistory, pendingSystemMissions, recentMoods);
     const titles = new Set(todaysDaily.map((mission) => mission.title));
 
     for (const draft of drafts) {
@@ -63,6 +64,24 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
 
     return todaysDaily;
   }
+
+  router.get("/api/missions/daily-context", requireAuth, asyncHandler(async (req, res) => {
+    const userId = req.userId!;
+    const [user, personality, history, allMissions, recentMoods] = await Promise.all([
+      storage.getUser(userId),
+      storage.getPersonality(userId),
+      storage.getMessagesByUser(userId, 30),
+      storage.getMissionsByUser(userId),
+      storage.getMoodEntriesByUser(userId, 3),
+    ]);
+
+    if (!user || !personality) throw notFound("Usuário não encontrado");
+
+    const pendingSystemMissions = allMissions.filter((m) => m.type === "system" && !m.completed);
+    const chatHistory = history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    return sendOk(res, buildDailyContext(user, personality, chatHistory, pendingSystemMissions, recentMoods));
+  }));
 
   router.post("/api/missions/seed", requireAuth, asyncHandler(async (req, res) => {
     await storage.seedPredefinedMissions(req.userId!);

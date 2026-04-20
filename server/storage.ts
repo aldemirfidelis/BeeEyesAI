@@ -1,7 +1,7 @@
 import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, userPersonality, messages, missions, moodEntries, achievements,
+  users, userPersonality, messages, notificationReads, missions, moodEntries, achievements,
   posts, postLikes, userConnections, directMessages,
   communities, communityMembers, communityPosts,
   communityPostLikes, communityPostComments, communityPostCommentLikes,
@@ -9,6 +9,7 @@ import {
   type User, type InsertUser,
   type UserPersonality, type InsertUserPersonality,
   type Message, type InsertMessage,
+  type NotificationRead, type InsertNotificationRead,
   type Mission, type InsertMission,
   type MoodEntry, type InsertMoodEntry,
   type Achievement, type InsertAchievement,
@@ -43,6 +44,8 @@ export interface IStorage {
   getMessagesByUser(userId: string, limit?: number): Promise<Message[]>;
   createMessage(msg: InsertMessage): Promise<Message>;
   updateMessageMetadata(id: string, userId: string, data: { content: string; metadata: string }): Promise<Message | undefined>;
+  getNotificationReadsByUser(userId: string): Promise<NotificationRead[]>;
+  markNotificationsAsRead(data: InsertNotificationRead[]): Promise<void>;
 
   // Missions
   getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]>;
@@ -279,6 +282,25 @@ export class DrizzleStorage implements IStorage {
       .where(and(eq(messages.id, id), eq(messages.userId, userId)))
       .returning();
     return updated;
+  }
+
+  async getNotificationReadsByUser(userId: string): Promise<NotificationRead[]> {
+    return db
+      .select()
+      .from(notificationReads)
+      .where(eq(notificationReads.userId, userId))
+      .orderBy(desc(notificationReads.readAt));
+  }
+
+  async markNotificationsAsRead(data: InsertNotificationRead[]): Promise<void> {
+    if (data.length === 0) return;
+
+    await db
+      .insert(notificationReads)
+      .values(data)
+      .onConflictDoNothing({
+        target: [notificationReads.userId, notificationReads.notificationId],
+      });
   }
 
   async getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]> {

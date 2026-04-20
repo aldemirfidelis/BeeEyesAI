@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Mission, User } from "@/features/home/types";
+import { apiFetch } from "@/features/home/shared/api";
+
+interface DailyContext {
+  label: string;
+  reason: string;
+  tip: string;
+  moodAvg: number | null;
+}
 
 interface MissionsPanelProps {
   user: User | null;
@@ -11,6 +19,13 @@ interface MissionsPanelProps {
 
 export function MissionsPanel({ user, missions, onToggleMission, onDeleteMission }: MissionsPanelProps) {
   const [activeTab, setActiveTab] = useState<"bee" | "user">("bee");
+  const [dailyContext, setDailyContext] = useState<DailyContext | null>(null);
+
+  useEffect(() => {
+    apiFetch<DailyContext>("/api/missions/daily-context")
+      .then(setDailyContext)
+      .catch(() => {});
+  }, []);
 
   const tierMeta: Record<number, { label: string; emoji: string; color: string }> = {
     1: { label: "Boas-vindas", emoji: "👋", color: "#F59E0B" },
@@ -47,6 +62,27 @@ export function MissionsPanel({ user, missions, onToggleMission, onDeleteMission
           <p className="text-xs text-muted-foreground mt-1">Progressão, desbloqueios e recomendações da Bee.</p>
         </div>
       </div>
+
+      {dailyContext && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+          <div className="flex items-start gap-3">
+            <span className="text-xl leading-none">🐝</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-primary">{dailyContext.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{dailyContext.reason}</p>
+            </div>
+            {dailyContext.moodAvg !== null && (
+              <div className="shrink-0 flex flex-col items-center bg-primary/10 rounded-xl px-2.5 py-1.5 min-w-[44px]">
+                <span className="text-sm font-black text-primary leading-none">{dailyContext.moodAvg.toFixed(1)}</span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wide mt-0.5">humor</span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-foreground/80 bg-background/60 rounded-lg px-3 py-2">
+            💡 {dailyContext.tip}
+          </p>
+        </div>
+      )}
 
       {user && (
         <div className="rounded-2xl border border-border bg-card p-4 space-y-3 shadow-sm">

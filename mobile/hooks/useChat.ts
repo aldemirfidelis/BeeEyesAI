@@ -111,6 +111,9 @@ export function useChat() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["score"] });
+      queryClient.invalidateQueries({ queryKey: ["intelligent-notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-center"] });
     } catch (err) {
       console.error("[useChat] erro:", err);
       finalizeStream(getApiErrorMessage(err, "Não consegui me conectar agora. Verifique sua conexão e tente novamente!"));

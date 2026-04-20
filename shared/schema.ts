@@ -53,6 +53,16 @@ export const messages = pgTable("messages", {
   index("messages_user_created_idx").on(table.userId, table.createdAt),
 ]);
 
+export const notificationReads = pgTable("notification_reads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  notificationId: text("notification_id").notNull(),
+  readAt: timestamp("read_at").notNull().defaultNow(),
+}, (table) => [
+  index("notification_reads_user_read_idx").on(table.userId, table.readAt),
+  uniqueIndex("notification_reads_user_notification_uidx").on(table.userId, table.notificationId),
+]);
+
 export const missions = pgTable("missions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -249,6 +259,11 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true,
 });
 
+export const insertNotificationReadSchema = createInsertSchema(notificationReads).omit({
+  id: true,
+  readAt: true,
+});
+
 export const insertMissionSchema = createInsertSchema(missions).omit({
   id: true,
   completed: true,
@@ -318,6 +333,8 @@ export type UserPersonality = typeof userPersonality.$inferSelect;
 export type InsertUserPersonality = z.infer<typeof insertUserPersonalitySchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type NotificationRead = typeof notificationReads.$inferSelect;
+export type InsertNotificationRead = z.infer<typeof insertNotificationReadSchema>;
 export type Mission = typeof missions.$inferSelect;
 export type InsertMission = z.infer<typeof insertMissionSchema>;
 export type MoodEntry = typeof moodEntries.$inferSelect;

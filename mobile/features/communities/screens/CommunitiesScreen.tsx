@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { api } from "@mobile/lib/api";
 import { Community, CommunityPost, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
@@ -33,7 +36,37 @@ interface CommunityComment {
   liked: boolean;
 }
 
-const DEFAULT_COMMUNITY = { name: "", description: "", category: "geral", emoji: "🐝" };
+const DEFAULT_COMMUNITY = { name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" };
+
+async function pickCommunityImage(onChange: (imageUrl: string) => void) {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    Alert.alert("Permissão necessária", "Permita acesso à galeria para escolher a foto da comunidade.");
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8,
+  });
+
+  if (result.canceled || !result.assets?.[0]?.uri) return;
+
+  const processed = await ImageManipulator.manipulateAsync(
+    result.assets[0].uri,
+    [{ resize: { width: 512, height: 512 } }],
+    { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+
+  if (!processed.base64) {
+    Alert.alert("Erro", "Nao foi possivel preparar a foto da comunidade.");
+    return;
+  }
+
+  onChange(`data:image/jpeg;base64,${processed.base64}`);
+}
 
 // ── Community List ────────────────────────────────────────────────────────────
 function CommunityList({
@@ -80,7 +113,11 @@ function CommunityList({
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20, gap: 12 }}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.communityRow} onPress={() => onSelect(item)} activeOpacity={0.7}>
-              <Text style={styles.communityEmoji}>{item.emoji}</Text>
+              {item.imageUrl ? (
+                <Image source={{ uri: item.imageUrl }} style={styles.communityAvatar} />
+              ) : (
+                <Text style={styles.communityEmoji}>{item.emoji}</Text>
+              )}
               <View style={styles.communityBody}>
                 <View style={styles.communityTopRow}>
                   <Text style={styles.communityName}>{item.name}</Text>
@@ -120,6 +157,9 @@ function CommunityDetail({
 }) {
   const queryClient = useQueryClient();
   const [newPost, setNewPost] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ name: community.name, description: community.description || "", imageUrl: community.imageUrl || "" });
+  const [pickingImage, setPickingImage] = useState(false);
 
   const detailQuery = useQuery<Community>({
     queryKey: ["community", community.id],
@@ -133,6 +173,7 @@ function CommunityDetail({
   });
 
   const detail = detailQuery.data || community;
+  const isOwner = detail.memberRole === "owner";
 
   const joinCommunity = useMutation({
     mutationFn: () => api.post(`/api/communities/${community.id}/join`).then((r) => r.data),
@@ -162,8 +203,101 @@ function CommunityDetail({
     },
   });
 
+  const saveCommunity = useMutation({
+    mutationFn: () =>
+      api.patch(`/api/communities/${community.id}`, {
+        name: editForm.name,
+        description: editForm.description || null,
+        imageUrl: editForm.imageUrl || null,
+      }).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["communities"] });
+      queryClient.invalidateQueries({ queryKey: ["community", community.id] });
+      setShowEditModal(false);
+    },
+    onError: (error: any) => {
+      Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel salvar.");
+    },
+  });
+
+  const handlePickImage = useCallback(async () => {
+    setPickingImage(true);
+    try {
+      await pickCommunityImage((imageUrl) => setEditForm((prev) => ({ ...prev, imageUrl })));
+    } finally {
+      setPickingImage(false);
+    }
+  }, []);
+
+  const openEditModal = useCallback(() => {
+    setEditForm({ name: detail.name, description: detail.description || "", imageUrl: detail.imageUrl || "" });
+    setShowEditModal(true);
+  }, [detail]);
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* Edit community modal */}
+      <Modal visible={showEditModal} animationType="slide" transparent presentationStyle="overFullScreen">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <Text style={styles.modalTitle}>Editar comunidade</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Feather name="x" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Photo picker */}
+            <TouchableOpacity style={styles.editPhotoBtn} onPress={handlePickImage} disabled={pickingImage}>
+              {editForm.imageUrl ? (
+                <Image source={{ uri: editForm.imageUrl }} style={styles.editPhotoPreview} />
+              ) : (
+                <View style={styles.editPhotoPlaceholder}>
+                  <Feather name="camera" size={24} color={colors.muted} />
+                  <Text style={styles.editPhotoLabel}>Adicionar foto</Text>
+                </View>
+              )}
+              <View style={styles.editPhotoBadge}>
+                <Feather name="edit-2" size={12} color="#1A1A1A" />
+              </View>
+            </TouchableOpacity>
+            {editForm.imageUrl ? (
+              <TouchableOpacity onPress={() => setEditForm((prev) => ({ ...prev, imageUrl: "" }))} style={{ alignSelf: "center", marginTop: 4 }}>
+                <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: colors.muted }}>Remover imagem</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TextInput
+              style={styles.modalInput}
+              value={editForm.name}
+              onChangeText={(v) => setEditForm((prev) => ({ ...prev, name: v }))}
+              placeholder="Nome da comunidade"
+              placeholderTextColor={colors.muted}
+            />
+            <TextInput
+              style={[styles.modalInput, styles.modalTextarea]}
+              value={editForm.description}
+              onChangeText={(v) => setEditForm((prev) => ({ ...prev, description: v }))}
+              placeholder="Descrição (opcional)"
+              placeholderTextColor={colors.muted}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalSecondary} onPress={() => setShowEditModal(false)}>
+                <Text style={styles.modalSecondaryText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalPrimary, (!editForm.name.trim() || saveCommunity.isPending) && { opacity: 0.5 }]}
+                onPress={() => saveCommunity.mutate()}
+                disabled={!editForm.name.trim() || saveCommunity.isPending}
+              >
+                <Text style={styles.modalPrimaryText}>{saveCommunity.isPending ? "Salvando..." : "Salvar"}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.detailHeader}>
         <TouchableOpacity
@@ -174,11 +308,20 @@ function CommunityDetail({
           <Feather name="arrow-left" size={22} color={colors.foreground} />
           <Text style={styles.backBtnText}>Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.detailEmoji}>{detail.emoji}</Text>
+        {detail.imageUrl ? (
+          <Image source={{ uri: detail.imageUrl }} style={styles.detailAvatarImg} />
+        ) : (
+          <Text style={styles.detailEmoji}>{detail.emoji}</Text>
+        )}
         <View style={styles.detailHeaderInfo}>
           <Text style={styles.detailName} numberOfLines={1}>{detail.name}</Text>
           <Text style={styles.detailMeta}>{detail.membersCount} membros • {detail.category}</Text>
         </View>
+        {isOwner && (
+          <TouchableOpacity onPress={openEditModal} style={styles.editIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="edit-2" size={16} color={colors.muted} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.joinBtn, detail.isMember && styles.leaveBtn]}
           onPress={() => detail.isMember ? leaveCommunity.mutate() : joinCommunity.mutate()}
@@ -250,6 +393,7 @@ export default function CommunitiesScreen() {
   const [selected, setSelected] = useState<Community | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [communityForm, setCommunityForm] = useState(DEFAULT_COMMUNITY);
+  const [pickingCreateImage, setPickingCreateImage] = useState(false);
 
   const createCommunity = useMutation({
     mutationFn: () => api.post("/api/communities", communityForm).then((r) => r.data),
@@ -263,6 +407,15 @@ export default function CommunitiesScreen() {
       Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel criar a comunidade.");
     },
   });
+
+  const handlePickCreateImage = useCallback(async () => {
+    setPickingCreateImage(true);
+    try {
+      await pickCommunityImage((imageUrl) => setCommunityForm((prev) => ({ ...prev, imageUrl })));
+    } finally {
+      setPickingCreateImage(false);
+    }
+  }, []);
 
   return (
     <>
@@ -288,6 +441,24 @@ export default function CommunitiesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Nova comunidade</Text>
+            <TouchableOpacity style={styles.editPhotoBtn} onPress={handlePickCreateImage} disabled={pickingCreateImage}>
+              {communityForm.imageUrl ? (
+                <Image source={{ uri: communityForm.imageUrl }} style={styles.editPhotoPreview} />
+              ) : (
+                <View style={styles.editPhotoPlaceholder}>
+                  <Feather name="camera" size={24} color={colors.muted} />
+                  <Text style={styles.editPhotoLabel}>{pickingCreateImage ? "Carregando..." : "Adicionar foto"}</Text>
+                </View>
+              )}
+              <View style={styles.editPhotoBadge}>
+                <Feather name="edit-2" size={12} color="#1A1A1A" />
+              </View>
+            </TouchableOpacity>
+            {communityForm.imageUrl ? (
+              <TouchableOpacity onPress={() => setCommunityForm((prev) => ({ ...prev, imageUrl: "" }))} style={{ alignSelf: "center", marginTop: -6 }}>
+                <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: colors.muted }}>Remover imagem</Text>
+              </TouchableOpacity>
+            ) : null}
             <TextInput
               style={styles.modalInput}
               value={communityForm.name}
@@ -543,6 +714,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderBottomColor: colors.border,
       gap: 12,
     },
+    communityAvatar: { width: 42, height: 42, borderRadius: 21 },
     communityEmoji: { fontSize: 32, width: 42, textAlign: "center" },
     communityBody: { flex: 1, gap: 3 },
     communityTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -580,6 +752,31 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       color: colors.foreground,
     },
     detailEmoji: { fontSize: 28 },
+    detailAvatarImg: { width: 38, height: 38, borderRadius: 19 },
+    editIconBtn: { padding: 4 },
+    editPhotoBtn: {
+      alignSelf: "center",
+      width: 88, height: 88,
+      borderRadius: 44,
+      overflow: "hidden",
+      marginBottom: 12,
+      position: "relative",
+    },
+    editPhotoPreview: { width: 88, height: 88, borderRadius: 44 },
+    editPhotoPlaceholder: {
+      width: 88, height: 88, borderRadius: 44,
+      backgroundColor: colors.secondary,
+      borderWidth: 2, borderColor: colors.border,
+      borderStyle: "dashed",
+      alignItems: "center", justifyContent: "center", gap: 4,
+    },
+    editPhotoLabel: { fontFamily: FONTS.sans, fontSize: 10, color: colors.muted },
+    editPhotoBadge: {
+      position: "absolute", bottom: 2, right: 2,
+      width: 24, height: 24, borderRadius: 12,
+      backgroundColor: colors.primary,
+      alignItems: "center", justifyContent: "center",
+    },
     detailHeaderInfo: { flex: 1 },
     detailName: { fontFamily: FONTS.sans, fontSize: 16, fontWeight: "700", color: colors.foreground },
     detailMeta: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
@@ -711,4 +908,3 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     modalPrimaryText: { fontFamily: FONTS.sans, fontWeight: "700", color: "#1A1A1A" },
   });
 }
-

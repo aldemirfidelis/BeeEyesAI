@@ -3,6 +3,8 @@ import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
 import {
+  buildIntelligentNotifications,
+  buildScoreSnapshot,
   generateProactiveMessage,
   parseAIActions,
   streamChat,
@@ -17,9 +19,235 @@ import { storage } from "../storage";
 export function createMessagesRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
   const router = Router();
 
+  type NotificationCenterItem = {
+    id: string;
+    category: "alert" | "activity" | "social";
+    source: "intelligent" | "proactive" | "visit" | "connection";
+    title: string;
+    body: string;
+    tone: "danger" | "warning" | "positive" | "neutral";
+    createdAt: string;
+    read: boolean;
+  };
+
+  async function getUserActivitySnapshot(userId: string) {
+    const [user, missions, messages, posts] = await Promise.all([
+      storage.getUser(userId),
+      storage.getMissionsByUser(userId),
+      storage.getMessagesByUser(userId, 200),
+      storage.getPostsByUser(userId, 50),
+    ]);
+
+    if (!user) {
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+    }
+
+    const now = new Date();
+    const since = new Date(now);
+    since.setDate(now.getDate() - 6);
+    since.setHours(0, 0, 0, 0);
+
+    const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "long" });
+    const dailyActivity = new Map<string, number>();
+
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(since);
+      day.setDate(since.getDate() + i);
+      dailyActivity.set(weekday.format(day), 0);
+    }
+
+    const touch = (dateValue: Date | string | null | undefined) => {
+      if (!dateValue) return;
+      const date = new Date(dateValue);
+      if (date < since) return;
+      const key = weekday.format(date);
+      dailyActivity.set(key, (dailyActivity.get(key) ?? 0) + 1);
+    };
+
+    const weeklyMissions = missions.filter((mission) => new Date(mission.createdAt) >= since);
+    weeklyMissions.forEach((mission) => {
+      touch(mission.createdAt);
+      if (mission.completedAt) touch(mission.completedAt);
+    });
+    messages.forEach((message) => touch(message.createdAt));
+    posts.forEach((post) => touch(post.createdAt));
+
+    const activeDays = [...dailyActivity.values()].filter((count) => count > 0).length;
+    const completedMissions = weeklyMissions.filter((mission) => mission.completed).length;
+    const pendingMissions = missions.filter((mission) => !mission.completed).length;
+    const lastActiveHours = user.lastActiveAt
+      ? Math.max(0, (Date.now() - new Date(user.lastActiveAt).getTime()) / 3600000)
+      : null;
+
+    return {
+      user,
+      activeDays,
+      completedMissions,
+      totalMissionsTouched: weeklyMissions.length,
+      pendingMissions,
+      lastActiveHours,
+    };
+  }
+
   router.get("/api/messages", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 50, min: 1, max: 100 });
     return sendOk(res, await storage.getMessagesByUser(req.userId!, limit));
+  }));
+
+  router.get("/api/score", requireAuth, asyncHandler(async (req, res) => {
+    const snapshot = await getUserActivitySnapshot(req.userId!);
+    return sendOk(res, buildScoreSnapshot({
+      activeDays: snapshot.activeDays,
+      completedMissions: snapshot.completedMissions,
+      totalMissionsTouched: snapshot.totalMissionsTouched,
+      streak: snapshot.user.currentStreak,
+      level: snapshot.user.level,
+      xp: snapshot.user.xp,
+      lastActiveHours: snapshot.lastActiveHours,
+      pendingMissions: snapshot.pendingMissions,
+    }));
+  }));
+
+  router.get("/api/notifications/intelligent", requireAuth, asyncHandler(async (req, res) => {
+    const snapshot = await getUserActivitySnapshot(req.userId!);
+    const score = buildScoreSnapshot({
+      activeDays: snapshot.activeDays,
+      completedMissions: snapshot.completedMissions,
+      totalMissionsTouched: snapshot.totalMissionsTouched,
+      streak: snapshot.user.currentStreak,
+      level: snapshot.user.level,
+      xp: snapshot.user.xp,
+      lastActiveHours: snapshot.lastActiveHours,
+      pendingMissions: snapshot.pendingMissions,
+    });
+
+    return sendOk(res, buildIntelligentNotifications({
+      focusScore: score.focusScore,
+      consistencyScore: score.consistencyScore,
+      disciplineScore: score.disciplineScore,
+      completedMissions: snapshot.completedMissions,
+      pendingMissions: snapshot.pendingMissions,
+      streak: snapshot.user.currentStreak,
+      lastActiveHours: snapshot.lastActiveHours,
+    }));
+  }));
+
+  router.get("/api/notifications/center", requireAuth, asyncHandler(async (req, res) => {
+    const [snapshot, recentMessages, notificationReads] = await Promise.all([
+      getUserActivitySnapshot(req.userId!),
+      storage.getMessagesByUser(req.userId!, 40),
+      storage.getNotificationReadsByUser(req.userId!),
+    ]);
+    const readIds = new Set(notificationReads.map((item) => item.notificationId));
+
+    const score = buildScoreSnapshot({
+      activeDays: snapshot.activeDays,
+      completedMissions: snapshot.completedMissions,
+      totalMissionsTouched: snapshot.totalMissionsTouched,
+      streak: snapshot.user.currentStreak,
+      level: snapshot.user.level,
+      xp: snapshot.user.xp,
+      lastActiveHours: snapshot.lastActiveHours,
+      pendingMissions: snapshot.pendingMissions,
+    });
+
+    const intelligentItems: NotificationCenterItem[] = buildIntelligentNotifications({
+      focusScore: score.focusScore,
+      consistencyScore: score.consistencyScore,
+      disciplineScore: score.disciplineScore,
+      completedMissions: snapshot.completedMissions,
+      pendingMissions: snapshot.pendingMissions,
+      streak: snapshot.user.currentStreak,
+      lastActiveHours: snapshot.lastActiveHours,
+    }).map((item) => ({
+      id: item.id,
+      category: item.type === "celebration" ? "activity" : "alert",
+      source: "intelligent" as const,
+      title: item.title,
+      body: item.body,
+      tone: item.tone,
+      createdAt: new Date().toISOString(),
+      read: false,
+    }));
+
+    const messageItems = recentMessages.flatMap<NotificationCenterItem>((message) => {
+      if (message.role !== "assistant") return [];
+
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = JSON.parse(message.metadata || "{}");
+      } catch {
+        metadata = {};
+      }
+
+      if (metadata.visitFrom) {
+        return [{
+          id: `visit-${message.id}`,
+          category: "social" as const,
+          source: "visit" as const,
+          title: "Alguem passou pelo seu perfil",
+          body: message.content,
+          tone: "positive" as const,
+          createdAt: new Date(message.createdAt).toISOString(),
+          read: false,
+        }];
+      }
+
+      if (metadata.proactive === true) {
+        return [{
+          id: `proactive-${message.id}`,
+          category: "activity" as const,
+          source: "proactive" as const,
+          title: "A Bee chamou sua atencao",
+          body: message.content,
+          tone: "neutral" as const,
+          createdAt: new Date(message.createdAt).toISOString(),
+          read: false,
+        }];
+      }
+
+      if (metadata.type === "connection_request") {
+        return [{
+          id: `connection-${message.id}`,
+          category: "social" as const,
+          source: "connection" as const,
+          title: "Nova solicitacao de conexao",
+          body: message.content,
+          tone: "positive" as const,
+          createdAt: new Date(message.createdAt).toISOString(),
+          read: false,
+        }];
+      }
+
+      return [];
+    });
+
+    const deduped: NotificationCenterItem[] = [...intelligentItems, ...messageItems]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
+      .map((item) => ({ ...item, read: readIds.has(item.id) }))
+      .slice(0, 12);
+
+    return sendOk(res, deduped);
+  }));
+
+  router.post("/api/notifications/read", requireAuth, asyncHandler(async (req, res) => {
+    const ids = Array.isArray(req.body?.ids)
+      ? req.body.ids.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)
+      : [];
+
+    if (ids.length === 0) {
+      throw badRequest("ids obrigatorios");
+    }
+
+    await storage.markNotificationsAsRead(
+      ids.map((notificationId: string) => ({
+        userId: req.userId!,
+        notificationId,
+      }))
+    );
+
+    return sendOk(res, { acknowledged: true, count: ids.length });
   }));
 
   router.post("/api/chat", requireAuth, asyncHandler(async (req, res) => {

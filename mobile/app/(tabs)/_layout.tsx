@@ -161,6 +161,7 @@ export default function TabsLayout() {
       {/* Hidden from tab bar — accessible via header */}
       <Tabs.Screen name="friends" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="mood" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="news" options={{ href: null }} />

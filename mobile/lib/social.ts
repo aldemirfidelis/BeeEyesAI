@@ -17,6 +17,18 @@ export interface FeedPost {
   likesCount: number;
   liked: boolean;
   commentsCount?: number;
+  feedInsight?: {
+    angle: "career" | "discipline" | "emotion" | "social" | "reflection";
+    signalLabel: string;
+    audienceHint: string;
+    impactHint: string;
+    comment: string;
+  };
+  personalizedInsight?: {
+    relevanceScore: number;
+    forYouReason: string;
+    actionHint: string;
+  };
 }
 
 export interface ConnectionSuggestion {
@@ -26,6 +38,10 @@ export interface ConnectionSuggestion {
   level: number;
   commonInterests: string[];
   suggestionMessage?: string;
+  matchScore?: number;
+  matchReason?: string;
+  suggestedIntro?: string;
+  matchSignals?: string[];
 }
 
 export interface DMConversation {
@@ -50,6 +66,7 @@ export interface Community {
   description: string | null;
   category: string;
   emoji: string;
+  imageUrl?: string | null;
   ownerId: string;
   membersCount: number;
   createdAt: string;

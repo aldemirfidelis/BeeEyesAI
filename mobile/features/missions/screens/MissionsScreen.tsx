@@ -39,12 +39,23 @@ export default function MissionsScreen() {
     queryKey: ["me"],
     queryFn: () => api.get("/api/me").then((r) => r.data),
     staleTime: 30 * 1000,
+    retry: false,
   });
 
   const { data: weeklyReport } = useQuery({
     queryKey: ["weekly-report"],
     queryFn: () => api.get("/api/reports/weekly").then((r) => r.data),
     staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: dailyContext } = useQuery<{
+    label: string; reason: string; tip: string; moodAvg: number | null;
+  }>({
+    queryKey: ["daily-context"],
+    queryFn: () => api.get("/api/missions/daily-context").then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
   // Seed on mount (idempotent)
@@ -83,6 +94,26 @@ export default function MissionsScreen() {
         </Text>
       </View>
 
+      {/* Contexto adaptativo da Bee */}
+      {dailyContext && (
+        <View style={styles.contextCard}>
+          <View style={styles.contextHeader}>
+            <Text style={styles.contextBee}>🐝</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.contextLabel}>{dailyContext.label}</Text>
+              <Text style={styles.contextReason}>{dailyContext.reason}</Text>
+            </View>
+            {typeof dailyContext.moodAvg === "number" && Number.isFinite(dailyContext.moodAvg) && (
+              <View style={styles.moodBadge}>
+                <Text style={styles.moodBadgeText}>{dailyContext.moodAvg.toFixed(1)}</Text>
+                <Text style={styles.moodBadgeSub}>humor</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.contextTip}>💡 {dailyContext.tip}</Text>
+        </View>
+      )}
+
       {/* XP / Level card */}
       {me && (
         <View style={styles.levelCard}>
@@ -111,6 +142,7 @@ export default function MissionsScreen() {
           )}
         </View>
       )}
+
 
       {weeklyReport ? (
         <View style={styles.reportCard}>
@@ -230,6 +262,30 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     headerTitle: { fontFamily: FONTS.display, fontSize: 26, fontWeight: "800", color: colors.foreground },
     headerSub: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted },
+
+    contextCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.primary + "55",
+      gap: 8,
+    },
+    contextHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+    contextBee: { fontSize: 22, lineHeight: 28 },
+    contextLabel: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: colors.primary },
+    contextReason: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 1 },
+    contextTip: { fontFamily: FONTS.sans, fontSize: 13, color: colors.foreground, lineHeight: 18 },
+    moodBadge: {
+      backgroundColor: colors.primary + "22",
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      alignItems: "center",
+      minWidth: 44,
+    },
+    moodBadgeText: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "800", color: colors.primary },
+    moodBadgeSub: { fontFamily: FONTS.sans, fontSize: 9, color: colors.muted, textTransform: "uppercase" },
 
     levelCard: {
       backgroundColor: colors.card,
@@ -368,4 +424,3 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     xpBadgeTextDone: { color: "#10B981" },
   });
 }
-

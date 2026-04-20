@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Share,
 } from "react-native";
 import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +30,18 @@ interface FeedComment {
   displayName: string | null;
   likesCount: number;
   liked: boolean;
+}
+
+const AVATAR_COLORS = [
+  ["#F59E0B", "#D97706"],
+  ["#8B5CF6", "#7C3AED"],
+  ["#EC4899", "#DB2777"],
+  ["#10B981", "#059669"],
+  ["#3B82F6", "#2563EB"],
+  ["#F97316", "#EA580C"],
+];
+function avatarColor(name: string) {
+  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length][0];
 }
 
 const SENTIMENT_EMOJI: Record<string, string> = {
@@ -167,10 +180,27 @@ export default function FeedScreen() {
                     <Text style={styles.suggestionAvatarText}>{displayNameOf(s)[0].toUpperCase()}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
+                    <View style={styles.suggestionTopRow}>
+                      <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
+                      {typeof s.matchScore === "number" ? (
+                        <View style={styles.matchBadge}>
+                          <Text style={styles.matchBadgeText}>{s.matchScore}% match</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <Text style={styles.suggestionInterests} numberOfLines={2}>
                       {s.commonInterests.slice(0, 3).join(" • ") || s.suggestionMessage || "Boa conexao para voce"}
                     </Text>
+                    {s.matchReason ? (
+                      <Text style={styles.matchReasonText} numberOfLines={2}>
+                        {s.matchReason}
+                      </Text>
+                    ) : null}
+                    {s.matchSignals?.length ? (
+                      <Text style={styles.suggestionSignals} numberOfLines={1}>
+                        {s.matchSignals.join(" • ")}
+                      </Text>
+                    ) : null}
                   </View>
                   <TouchableOpacity
                     style={styles.connectBtn}
@@ -231,6 +261,7 @@ function PostCard({
   const [liked, setLiked] = useState(post.liked);
   const [likesCount, setLikesCount] = useState(post.likesCount);
   const [commentsCount, setCommentsCount] = useState(post.commentsCount);
+  const [bookmarked, setBookmarked] = useState(false);
 
   async function handleLikePress() {
     const next = !liked;
@@ -279,6 +310,12 @@ function PostCard({
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleShare() {
+    try {
+      await Share.share({ message: post.content });
+    } catch { /* ignore */ }
   }
 
   async function handleCommentLike(commentId: string) {
@@ -342,53 +379,113 @@ function PostCard({
         </View>
       ) : null}
 
+      {post.feedInsight ? (
+        <View style={styles.feedInsightBox}>
+          <View style={styles.feedInsightHeader}>
+            <Text style={styles.feedInsightTag}>{post.feedInsight.signalLabel}</Text>
+            <Text style={styles.feedInsightAngle}>{post.feedInsight.angle}</Text>
+          </View>
+          <Text style={styles.feedInsightText}>{post.feedInsight.audienceHint}</Text>
+          <Text style={styles.feedInsightSubtext}>{post.feedInsight.impactHint}</Text>
+        </View>
+      ) : null}
+
+      {post.personalizedInsight ? (
+        <View style={styles.forYouBox}>
+          <View style={styles.forYouHeader}>
+            <Text style={styles.forYouTag}>Por que isso apareceu para voce</Text>
+            <Text style={styles.forYouScore}>{post.personalizedInsight.relevanceScore}% fit</Text>
+          </View>
+          <Text style={styles.forYouText}>{post.personalizedInsight.forYouReason}</Text>
+          <Text style={styles.forYouHint}>{post.personalizedInsight.actionHint}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.postActions}>
         <TouchableOpacity
           style={[styles.actionBtn, liked && styles.likeBtnActive]}
           onPress={handleLikePress}
           disabled={isLiking}
         >
-          <Text style={styles.actionBtnText}>{liked ? "❤️" : "🤍"} {likesCount}</Text>
+          <Text style={styles.actionBtnText}>{liked ? "❤️" : "🤍"} {likesCount > 0 ? likesCount : ""}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={handleToggleComments}>
-          <Text style={styles.actionBtnText}>💬 {commentsCount}</Text>
+        <TouchableOpacity
+          style={[styles.actionBtn, expanded && styles.commentBtnActive]}
+          onPress={handleToggleComments}
+        >
+          <Text style={styles.actionBtnText}>💬 {commentsCount > 0 ? commentsCount : ""}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
+          <Text style={styles.actionBtnText}>↗</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          style={[styles.actionBtn, bookmarked && styles.bookmarkBtnActive]}
+          onPress={() => setBookmarked((v) => !v)}
+        >
+          <Text style={styles.actionBtnText}>{bookmarked ? "🔖" : "🏷"}</Text>
         </TouchableOpacity>
       </View>
 
       {expanded ? (
         <View style={styles.commentsSection}>
-          {commentsLoading ? <Text style={styles.commentHint}>Carregando comentarios...</Text> : null}
-          {!commentsLoading && comments.length === 0 ? (
-            <Text style={styles.commentHint}>Sem comentarios ainda. Seja o primeiro.</Text>
-          ) : null}
-
-          {comments.map((comment) => (
-            <View key={comment.id} style={styles.commentRow}>
-              <View style={styles.commentAvatar}>
-                <Text style={styles.commentAvatarText}>{displayNameOf(comment)[0].toUpperCase()}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.commentBubble}>
-                  <Text style={styles.commentName}>{displayNameOf(comment)}</Text>
-                  <Text style={styles.commentText}>{comment.content}</Text>
+          {/* Skeleton loading */}
+          {commentsLoading && (
+            <View style={{ gap: 10 }}>
+              {[1, 2].map((i) => (
+                <View key={i} style={styles.commentRow}>
+                  <View style={[styles.commentAvatar, { backgroundColor: colors.secondary }]} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <View style={{ height: 10, width: 80, backgroundColor: colors.secondary, borderRadius: 6 }} />
+                    <View style={{ height: 9, width: "70%", backgroundColor: colors.secondary, borderRadius: 6 }} />
+                  </View>
                 </View>
-                <View style={styles.commentFooter}>
-                  <Text style={styles.commentFooterText}>{timeAgo(comment.createdAt)}</Text>
-                  <TouchableOpacity onPress={() => handleCommentLike(comment.id)}>
-                    <Text style={styles.commentFooterText}>{comment.liked ? "❤️" : "🤍"} {comment.likesCount || ""}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              ))}
             </View>
-          ))}
+          )}
+
+          {!commentsLoading && comments.length === 0 && (
+            <Text style={styles.commentHint}>Sem comentários ainda. Seja o primeiro! ✨</Text>
+          )}
+
+          {comments.map((comment) => {
+            const cName = displayNameOf(comment);
+            const cColor = avatarColor(cName);
+            return (
+              <View key={comment.id} style={styles.commentRow}>
+                <View style={[styles.commentAvatar, { backgroundColor: cColor }]}>
+                  <Text style={styles.commentAvatarText}>{cName[0].toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.commentBubble}>
+                    <Text style={styles.commentName}>{cName}</Text>
+                    <Text style={styles.commentText}>{comment.content}</Text>
+                  </View>
+                  <View style={styles.commentFooter}>
+                    <Text style={styles.commentFooterText}>{timeAgo(comment.createdAt)}</Text>
+                    <TouchableOpacity
+                      style={styles.commentLikeBtn}
+                      onPress={() => handleCommentLike(comment.id)}
+                    >
+                      <Text style={[styles.commentFooterText, comment.liked && { color: "#EF4444" }]}>
+                        {comment.liked ? "❤️" : "🤍"} {comment.likesCount > 0 ? comment.likesCount : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            );
+          })}
 
           <View style={styles.commentComposer}>
             <TextInput
               style={styles.commentInput}
               value={commentInput}
               onChangeText={setCommentInput}
-              placeholder="Escreva um comentario..."
+              placeholder="Escreva um comentário..."
               placeholderTextColor={colors.muted}
+              onSubmitEditing={handleSendComment}
+              returnKeyType="send"
             />
             <TouchableOpacity
               style={[styles.commentSendBtn, (!commentInput.trim() || sending) && styles.publishBtnDisabled]}
@@ -473,8 +570,13 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       justifyContent: "center",
     },
     suggestionAvatarText: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "700", color: colors.foreground },
+    suggestionTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
     suggestionName: { fontFamily: FONTS.sans, fontWeight: "600", fontSize: 14, color: colors.foreground },
     suggestionInterests: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, lineHeight: 18 },
+    matchReasonText: { fontFamily: FONTS.sans, fontSize: 12, color: colors.foreground, lineHeight: 18, marginTop: 4 },
+    suggestionSignals: { fontFamily: FONTS.mono, fontSize: 10, color: colors.primaryDark, marginTop: 4 },
+    matchBadge: { backgroundColor: colors.primary + "24", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: colors.primary + "44" },
+    matchBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "700", color: colors.primaryDark },
     connectBtn: {
       backgroundColor: colors.primary + "33",
       borderRadius: 12,
@@ -521,6 +623,32 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     aiCommentLabel: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 12, color: colors.primaryDark },
     aiCommentText: { fontFamily: FONTS.sans, fontSize: 13, color: colors.foreground, lineHeight: 18 },
+    feedInsightBox: {
+      backgroundColor: colors.background,
+      borderRadius: 14,
+      padding: 12,
+      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    feedInsightHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
+    feedInsightTag: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark, textTransform: "uppercase" },
+    feedInsightAngle: { fontFamily: FONTS.mono, fontSize: 10, color: colors.muted },
+    feedInsightText: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.foreground },
+    feedInsightSubtext: { fontFamily: FONTS.sans, fontSize: 11, lineHeight: 17, color: colors.muted },
+    forYouBox: {
+      backgroundColor: colors.primary + "12",
+      borderRadius: 14,
+      padding: 12,
+      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.primary + "33",
+    },
+    forYouHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
+    forYouTag: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark, textTransform: "uppercase" },
+    forYouScore: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "700", color: colors.primaryDark },
+    forYouText: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.foreground },
+    forYouHint: { fontFamily: FONTS.sans, fontSize: 11, lineHeight: 17, color: colors.muted },
     postActions: { flexDirection: "row", alignItems: "center", gap: 12 },
     actionBtn: {
       borderRadius: 12,
@@ -531,6 +659,8 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderColor: colors.border,
     },
     likeBtnActive: { borderColor: colors.destructive, backgroundColor: colors.destructive + "11" },
+    commentBtnActive: { borderColor: colors.primaryDark, backgroundColor: colors.primary + "14" },
+    bookmarkBtnActive: { borderColor: colors.success, backgroundColor: colors.success + "14" },
     actionBtnText: { fontFamily: FONTS.sans, fontWeight: "600", fontSize: 13, color: colors.foreground },
     commentsSection: {
       borderTopWidth: 1,
@@ -562,6 +692,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     commentText: { fontFamily: FONTS.sans, fontSize: 13, color: colors.foreground, lineHeight: 18 },
     commentFooter: { flexDirection: "row", gap: 12, paddingLeft: 4, paddingTop: 4 },
     commentFooterText: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted },
+    commentLikeBtn: { paddingVertical: 2, paddingHorizontal: 2 },
     commentComposer: { flexDirection: "row", gap: 8, paddingTop: 4 },
     commentInput: {
       flex: 1,
@@ -588,4 +719,3 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     emptyDesc: { fontFamily: FONTS.sans, fontSize: 14, color: colors.muted, textAlign: "center", paddingHorizontal: 24 },
   });
 }
-

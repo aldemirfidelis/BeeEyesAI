@@ -1,7 +1,7 @@
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
-import { type User, type UserPersonality, type Mission } from "../shared/schema";
+import { type User, type UserPersonality, type Mission, type MoodEntry } from "../shared/schema";
 import { storage } from "./storage";
 import { personalityCache, memoryCache } from "./cache";
 
@@ -635,6 +635,149 @@ export function buildConnectionSuggestionMessage(
 
 // ── Proactive Message ─────────────────────────────────────────────────────────
 
+export interface ConnectionMatchSummary {
+  matchScore: number;
+  reason: string;
+  suggestedIntro: string;
+  matchSignals: string[];
+}
+
+export interface FeedInsight {
+  angle: "career" | "discipline" | "emotion" | "social" | "reflection";
+  signalLabel: string;
+  audienceHint: string;
+  impactHint: string;
+  comment: string;
+}
+
+function parseStringArray(raw: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTerms(values: string[]): string[] {
+  return values.map((value) => value.trim().toLowerCase()).filter(Boolean);
+}
+
+export function buildConnectionMatchSummary(input: {
+  me: User;
+  myPersonality: UserPersonality | null | undefined;
+  target: User;
+  targetPersonality: UserPersonality | null | undefined;
+  commonInterests: string[];
+}): ConnectionMatchSummary {
+  const myInterests = normalizeTerms(parseStringArray(input.myPersonality?.interests));
+  const targetInterests = normalizeTerms(parseStringArray(input.targetPersonality?.interests));
+  const myTopics = normalizeTerms(parseStringArray(input.myPersonality?.recentTopics));
+  const targetTopics = normalizeTerms(parseStringArray(input.targetPersonality?.recentTopics));
+  const commonTopics = myTopics.filter((topic) => targetTopics.includes(topic));
+
+  let score = 24;
+  score += Math.min(input.commonInterests.length * 18, 46);
+  score += Math.min(commonTopics.length * 10, 18);
+
+  const streakGap = Math.abs(input.me.currentStreak - input.target.currentStreak);
+  if (input.me.currentStreak > 0 && input.target.currentStreak > 0) {
+    score += streakGap <= 2 ? 10 : 6;
+  }
+
+  const levelGap = Math.abs(input.me.level - input.target.level);
+  score += levelGap <= 2 ? 10 : levelGap <= 5 ? 6 : 2;
+
+  const myLastActiveHours = input.me.lastActiveAt ? (Date.now() - new Date(input.me.lastActiveAt).getTime()) / 3600000 : null;
+  const targetLastActiveHours = input.target.lastActiveAt ? (Date.now() - new Date(input.target.lastActiveAt).getTime()) / 3600000 : null;
+  if ((myLastActiveHours ?? 999) <= 48 && (targetLastActiveHours ?? 999) <= 48) {
+    score += 8;
+  }
+
+  const matchScore = Math.max(18, Math.min(96, score));
+  const matchSignals = [
+    ...input.commonInterests.slice(0, 2).map((item) => `interesse: ${item}`),
+    ...commonTopics.slice(0, 1).map((item) => `foco recente: ${item}`),
+    ...(input.me.currentStreak > 0 && input.target.currentStreak > 0 ? ["ritmo parecido"] : []),
+    ...(levelGap <= 2 ? ["mesmo estagio"] : []),
+  ].slice(0, 4);
+
+  const reason =
+    input.commonInterests.length > 0
+      ? `Vocês convergem em ${input.commonInterests.slice(0, 2).join(" e ")} e tendem a trocar contexto útil, não conversa vazia.`
+      : commonTopics.length > 0
+      ? `O foco recente de vocês está próximo em ${commonTopics[0]}, o que aumenta chance de conversa com propósito.`
+      : streakGap <= 2 && input.me.currentStreak > 0 && input.target.currentStreak > 0
+      ? "Vocês estão em um ritmo parecido de consistência, o que costuma gerar accountability melhor."
+      : levelGap <= 2
+      ? "Vocês parecem estar em um estágio parecido de evolução dentro do app, com boa chance de se entenderem rápido."
+      : `Os interesses de ${input.target.displayName || input.target.username} complementam o que você anda buscando agora.`;
+
+  const focusHint = input.commonInterests[0] || commonTopics[0] || targetInterests[0] || myInterests[0] || "rotina e evolução";
+  const suggestedIntro = `Você também está focado em ${focusHint}. Vale abrir conversa por esse ponto.`;
+
+  return {
+    matchScore,
+    reason,
+    suggestedIntro,
+    matchSignals,
+  };
+}
+
+export function buildFeedInsight(postContent: string, sentimentLabel?: string | null): FeedInsight {
+  const text = postContent.toLowerCase();
+
+  if (/(trabalh|carreira|produto|projeto|cliente|vaga|empresa|negocio)/.test(text)) {
+    return {
+      angle: "career",
+      signalLabel: "Carreira",
+      audienceHint: "Esse conteúdo tende a atrair pessoas em modo de execução e crescimento profissional.",
+      impactHint: "Posts assim costumam gerar conversa útil quando mostram aprendizado ou entrega concreta.",
+      comment: sentimentLabel
+        ? `A Bee leu isso como um sinal de ${sentimentLabel.toLowerCase()} aplicado à carreira, não só desabafo.`
+        : "A Bee leu isso como um sinal de carreira e construção prática, não só opinião solta.",
+    };
+  }
+
+  if (/(estud|foco|rotina|disciplina|consisten|meta|trein|academ|habito)/.test(text)) {
+    return {
+      angle: "discipline",
+      signalLabel: "Disciplina",
+      audienceHint: "Esse conteúdo conversa com gente tentando sustentar rotina, foco ou hábito.",
+      impactHint: "Quando o post vira evidência de processo, ele reforça identidade de consistência na rede.",
+      comment: "A Bee leu isso como um marcador de disciplina em construção ou manutenção.",
+    };
+  }
+
+  if (/(amizad|conexao|comunidade|junto|network|parceria|time)/.test(text)) {
+    return {
+      angle: "social",
+      signalLabel: "Social",
+      audienceHint: "Esse conteúdo tende a ativar pessoas que valorizam troca, comunidade e conexão útil.",
+      impactHint: "Posts sociais funcionam melhor quando puxam colaboração ou reconhecimento claro.",
+      comment: "A Bee leu isso como um post de conexão, com potencial de aproximar gente com o mesmo momento.",
+    };
+  }
+
+  if (/(cans|ansied|desanim|triste|medo|confus|sobrecarreg|exaust)/.test(text)) {
+    return {
+      angle: "emotion",
+      signalLabel: "Emocional",
+      audienceHint: "Esse conteúdo deve tocar gente lidando com pressão, pausa ou reorganização emocional.",
+      impactHint: "Quando bem colocado, esse tipo de post abre conversa honesta em vez de performance.",
+      comment: "A Bee leu isso como um sinal emocional relevante, com espaço para apoio real da rede.",
+    };
+  }
+
+  return {
+    angle: "reflection",
+    signalLabel: "Reflexao",
+    audienceHint: "Esse conteúdo tende a atrair pessoas em momento de revisão, aprendizado ou reposicionamento.",
+    impactHint: "Posts reflexivos ganham força quando deixam claro o que mudou na sua leitura.",
+    comment: "A Bee leu isso como um post de reflexão com potencial de gerar conversa mais consciente.",
+  };
+}
+
 function buildProactivePrompt(user: User, facts: string[], missionsText: string): string {
   const factsText =
     facts.length > 0
@@ -794,6 +937,27 @@ export interface WeeklyReport {
   weakestDay: string;
 }
 
+export interface ScoreSnapshot {
+  focusScore: number;
+  consistencyScore: number;
+  disciplineScore: number;
+  scoreTone: "Risco" | "Ritmo" | "Progresso";
+  summary: string;
+  insight: string;
+}
+
+export interface IntelligentNotification {
+  id: string;
+  type: "streak_risk" | "mission_pending" | "discipline_push" | "celebration" | "comeback";
+  title: string;
+  body: string;
+  tone: "danger" | "warning" | "positive";
+}
+
+function xpTargetForLevel(level: number): number {
+  return level * 100 + (level - 1) * 50;
+}
+
 function pickPrimaryFocus(personality: UserPersonality, history: ChatMessage[]): string {
   const topics = JSON.parse(personality.recentTopics || "[]") as string[];
   if (topics.length > 0) return topics[0];
@@ -884,6 +1048,270 @@ export function generateDailyMissionPlan(
   return [consistencyMission, focusMission, productMission];
 }
 
+export interface PersonalizedFeedInsight {
+  relevanceScore: number;
+  forYouReason: string;
+  actionHint: string;
+}
+
+function deriveAdaptiveMissionSignals(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  pendingSystemMissions: Mission[],
+  recentMoods: MoodEntry[] = []
+) {
+  const focus = pickPrimaryFocus(personality, history);
+  const recentUserMessages = history
+    .filter((message) => message.role === "user")
+    .slice(-6)
+    .map((message) => message.content.toLowerCase());
+  const joined = recentUserMessages.join(" ");
+  const lastActiveHours = user.lastActiveAt
+    ? (Date.now() - new Date(user.lastActiveAt).getTime()) / 3600000
+    : null;
+
+  // Humor: média dos últimos 3 dias (mood 1-5)
+  const avgMood = recentMoods.length > 0
+    ? recentMoods.reduce((sum, m) => sum + m.mood, 0) / recentMoods.length
+    : null;
+  const lowMood    = avgMood !== null && avgMood <= 2;
+  const highMood   = avgMood !== null && avgMood >= 4;
+  const moodTrend  = recentMoods.length >= 2
+    ? recentMoods[0].mood - recentMoods[recentMoods.length - 1].mood
+    : 0;
+  const moodDropping = moodTrend < -1;
+
+  const overwhelmedByText = /(cansado|cansada|sobrecarregado|sobrecarregada|exausto|exausta|ansioso|ansiosa|travado|travada)/.test(joined);
+
+  return {
+    focus,
+    dormant:        (lastActiveHours ?? 0) >= 18 || user.currentStreak === 0,
+    scattered:      /(muitas ideias|muita coisa|sem foco|perdido|perdida|confuso|confusa|desorganizado|desorganizada|outra frente|troquei de tarefa)/.test(joined),
+    overwhelmed:    overwhelmedByText || lowMood || pendingSystemMissions.length >= 5,
+    socialCold:     pendingSystemMissions.some((m) => m.actionType === "add_friend" || m.actionType === "create_post"),
+    needsMomentum:  user.currentStreak <= 1 || /(parei|nao fiz|não fiz|desanimei|voltei agora)/.test(joined),
+    lowMood,
+    highMood,
+    moodDropping,
+    avgMood,
+  };
+}
+
+export function buildDailyContext(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  pendingSystemMissions: Mission[],
+  recentMoods: MoodEntry[]
+): { label: string; reason: string; tip: string; moodAvg: number | null } {
+  const s = deriveAdaptiveMissionSignals(user, personality, history, pendingSystemMissions, recentMoods);
+
+  let label = "Dia normal";
+  let reason = "Sem sinais de desequilíbrio detectados.";
+  let tip    = "Foque nas missões do dia e mantenha o ritmo.";
+
+  if (s.dormant) {
+    label  = "Retomada";
+    reason = "Você ficou longe ou zerou a sequência.";
+    tip    = "Uma vitória pequena hoje já reativa o ciclo.";
+  } else if (s.overwhelmed || s.moodDropping) {
+    label  = "Dia leve";
+    reason = s.lowMood
+      ? `Seu humor médio nos últimos dias foi baixo (${s.avgMood?.toFixed(1)}/5).`
+      : "Sinais de sobrecarga detectados nas suas mensagens.";
+    tip    = "Escolha só 1 missão para fechar hoje. Menos é mais agora.";
+  } else if (s.highMood && !s.scattered) {
+    label  = "Dia de impulso";
+    reason = `Humor elevado (${s.avgMood?.toFixed(1)}/5) e foco estável.`;
+    tip    = "Bom momento para avançar mais do que o mínimo.";
+  } else if (s.scattered) {
+    label  = "Foco necessário";
+    reason = "Você mencionou muitas frentes abertas.";
+    tip    = "Escolha uma tarefa e termine antes de abrir outra.";
+  } else if (s.needsMomentum) {
+    label  = "Retomada de ritmo";
+    reason = "Sequência baixa ou pausa recente detectada.";
+    tip    = "Marque uma missão hoje para sair da inércia.";
+  }
+
+  return { label, reason, tip, moodAvg: s.avgMood };
+}
+
+export function generateAdaptiveDailyMissionPlan(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  pendingSystemMissions: Mission[],
+  recentMoods: MoodEntry[] = []
+): DailyMissionDraft[] {
+  const signals = deriveAdaptiveMissionSignals(user, personality, history, pendingSystemMissions, recentMoods);
+  const incompleteSystemCount = pendingSystemMissions.filter((mission) => !mission.completed).length;
+
+  const consistencyMission: DailyMissionDraft = signals.needsMomentum
+    ? {
+        title: "Reativar sua sequencia",
+        description: signals.dormant
+          ? "Voce ficou longe ou rompeu ritmo. Marque uma vitoria concreta hoje para voltar ao jogo."
+          : "Marque uma vitoria concreta hoje para voltar ao ritmo.",
+        xpReward: 16,
+        tier: 1,
+        type: "ai_daily",
+      }
+    : {
+        title: "Proteger o ritmo do dia",
+        description: `Sua sequencia esta em ${user.currentStreak} dia${user.currentStreak > 1 ? "s" : ""}. Nao deixe hoje virar um dia sem evidencia.`,
+        xpReward: 14,
+        tier: 1,
+        type: "ai_daily",
+      };
+
+  const focusMission: DailyMissionDraft =
+    signals.focus === "saude"
+      ? {
+          title: "Cuidar do corpo hoje",
+          description: signals.overwhelmed
+            ? "Seu ritmo parece pesado. Faca 10 minutos de movimento leve ou recupere um bloco real de descanso."
+            : "Faca 10 minutos de movimento ou organize um momento real de descanso.",
+          xpReward: 18,
+          tier: 2,
+          type: "ai_daily",
+        }
+      : signals.focus === "estudos"
+      ? {
+          title: "Estudo com prova de foco",
+          description: signals.scattered
+            ? "Voce abriu frentes demais. Estude por 20 minutos sem trocar de assunto no meio."
+            : "Estude por 20 minutos sem trocar de tarefa no meio.",
+          xpReward: 22,
+          tier: 2,
+          type: "ai_daily",
+        }
+      : signals.focus === "trabalho"
+      ? {
+          title: "Entregar algo visivel",
+          description: signals.scattered
+            ? "Voce tende a abrir novas frentes cedo demais. Feche uma entrega pequena antes de comecar outra."
+            : "Feche uma entrega pequena do seu projeto antes de abrir outra frente.",
+          xpReward: 24,
+          tier: 3,
+          type: "ai_daily",
+        }
+      : {
+          title: "Uma acao sem desculpa",
+          description: signals.dormant
+            ? "Seu ritmo caiu. Conclua uma tarefa simples agora para tirar o dia da inercia."
+            : "Conclua uma tarefa simples agora para tirar o dia da inercia.",
+          xpReward: 16,
+          tier: 1,
+          type: "ai_daily",
+        };
+
+  const leverageMission: DailyMissionDraft =
+    signals.socialCold
+      ? {
+          title: "Gerar presenca na rede",
+          description: "Voce esfriou no social do app. Poste um progresso ou puxe uma conexao util hoje.",
+          xpReward: 20,
+          tier: 2,
+          type: "ai_daily",
+        }
+      : incompleteSystemCount > 0
+      ? {
+          title: "Fechar pendencia do app",
+          description: signals.overwhelmed
+            ? "Tem pendencia demais aberta. Feche uma antes de buscar novidade."
+            : "Conclua uma missao pendente antes de buscar novidade.",
+          xpReward: 20,
+          tier: 2,
+          type: "ai_daily",
+        }
+      : {
+          title: "Gerar evidencia de evolucao",
+          description: signals.scattered
+            ? "Registre no chat ou no feed a unica entrega que realmente moveu seu dia."
+            : "Compartilhe um progresso no feed ou registre uma decisao importante no chat.",
+          xpReward: 18,
+          tier: 2,
+          type: "ai_daily",
+        };
+
+  // Humor baixo: reduz XP exigido e suaviza as missões para não sobrecarregar
+  if (signals.lowMood || signals.moodDropping) {
+    for (const mission of [consistencyMission, focusMission, leverageMission]) {
+      mission.xpReward = Math.max(10, Math.round(mission.xpReward * 0.75));
+      mission.description = `[Dia leve] ${mission.description}`;
+    }
+  }
+
+  return [consistencyMission, focusMission, leverageMission];
+}
+
+export function buildPersonalizedFeedInsight(input: {
+  viewer: User;
+  viewerPersonality: UserPersonality | null | undefined;
+  postContent: string;
+  postAuthorName: string;
+  baseAngle: "career" | "discipline" | "emotion" | "social" | "reflection";
+}): PersonalizedFeedInsight {
+  const viewerInterests = (() => {
+    try {
+      const parsed = JSON.parse(input.viewerPersonality?.interests || "[]");
+      return Array.isArray(parsed) ? parsed.map((item) => String(item).toLowerCase()) : [];
+    } catch {
+      return [] as string[];
+    }
+  })();
+  const viewerTopics = (() => {
+    try {
+      const parsed = JSON.parse(input.viewerPersonality?.recentTopics || "[]");
+      return Array.isArray(parsed) ? parsed.map((item) => String(item).toLowerCase()) : [];
+    } catch {
+      return [] as string[];
+    }
+  })();
+  const text = input.postContent.toLowerCase();
+
+  let relevanceScore = 34;
+  const reasons: string[] = [];
+
+  if (input.baseAngle === "career" && (viewerInterests.some((item) => /trabalh|carreira|produto|negocio/.test(item)) || viewerTopics.some((item) => /trabalh|carreira|produto/.test(item)))) {
+    relevanceScore += 28;
+    reasons.push("isso conversa com seu momento de construcao profissional");
+  }
+  if (input.baseAngle === "discipline" && (viewerInterests.some((item) => /rotina|foco|disciplina|estud|trein/.test(item)) || input.viewer.currentStreak <= 2)) {
+    relevanceScore += 26;
+    reasons.push("isso encosta direto na sua busca por consistencia");
+  }
+  if (input.baseAngle === "social" && viewerInterests.some((item) => /network|amiz|comunidade|social/.test(item))) {
+    relevanceScore += 18;
+    reasons.push("isso pode abrir conexao util para voce");
+  }
+  if (input.baseAngle === "emotion" && input.viewer.currentStreak === 0) {
+    relevanceScore += 16;
+    reasons.push("isso bate com um momento de retomada ou ajuste");
+  }
+  if (text.includes("bee") || text.includes("projeto")) {
+    relevanceScore += 10;
+    reasons.push("isso conversa com o tipo de projeto que costuma prender sua atencao");
+  }
+
+  relevanceScore = Math.max(22, Math.min(95, relevanceScore));
+  const forYouReason = reasons[0]
+    ? `A Bee trouxe isso para voce porque ${reasons[0]}.`
+    : `A Bee trouxe isso para voce porque pode gerar uma leitura util no seu momento atual.`;
+  const actionHint =
+    input.baseAngle === "social"
+      ? `Se fizer sentido, use isso para puxar conversa com ${input.postAuthorName}.`
+      : input.baseAngle === "discipline"
+      ? "Use isso como espelho: o que aqui voce consegue transformar em acao hoje?"
+      : input.baseAngle === "career"
+      ? "Se isso tocar seu momento atual, vale comentar ou salvar como referencia pratica."
+      : "Se isso bateu, transforme a leitura em um ajuste curto no seu dia.";
+
+  return { relevanceScore, forYouReason, actionHint };
+}
+
 export function buildWeeklyReport(input: {
   activeDays: number;
   completedMissions: number;
@@ -932,6 +1360,126 @@ export function buildWeeklyReport(input: {
 }
 
 // ── Visit Notification ────────────────────────────────────────────────────────
+
+export function buildScoreSnapshot(input: {
+  activeDays: number;
+  completedMissions: number;
+  totalMissionsTouched: number;
+  streak: number;
+  level: number;
+  xp: number;
+  lastActiveHours: number | null;
+  pendingMissions: number;
+}): ScoreSnapshot {
+  const consistencyScore = Math.round((input.activeDays / 7) * 100);
+  const disciplineScore = input.totalMissionsTouched > 0
+    ? Math.round((input.completedMissions / input.totalMissionsTouched) * 100)
+    : 0;
+  const streakScore = Math.round(Math.min(input.streak / 7, 1) * 100);
+  const xpProgressScore = Math.round(Math.min(input.xp / Math.max(xpTargetForLevel(input.level), 1), 1) * 100);
+  const recencyScore = input.lastActiveHours === null
+    ? 45
+    : input.lastActiveHours <= 6
+    ? 100
+    : input.lastActiveHours <= 20
+    ? 72
+    : input.lastActiveHours <= 36
+    ? 40
+    : 15;
+
+  const focusScore = Math.round(
+    consistencyScore * 0.3 +
+    disciplineScore * 0.3 +
+    streakScore * 0.2 +
+    xpProgressScore * 0.1 +
+    recencyScore * 0.1
+  );
+
+  const scoreTone = focusScore < 45 ? "Risco" : focusScore < 72 ? "Ritmo" : "Progresso";
+
+  const summary =
+    scoreTone === "Progresso"
+      ? "Existe evidencia de consistencia real na sua semana."
+      : scoreTone === "Ritmo"
+      ? "Voce esta em movimento, mas ainda nao estabilizou seu ritmo."
+      : "Seu ritmo caiu e precisa de uma acao concreta hoje.";
+
+  const insight =
+    input.lastActiveHours !== null && input.lastActiveHours >= 20
+      ? `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Retome antes de normalizar essa distancia.`
+      : input.pendingMissions >= 2 && disciplineScore < 60
+      ? `Voce ainda deixou ${input.pendingMissions} missoes em aberto. Feche uma antes de abrir outra frente.`
+      : consistencyScore >= 70 && disciplineScore >= 60
+      ? "Bom. Seu progresso ja parece comportamento, nao so intencao."
+      : input.streak === 0
+      ? "Sua sequencia ainda nao voltou. Uma entrega pequena hoje ja muda isso."
+      : "Transforme o resto do dia em uma unica entrega visivel.";
+
+  return {
+    focusScore,
+    consistencyScore,
+    disciplineScore,
+    scoreTone,
+    summary,
+    insight,
+  };
+}
+
+export function buildIntelligentNotifications(input: {
+  focusScore: number;
+  consistencyScore: number;
+  disciplineScore: number;
+  completedMissions: number;
+  pendingMissions: number;
+  streak: number;
+  lastActiveHours: number | null;
+}): IntelligentNotification[] {
+  const notifications: IntelligentNotification[] = [];
+
+  if (input.lastActiveHours !== null && input.lastActiveHours >= 20) {
+    notifications.push({
+      id: `streak-risk-${Math.round(input.lastActiveHours)}`,
+      type: input.streak > 0 ? "streak_risk" : "comeback",
+      title: input.streak > 0 ? "Seu ritmo esta cedendo" : "Voce saiu do ritmo",
+      body: input.streak > 0
+        ? `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Se hoje passar em branco, sua sequencia perde forca.`
+        : `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Volte com uma acao simples, nao com pressao vazia.`,
+      tone: "danger",
+    });
+  }
+
+  if (input.pendingMissions >= 2 && input.disciplineScore < 65) {
+    notifications.push({
+      id: `mission-pending-${input.pendingMissions}`,
+      type: "mission_pending",
+      title: "Hoje ainda esta em aberto",
+      body: `Voce deixou ${input.pendingMissions} missoes pendentes. Feche uma agora e recupere o dia.`,
+      tone: "warning",
+    });
+  }
+
+  if (input.focusScore < 45) {
+    notifications.push({
+      id: `discipline-${input.focusScore}`,
+      type: "discipline_push",
+      title: "Voce esta abaixo da sua meta de ritmo",
+      body: "Nao parece falta de capacidade. Parece falta de direcao nas proximas horas.",
+      tone: "warning",
+    });
+  }
+
+  if (input.focusScore >= 72 && input.consistencyScore >= 57 && input.completedMissions >= 2) {
+    notifications.push({
+      id: `celebration-${input.completedMissions}-${input.focusScore}`,
+      type: "celebration",
+      title: "Existe progresso real aqui",
+      body: `Voce concluiu ${input.completedMissions} missoes e sustentou sua semana. Agora proteja esse padrao.`,
+      tone: "positive",
+    });
+  }
+
+  return notifications.slice(0, 2);
+}
 
 export async function generateVisitNotification(
   visitorName: string,
