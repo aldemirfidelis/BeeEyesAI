@@ -8,17 +8,21 @@ import {
   RefreshControl,
   Alert,
   KeyboardAvoidingView,
+  Image,
   Platform,
   Share,
 } from "react-native";
 import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Feather } from "@expo/vector-icons";
 import { api } from "@mobile/lib/api";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { FeedPost, ConnectionSuggestion, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 
 interface FeedComment {
   id: string;
@@ -54,6 +58,27 @@ const SENTIMENT_EMOJI: Record<string, string> = {
   proud: "🏆",
 };
 
+async function pickFeedImage(onChange: (imageUrl: string) => void) {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    Alert.alert("Permissao necessaria", "Permita acesso a galeria para publicar uma foto.");
+    return;
+  }
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: "images",
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 0.7,
+  });
+  if (result.canceled || !result.assets?.[0]?.uri) return;
+  const processed = await ImageManipulator.manipulateAsync(
+    result.assets[0].uri,
+    [{ resize: { width: 900 } }],
+    { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+  if (processed.base64) onChange(`data:image/jpeg;base64,${processed.base64}`);
+}
+
 export default function FeedScreen() {
   const { user } = useAuthStore();
   const themeMode = useUIStore((state) => state.themeMode);
@@ -62,6 +87,8 @@ export default function FeedScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [postText, setPostText] = useState("");
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [pickingImage, setPickingImage] = useState(false);
   const [showPostInput, setShowPostInput] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -78,7 +105,7 @@ export default function FeedScreen() {
   });
 
   const createPost = useMutation({
-    mutationFn: (content: string) => api.post("/api/posts", { content }).then((r) => r.data),
+    mutationFn: ({ content, imageUrl }: { content: string; imageUrl?: string }) => api.post("/api/posts", { content, imageUrl: imageUrl || null }).then((r) => r.data),
     onSuccess: (newPost) => {
       queryClient.setQueryData<FeedPost[]>(["feed"], (prev = []) => [
         {
@@ -91,6 +118,7 @@ export default function FeedScreen() {
         ...prev,
       ]);
       setPostText("");
+      setPostImageUrl("");
       setShowPostInput(false);
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["feed"] });
@@ -119,12 +147,12 @@ export default function FeedScreen() {
   }, [queryClient]);
 
   function handlePost() {
-    if (!postText.trim()) return;
+    if (!postText.trim() && !postImageUrl) return;
     if (postText.trim().length > 500) {
       Alert.alert("Post muito longo", "Maximo de 500 caracteres.");
       return;
     }
-    createPost.mutate(postText.trim());
+    createPost.mutate({ content: postText.trim() || "Imagem compartilhada", imageUrl: postImageUrl });
   }
 
   return (
@@ -158,12 +186,34 @@ export default function FeedScreen() {
                 onChangeText={setPostText}
                 autoFocus
               />
+              {postImageUrl ? (
+                <View style={{ position: "relative" }}>
+                  <Image source={{ uri: postImageUrl }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: colors.secondary }} resizeMode="cover" />
+                  <TouchableOpacity
+                    onPress={() => setPostImageUrl("")}
+                    style={{ position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14, padding: 5 }}
+                  >
+                    <Feather name="x" size={14} color="white" />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               <View style={styles.postInputFooter}>
                 <Text style={styles.charCount}>{postText.length}/500</Text>
                 <TouchableOpacity
-                  style={[styles.publishBtn, (!postText.trim() || createPost.isPending) && styles.publishBtnDisabled]}
+                  style={styles.photoBtn}
+                  onPress={async () => {
+                    setPickingImage(true);
+                    try { await pickFeedImage(setPostImageUrl); } finally { setPickingImage(false); }
+                  }}
+                  disabled={pickingImage}
+                >
+                  <Feather name="image" size={13} color={colors.foreground} style={{ marginRight: 4 }} />
+                  <Text style={styles.photoBtnText}>{pickingImage ? "Carregando..." : postImageUrl ? "Trocar foto" : "Foto"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.publishBtn, ((!postText.trim() && !postImageUrl) || createPost.isPending) && styles.publishBtnDisabled]}
                   onPress={handlePost}
-                  disabled={!postText.trim() || createPost.isPending}
+                  disabled={(!postText.trim() && !postImageUrl) || createPost.isPending}
                 >
                   <Text style={styles.publishBtnText}>{createPost.isPending ? "Publicando..." : "Publicar"}</Text>
                 </TouchableOpacity>
@@ -371,6 +421,7 @@ function PostCard({
       </View>
 
       <Text style={styles.postContent}>{post.content}</Text>
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} /> : null}
 
       {post.aiComment ? (
         <View style={styles.aiCommentBox}>
@@ -543,6 +594,8 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     postInputFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     charCount: { fontFamily: FONTS.mono, fontSize: 12, color: colors.muted },
+    photoBtn: { flexDirection: "row", alignItems: "center", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.secondary },
+    photoBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.foreground },
     publishBtn: {
       backgroundColor: colors.primary,
       borderRadius: 16,
@@ -613,6 +666,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     sentimentEmoji: { fontSize: 20 },
     sentimentLabel: { fontFamily: FONTS.sans, fontSize: 10, color: colors.muted },
     postContent: { fontFamily: FONTS.sans, fontSize: 15, color: colors.foreground, lineHeight: 22 },
+    postImage: { width: "100%", height: 210, borderRadius: 16, backgroundColor: colors.background },
     aiCommentBox: {
       backgroundColor: colors.secondary + "88",
       borderRadius: 12,

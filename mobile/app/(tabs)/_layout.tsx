@@ -152,6 +152,7 @@ export default function TabsLayout() {
         name="communities"
         options={{
           title: "Comunidades",
+          tabBarLabelStyle: { fontSize: 9, fontWeight: "700", letterSpacing: 0 },
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="users" color={color} focused={focused} />
           ),

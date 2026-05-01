@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { api } from "@mobile/lib/api";
-import { Community, CommunityPost, displayNameOf, timeAgo } from "@mobile/lib/social";
+import { Community, CommunityMember, CommunityPost, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 
@@ -46,7 +46,7 @@ async function pickCommunityImage(onChange: (imageUrl: string) => void) {
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: "images",
     allowsEditing: true,
     aspect: [1, 1],
     quality: 0.8,
@@ -68,6 +68,36 @@ async function pickCommunityImage(onChange: (imageUrl: string) => void) {
   onChange(`data:image/jpeg;base64,${processed.base64}`);
 }
 
+async function pickPostImage(onChange: (imageUrl: string) => void) {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    Alert.alert("Permissao necessaria", "Permita acesso a galeria para anexar uma imagem.");
+    return;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: "images",
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 0.7,
+  });
+
+  if (result.canceled || !result.assets?.[0]?.uri) return;
+
+  const processed = await ImageManipulator.manipulateAsync(
+    result.assets[0].uri,
+    [{ resize: { width: 900 } }],
+    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+
+  if (!processed.base64) {
+    Alert.alert("Erro", "Nao foi possivel preparar a imagem.");
+    return;
+  }
+
+  onChange(`data:image/jpeg;base64,${processed.base64}`);
+}
+
 // ── Community List ────────────────────────────────────────────────────────────
 function CommunityList({
   onSelect, colors, styles, insets, onOpenCreate,
@@ -81,6 +111,10 @@ function CommunityList({
   const communitiesQuery = useQuery<Community[]>({
     queryKey: ["communities", search],
     queryFn: () => api.get(`/api/communities?search=${encodeURIComponent(search)}`).then((r) => r.data),
+  });
+  const visibleCommunities = (communitiesQuery.data ?? []).filter((item) => {
+    const name = item.name.trim().toLowerCase();
+    return !name.startsWith("crew") && !name.startsWith("com");
   });
 
   return (
@@ -106,9 +140,9 @@ function CommunityList({
 
       {communitiesQuery.isLoading ? (
         <ActivityIndicator color={colors.primaryDark} style={{ marginTop: 40 }} />
-      ) : communitiesQuery.data?.length ? (
+      ) : visibleCommunities.length ? (
         <FlatList
-          data={communitiesQuery.data}
+          data={visibleCommunities}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20, gap: 12 }}
           renderItem={({ item }) => (
@@ -158,8 +192,11 @@ function CommunityDetail({
   const queryClient = useQueryClient();
   const [newPost, setNewPost] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
   const [editForm, setEditForm] = useState({ name: community.name, description: community.description || "", imageUrl: community.imageUrl || "" });
   const [pickingImage, setPickingImage] = useState(false);
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [pickingPostImage, setPickingPostImage] = useState(false);
 
   const detailQuery = useQuery<Community>({
     queryKey: ["community", community.id],
@@ -170,6 +207,11 @@ function CommunityDetail({
     queryKey: ["community-posts", community.id],
     queryFn: () => api.get(`/api/communities/${community.id}/posts`).then((r) => r.data),
     refetchInterval: 10000,
+  });
+  const membersQuery = useQuery<CommunityMember[]>({
+    queryKey: ["community-members", community.id],
+    queryFn: () => api.get(`/api/communities/${community.id}/members`).then((r) => r.data),
+    enabled: showMembers,
   });
 
   const detail = detailQuery.data || community;
@@ -192,10 +234,11 @@ function CommunityDetail({
   });
 
   const createPost = useMutation({
-    mutationFn: (content: string) =>
-      api.post(`/api/communities/${community.id}/posts`, { content }).then((r) => r.data),
+    mutationFn: ({ content, imageUrl }: { content: string; imageUrl?: string }) =>
+      api.post(`/api/communities/${community.id}/posts`, { content, imageUrl: imageUrl || null }).then((r) => r.data),
     onSuccess: () => {
       setNewPost("");
+      setPostImageUrl("");
       queryClient.invalidateQueries({ queryKey: ["community-posts", community.id] });
     },
     onError: (error: any) => {
@@ -298,6 +341,41 @@ function CommunityDetail({
         </View>
       </Modal>
 
+      {/* Members bottom sheet */}
+      <Modal visible={showMembers} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowMembers(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowMembers(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.membersSheet}>
+            {/* Handle */}
+            <View style={styles.sheetHandle} />
+            <View style={styles.membersHeader}>
+              <Text style={styles.modalTitle}>Membros ({(membersQuery.data ?? []).length})</Text>
+              <TouchableOpacity onPress={() => setShowMembers(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            {membersQuery.isLoading ? (
+              <ActivityIndicator color={colors.primaryDark} style={{ marginVertical: 32 }} />
+            ) : (membersQuery.data ?? []).length === 0 ? (
+              <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Nenhum membro encontrado.</Text>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                {(membersQuery.data ?? []).map((member) => (
+                  <View key={member.id} style={styles.memberRow}>
+                    <View style={[styles.memberAvatar, member.role === "owner" && { backgroundColor: colors.primary }]}>
+                      <Text style={styles.memberAvatarText}>{(member.displayName || member.username)[0]?.toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.memberName}>{member.displayName || member.username}</Text>
+                      <Text style={styles.memberRole}>{member.role === "owner" ? "👑 Fundador" : "Membro"}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Header */}
       <View style={styles.detailHeader}>
         <TouchableOpacity
@@ -313,10 +391,13 @@ function CommunityDetail({
         ) : (
           <Text style={styles.detailEmoji}>{detail.emoji}</Text>
         )}
-        <View style={styles.detailHeaderInfo}>
-          <Text style={styles.detailName} numberOfLines={1}>{detail.name}</Text>
-          <Text style={styles.detailMeta}>{detail.membersCount} membros • {detail.category}</Text>
-        </View>
+        <TouchableOpacity style={styles.detailHeaderInfo} onPress={() => setShowMembers(true)} activeOpacity={0.75}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={styles.detailName} numberOfLines={1}>{detail.name}</Text>
+            <Feather name="chevron-down" size={14} color={colors.muted} />
+          </View>
+          <Text style={[styles.detailMeta, { color: colors.primaryDark }]}>{detail.membersCount} membros • ver todos</Text>
+        </TouchableOpacity>
         {isOwner && (
           <TouchableOpacity onPress={openEditModal} style={styles.editIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Feather name="edit-2" size={16} color={colors.muted} />
@@ -360,6 +441,16 @@ function CommunityDetail({
 
         {detail.isMember && (
           <View style={[styles.inputRow, { paddingBottom: insets.bottom + 6 }]}>
+            <TouchableOpacity
+              style={styles.attachBtn}
+              onPress={async () => {
+                setPickingPostImage(true);
+                try { await pickPostImage(setPostImageUrl); } finally { setPickingPostImage(false); }
+              }}
+              disabled={pickingPostImage}
+            >
+              <Feather name={postImageUrl ? "image" : "camera"} size={18} color={postImageUrl ? colors.primaryDark : colors.muted} />
+            </TouchableOpacity>
             <TextInput
               style={styles.postInput}
               value={newPost}
@@ -370,9 +461,9 @@ function CommunityDetail({
               maxLength={500}
             />
             <TouchableOpacity
-              style={[styles.sendBtn, (!newPost.trim() || createPost.isPending) && styles.sendBtnDisabled]}
-              onPress={() => { if (newPost.trim()) createPost.mutate(newPost.trim()); }}
-              disabled={!newPost.trim() || createPost.isPending}
+              style={[styles.sendBtn, ((!newPost.trim() && !postImageUrl) || createPost.isPending) && styles.sendBtnDisabled]}
+              onPress={() => { if (newPost.trim() || postImageUrl) createPost.mutate({ content: newPost.trim() || "Imagem compartilhada", imageUrl: postImageUrl }); }}
+              disabled={(!newPost.trim() && !postImageUrl) || createPost.isPending}
             >
               <Feather name="send" size={18} color="#1A1A1A" />
             </TouchableOpacity>
@@ -438,8 +529,9 @@ export default function CommunitiesScreen() {
       )}
 
       <Modal visible={showCreateModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "padding"} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalCard} showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>Nova comunidade</Text>
             <TouchableOpacity style={styles.editPhotoBtn} onPress={handlePickCreateImage} disabled={pickingCreateImage}>
               {communityForm.imageUrl ? (
@@ -500,8 +592,9 @@ export default function CommunitiesScreen() {
                 <Text style={styles.modalPrimaryText}>{createCommunity.isPending ? "Criando..." : "Criar"}</Text>
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -606,6 +699,7 @@ function CommunityPostCard({
       </View>
 
       <Text style={styles.postContent}>{post.content}</Text>
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} /> : null}
 
       <View style={styles.postActions}>
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
@@ -677,13 +771,13 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       paddingHorizontal: 20,
       paddingVertical: 14,
     },
-    listHeaderTitle: { fontFamily: FONTS.display, fontSize: 24, fontWeight: "800", color: colors.foreground },
+    listHeaderTitle: { flex: 1, fontFamily: FONTS.display, fontSize: 24, fontWeight: "800", color: colors.foreground },
     createBtn: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
       backgroundColor: colors.primary,
-      paddingHorizontal: 12,
+      paddingHorizontal: 10,
       paddingVertical: 8,
       borderRadius: 12,
     },
@@ -813,6 +907,16 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderTopColor: colors.border,
       backgroundColor: colors.card,
     },
+    attachBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     postInput: {
       flex: 1,
       minHeight: 44,
@@ -851,6 +955,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     postAuthor: { fontFamily: FONTS.sans, fontWeight: "700", color: colors.foreground, fontSize: 13 },
     postTime: { fontFamily: FONTS.sans, color: colors.muted, fontSize: 11 },
     postContent: { fontFamily: FONTS.sans, color: colors.foreground, fontSize: 14, lineHeight: 21 },
+    postImage: { width: "100%", height: 190, borderRadius: 14, backgroundColor: colors.background },
     postActions: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
     actionBtn: {
       borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
@@ -893,7 +998,15 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-    modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
+    modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12, maxHeight: "86%" },
+    membersSheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 12 },
+    sheetHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+    membersHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    memberRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+    memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center" },
+    memberAvatarText: { fontFamily: FONTS.display, fontWeight: "700", color: colors.foreground },
+    memberName: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 13, color: colors.foreground },
+    memberRole: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
     modalTitle: { fontFamily: FONTS.display, fontSize: 22, color: colors.foreground, fontWeight: "700" },
     modalInput: {
       borderWidth: 1, borderColor: colors.border, borderRadius: 14,

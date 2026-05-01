@@ -35,15 +35,6 @@ function GoogleIcon() {
   );
 }
 
-// ── Apple Icon ───────────────────────────────────────────────────────────────
-function AppleIcon({ color = "#fff" }: { color?: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill={color}>
-      <Path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.39.07 2.35.74 3.17.79 1.2-.24 2.35-.93 3.64-.84 1.55.12 2.72.72 3.48 1.84-3.2 1.91-2.44 6.12.72 7.28-.57 1.46-1.3 2.9-3.01 3.81zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-    </Svg>
-  );
-}
-
 // ── Eye Icon ─────────────────────────────────────────────────────────────────
 function EyeIcon({ visible, color = "#888" }: { visible: boolean; color?: string }) {
   return visible ? (
@@ -187,7 +178,7 @@ export default function LoginScreen() {
         </Svg>
 
         <Animated.View style={[styles.beeContainer, floatStyle]}>
-          <BeeEyes expression="happy" size={110} />
+          <BeeEyes expression="happy" size={90} />
         </Animated.View>
         <Text style={styles.brandName}>bee-eyes</Text>
         <Text style={styles.brandTagline}>Sua melhor amiga com IA 🐝</Text>
@@ -195,7 +186,7 @@ export default function LoginScreen() {
 
       {/* Form card */}
       <Animated.View entering={SlideInDown.springify().damping(18)} style={styles.card}>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
           <Animated.View entering={FadeInDown.delay(100)}>
             <Text style={styles.cardTitle}>Olá de novo! 👋</Text>
             <Text style={styles.cardSubtitle}>Entre para continuar sua jornada</Text>
@@ -280,14 +271,6 @@ export default function LoginScreen() {
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity
-              style={[styles.socialBtn, styles.appleBtnStyle]}
-              onPress={() => Alert.alert("Em breve", "Login com Apple estará disponível em breve!")}
-              activeOpacity={0.8}
-            >
-              <AppleIcon color="#1A1A1A" />
-              <Text style={[styles.socialBtnText, { color: "#1A1A1A" }]}>Apple</Text>
-            </TouchableOpacity>
           </Animated.View>
 
           {/* Register link */}
@@ -311,10 +294,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5C842",
   },
   hero: {
-    height: height * 0.40,
+    height: height * 0.30,
     alignItems: "center",
     justifyContent: "flex-end",
-    paddingBottom: 24,
+    paddingBottom: 16,
   },
   decoTop: {
     position: "absolute",
@@ -343,8 +326,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: 28,
-    paddingTop: 32,
-    paddingBottom: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
@@ -353,19 +336,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontFamily: "System",
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: "800",
     color: "#1A1A1A",
   },
   cardSubtitle: {
     fontFamily: "System",
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.muted,
-    marginTop: 4,
-    marginBottom: 24,
+    marginTop: 2,
+    marginBottom: 16,
   },
   inputWrapper: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   inputLabel: {
     fontFamily: "System",
@@ -379,7 +362,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F6F0",
     borderRadius: 14,
     paddingHorizontal: 18,
-    paddingVertical: 15,
+    paddingVertical: 13,
     fontSize: 15,
     fontFamily: "System",
     color: "#1A1A1A",
@@ -402,8 +385,8 @@ const styles = StyleSheet.create({
   primaryBtn: {
     borderRadius: 16,
     overflow: "hidden",
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 2,
     shadowColor: "#F5C842",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -411,7 +394,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   primaryBtnGradient: {
-    paddingVertical: 17,
+    paddingVertical: 15,
     alignItems: "center",
   },
   primaryBtnText: {
@@ -425,7 +408,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 14,
     gap: 12,
   },
   dividerLine: {
@@ -467,8 +450,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
-    paddingBottom: 8,
+    marginTop: 16,
+    paddingBottom: 4,
   },
   footerText: {
     fontFamily: "System",
