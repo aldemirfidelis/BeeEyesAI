@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../api/async-handler";
-import { badRequest, conflict, notFound } from "../api/errors";
+import { badRequest, conflict, forbidden, notFound } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
 import {
   analyzePost,
@@ -86,7 +86,10 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
 
   router.post("/api/posts", requireAuth, asyncHandler(async (req, res) => {
     const content = String(req.body?.content || "").trim();
-    if (!content) {
+    const imageUrl = typeof req.body?.imageUrl === "string" && req.body.imageUrl.startsWith("data:image/")
+      ? req.body.imageUrl
+      : null;
+    if (!content && !imageUrl) {
       throw badRequest("Conteúdo não pode ser vazio");
     }
     if (content.length > 500) {
@@ -98,7 +101,7 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       throw notFound("Usuário não encontrado");
     }
 
-    const post = await storage.createPost({ userId: req.userId!, content });
+    const post = await storage.createPost({ userId: req.userId!, content: content || "Imagem compartilhada", imageUrl });
 
     analyzePost(content, user.displayName || user.username)
       .then(({ sentiment, sentimentLabel, comment }) =>
@@ -314,6 +317,23 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     }
 
     triggerMissionAction(req.userId!, "accept_friend").catch(() => {});
+
+    // Medalhas de amizade para quem aceitou
+    storage.ensureAchievement(req.userId!, {
+      type: "first_friend",
+      title: "Primeira Conexão",
+      description: "Fez sua primeira conexão no BeeEyes. A rede começa aqui.",
+    }).catch(() => {});
+    storage.getFriends(req.userId!).then((friends) => {
+      if (friends.length >= 5) {
+        storage.ensureAchievement(req.userId!, {
+          type: "five_friends",
+          title: "Rede em Expansão",
+          description: "5 conexões ativas. Sua rede social está crescendo.",
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
     return sendOk(res, connection);
   }));
 
@@ -393,6 +413,51 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       return sendOk(res, []);
     }
     return sendOk(res, await storage.searchUsers(query, req.userId!));
+  }));
+
+  router.get("/api/users/:userId/testimonials", requireAuth, asyncHandler(async (req, res) => {
+    const user = await storage.getUser(req.params.userId);
+    if (!user) {
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+    }
+    return sendOk(res, await storage.getTestimonialsForProfile(req.params.userId));
+  }));
+
+  router.post("/api/users/:userId/testimonials", requireAuth, asyncHandler(async (req, res) => {
+    const profileUserId = req.params.userId;
+    const content = String(req.body?.content || "").trim();
+    if (!content) {
+      throw badRequest("Depoimento vazio");
+    }
+    if (content.length > 500) {
+      throw badRequest("Depoimento muito longo (mÃ¡ximo 500 caracteres)");
+    }
+    if (profileUserId === req.userId) {
+      throw badRequest("VocÃª nÃ£o pode escrever depoimento para si mesmo");
+    }
+
+    const [profileUser, acceptedIds] = await Promise.all([
+      storage.getUser(profileUserId),
+      storage.getAcceptedConnectionIds(req.userId!),
+    ]);
+    if (!profileUser) {
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+    }
+    if (!acceptedIds.includes(profileUserId)) {
+      throw forbidden("Apenas amigos podem escrever depoimentos");
+    }
+
+    const testimonial = await storage.upsertTestimonial({
+      profileUserId,
+      authorUserId: req.userId!,
+      content,
+    });
+    storage.ensureAchievement(profileUserId, {
+      type: "first_testimonial_received",
+      title: "Memoria de amigo",
+      description: "Seu primeiro depoimento apareceu no perfil.",
+    }).catch(() => {});
+    return sendCreated(res, testimonial);
   }));
 
   router.get("/api/users/:userId/profile", requireAuth, asyncHandler(async (req, res) => {

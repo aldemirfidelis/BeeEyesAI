@@ -153,24 +153,63 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
 
     let achievement = null;
     const completedMissions = await storage.getMissionsByUser(req.userId!, true);
-    if (completedMissions.length === 1) {
-      achievement = await storage.ensureAchievement(req.userId!, {
-        type: "first_mission",
-        title: "Primeira Missao!",
-        description: "Voce completou sua primeira missao. Continue assim!",
-      });
-    } else if (completedMissions.length === 5) {
-      achievement = await storage.ensureAchievement(req.userId!, {
-        type: "five_missions",
-        title: "Sequencia de acao",
-        description: "Cinco missoes concluidas. A Bee ja reconhece seu ritmo.",
-      });
-    } else if (completedMissions.length === 10) {
-      achievement = await storage.ensureAchievement(req.userId!, {
-        type: "ten_missions",
-        title: "Disciplina em movimento",
-        description: "Dez missoes concluidas e um perfil mais forte.",
-      });
+    const totalDone = completedMissions.length;
+
+    // Missão milestones
+    const missionMilestones: Array<[number, string, string, string]> = [
+      [1,  "first_mission",   "Primeira Missão",     "Completou a primeira missão. A jornada começa com uma ação."],
+      [5,  "five_missions",   "Em Ritmo",            "5 missões concluídas. A Bee já reconhece seu ritmo."],
+      [10, "ten_missions",    "Disciplinado",        "10 missões concluídas. Seu perfil está mais forte."],
+      [20, "twenty_missions", "Força Total",         "20 missões concluídas. Consistência real e provada."],
+      [50, "fifty_missions",  "Imparável",           "50 missões. Você redefiniu seus próprios limites."],
+    ];
+    for (const [count, type, title, description] of missionMilestones) {
+      if (totalDone === count) {
+        achievement = await storage.ensureAchievement(req.userId!, { type, title, description });
+        break;
+      }
+    }
+
+    // Dia perfeito — todas as missões diárias de hoje concluídas
+    const now = new Date();
+    const todayDaily = (await storage.getMissionsByUser(req.userId!)).filter((m) => {
+      const d = new Date(m.createdAt);
+      return m.type === "ai_daily"
+        && d.getFullYear() === now.getFullYear()
+        && d.getMonth() === now.getMonth()
+        && d.getDate() === now.getDate();
+    });
+    if (todayDaily.length >= 3 && todayDaily.every((m) => m.completed)) {
+      storage.ensureAchievement(req.userId!, {
+        type: "daily_complete",
+        title: "Dia Perfeito",
+        description: "Completou todas as missões diárias em um único dia. Foco total.",
+      }).catch(() => {});
+    }
+
+    // Streak milestones
+    const streak = updatedUser.currentStreak;
+    const streakMilestones: Array<[number, string, string, string]> = [
+      [3,  "streak_3",  "3 Dias Seguidos", "Presença por 3 dias consecutivos. O hábito começa a se formar."],
+      [7,  "streak_7",  "Semana Sólida",   "7 dias de sequência. Hábito em formação acelerada."],
+      [30, "streak_30", "Mês Imparável",   "30 dias consecutivos. Você é uma lenda no app."],
+    ];
+    for (const [days, type, title, description] of streakMilestones) {
+      if (streak >= days) {
+        storage.ensureAchievement(req.userId!, { type, title, description }).catch(() => {});
+      }
+    }
+
+    // Level-up milestones
+    const levelMilestones: Array<[number, string, string, string]> = [
+      [2,  "level_2",  "Nível 2",   "Subiu ao nível 2. A verdadeira jornada começa."],
+      [5,  "level_5",  "Nível 5",   "Nível 5 conquistado. Presença real e reconhecida."],
+      [10, "level_10", "Veterano",  "Nível 10. Entre os mais evoluídos do BeeEyes."],
+    ];
+    for (const [level, type, title, description] of levelMilestones) {
+      if (updatedUser.level >= level) {
+        storage.ensureAchievement(req.userId!, { type, title, description }).catch(() => {});
+      }
     }
 
     const allMissions = await storage.getMissionsByUser(req.userId!);

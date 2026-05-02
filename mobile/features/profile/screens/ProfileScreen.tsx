@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Modal,
+  TextInput,
+  FlatList,
 } from "react-native";
+import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -16,6 +20,8 @@ import type { NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intellig
 import { useAuthStore } from "@mobile/stores/authStore";
 import { queryClient } from "@mobile/lib/queryClient";
 import XPProgress from "@mobile/components/XPProgress";
+import { MedalGrid, MedalDetail } from "@mobile/components/MedalBadge";
+import type { MedalSpec } from "@mobile/lib/medals";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 
@@ -31,6 +37,12 @@ export default function ProfileScreen() {
   const styles = makeStyles(colors);
   const insets = useSafeAreaInsets();
 
+  const [showTestimonialModal, setShowTestimonialModal] = React.useState(false);
+  const [selectedFriend, setSelectedFriend] = React.useState<{ id: number; displayName: string; username: string } | null>(null);
+  const [testimonialText, setTestimonialText] = React.useState("");
+  const [sendingTestimonial, setSendingTestimonial] = React.useState(false);
+  const [selectedMedal, setSelectedMedal] = React.useState<MedalSpec | null>(null);
+
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: () => api.get("/api/me").then((r) => r.data),
@@ -45,12 +57,14 @@ export default function ProfileScreen() {
     retry: false,
   });
 
-  const { data: missions = [] } = useQuery({
-    queryKey: ["missions"],
-    queryFn: () => api.get("/api/missions").then((r) => r.data),
-    staleTime: 5 * 60 * 1000,
+  const { data: testimonials = [] } = useQuery({
+    queryKey: ["testimonials", profile?.id],
+    queryFn: () => api.get(`/api/users/${profile!.id}/testimonials`).then((r) => r.data),
+    enabled: Boolean(profile?.id),
+    staleTime: 60 * 1000,
     retry: false,
   });
+  const profile = me || user;
 
   const { data: score } = useQuery<ScoreSnapshot>({
     queryKey: ["score"],
@@ -58,6 +72,14 @@ export default function ProfileScreen() {
     staleTime: 30 * 1000,
     retry: false,
   });
+
+  const { data: friends = [] } = useQuery({
+    queryKey: ["friends"],
+    queryFn: () => api.get("/api/friends").then((r) => r.data),
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+  const safeFriends = Array.isArray(friends) ? friends : [];
 
   const { data: notificationCenter = [] } = useQuery<NotificationCenterItem[]>({
     queryKey: ["notifications-center"],
@@ -67,8 +89,24 @@ export default function ProfileScreen() {
   });
   const safeNotificationCenter = Array.isArray(notificationCenter) ? notificationCenter : [];
   const safeAchievements = Array.isArray(achievements) ? achievements : [];
-  const safeMissions = Array.isArray(missions) ? missions : [];
+  const safeTestimonials = Array.isArray(testimonials) ? testimonials : [];
   const unreadNotificationCount = safeNotificationCenter.filter((item) => !item.read).length;
+
+  async function handleSendTestimonial() {
+    if (!selectedFriend || !testimonialText.trim()) return;
+    setSendingTestimonial(true);
+    try {
+      await api.post(`/api/users/${selectedFriend.id}/testimonials`, { content: testimonialText.trim() });
+      Alert.alert("Depoimento enviado!", `Seu depoimento para ${selectedFriend.displayName || selectedFriend.username} foi publicado.`);
+      setShowTestimonialModal(false);
+      setSelectedFriend(null);
+      setTestimonialText("");
+    } catch {
+      Alert.alert("Erro", "Não foi possível enviar o depoimento. Tente novamente.");
+    } finally {
+      setSendingTestimonial(false);
+    }
+  }
 
   async function handleLogout() {
     Alert.alert("Sair", "Tem certeza que deseja sair?", [
@@ -84,9 +122,6 @@ export default function ProfileScreen() {
       },
     ]);
   }
-
-  const completedMissions = safeMissions.filter((m: any) => m.completed).length;
-  const profile = me || user;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -119,6 +154,7 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
           {profile?.displayName ? <Text style={styles.usernameHandle}>@{profile?.username}</Text> : null}
+          {profile?.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
           {profile?.gender ? <Text style={styles.profileMeta}>Genero: {profile.gender}</Text> : null}
           <View style={styles.levelBadge}>
             <Text style={styles.levelText}>Nivel {profile?.level ?? 1}</Text>
@@ -152,28 +188,137 @@ export default function ProfileScreen() {
         ) : null}
 
         <View style={styles.statsGrid}>
-          <StatCard emoji="🎯" label="Missoes" value={completedMissions.toString()} colors={colors} />
           <StatCard emoji="🔥" label="Streak" value={`${profile?.currentStreak ?? 0} dias`} colors={colors} />
-          <StatCard emoji="💬" label="Mensagens" value={(me?.totalMessagesCount ?? 0).toString()} colors={colors} />
-          <StatCard emoji="🏆" label="Conquistas" value={safeAchievements.length.toString()} colors={colors} />
+          <StatCard emoji="🏆" label="Medalhas" value={safeAchievements.length.toString()} colors={colors} />
         </View>
 
-        {safeAchievements.length > 0 && (
-          <View style={styles.achievementsSection}>
-            <Text style={styles.sectionTitle}>Conquistas</Text>
-            {safeAchievements.map((a: any) => (
-              <View key={a.id} style={styles.achievementRow}>
-                <View style={styles.achievementIcon}>
-                  <Text style={styles.achievementEmoji}>🏅</Text>
-                </View>
-                <View>
-                  <Text style={styles.achievementTitle}>{a.title}</Text>
-                  <Text style={styles.achievementDesc}>{a.description}</Text>
-                </View>
-              </View>
-            ))}
+        {/* ── Medalhas ── */}
+        <View style={styles.medalsSection}>
+          <View style={styles.medalsSectionHeader}>
+            <Text style={styles.sectionTitle}>Medalhas</Text>
+            <Text style={styles.medalsCount}>
+              {safeAchievements.length} / 21 conquistadas
+            </Text>
           </View>
-        )}
+          <MedalGrid
+            earnedTypes={safeAchievements.map((a: any) => a.type)}
+            onPress={setSelectedMedal}
+          />
+        </View>
+
+        {/* Modal de detalhes da medalha */}
+        <Modal
+          visible={Boolean(selectedMedal)}
+          animationType="slide"
+          transparent
+          presentationStyle="overFullScreen"
+          onRequestClose={() => setSelectedMedal(null)}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}
+            activeOpacity={1}
+            onPress={() => setSelectedMedal(null)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, paddingBottom: 40, gap: 0 }}
+            >
+              <View style={{ width: 36, height: 4, backgroundColor: "#E0E0E0", borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
+              {selectedMedal && (
+                <MedalDetail
+                  spec={selectedMedal}
+                  earned={safeAchievements.some((a: any) => a.type === selectedMedal.type)}
+                  unlockedAt={safeAchievements.find((a: any) => a.type === selectedMedal.type)?.unlockedAt}
+                />
+              )}
+              <TouchableOpacity
+                onPress={() => setSelectedMedal(null)}
+                style={{ marginTop: 24, backgroundColor: "#F5C842", borderRadius: 16, paddingVertical: 14, alignItems: "center" }}
+              >
+                <Text style={{ fontFamily: FONTS.sans, fontWeight: "700", fontSize: 15, color: "#1A1A1A" }}>Fechar</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
+        <View style={styles.achievementsSection}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <Text style={styles.sectionTitle}>Depoimentos</Text>
+            <TouchableOpacity
+              onPress={() => setShowTestimonialModal(true)}
+              style={{ backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}
+            >
+              <Text style={{ fontSize: 12, fontFamily: FONTS.sans, fontWeight: "700", color: "#1a1a1a" }}>+ Escrever</Text>
+            </TouchableOpacity>
+          </View>
+          {safeTestimonials.length === 0 ? (
+            <Text style={styles.achievementDesc}>Seus amigos ainda nao escreveram depoimentos.</Text>
+          ) : safeTestimonials.map((item: any) => (
+            <View key={item.id} style={styles.testimonialBox}>
+              <Text style={styles.achievementDesc}>{item.content}</Text>
+              <Text style={styles.testimonialAuthor}>por {item.authorDisplayName || item.authorUsername}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Modal de depoimento */}
+        <Modal visible={showTestimonialModal} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowTestimonialModal(false)}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} activeOpacity={1} onPress={() => setShowTestimonialModal(false)}>
+            <TouchableOpacity activeOpacity={1} style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+              <View style={{ width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+              <Text style={{ fontFamily: FONTS.display, fontSize: 18, fontWeight: "800", color: colors.foreground, marginBottom: 16 }}>Escrever depoimento</Text>
+
+              {!selectedFriend ? (
+                <>
+                  <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: colors.muted, marginBottom: 12 }}>Selecione um amigo:</Text>
+                  <FlatList
+                    data={safeFriends}
+                    keyExtractor={(item: any) => String(item.id)}
+                    style={{ maxHeight: 220 }}
+                    renderItem={({ item }: { item: any }) => (
+                      <TouchableOpacity
+                        onPress={() => setSelectedFriend({ id: item.id, displayName: item.displayName, username: item.username })}
+                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}
+                      >
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                          <Text style={{ fontWeight: "700", color: "#1a1a1a" }}>{(item.displayName || item.username || "?")[0].toUpperCase()}</Text>
+                        </View>
+                        <Text style={{ fontFamily: FONTS.sans, fontSize: 14, color: colors.foreground }}>{item.displayName || item.username}</Text>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={<Text style={{ color: colors.muted, fontSize: 13 }}>Nenhum amigo encontrado.</Text>}
+                  />
+                </>
+              ) : (
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                    <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: colors.muted }}>Para: </Text>
+                    <Text style={{ fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: colors.foreground }}>{selectedFriend.displayName || selectedFriend.username}</Text>
+                    <TouchableOpacity onPress={() => setSelectedFriend(null)} style={{ marginLeft: 8 }}>
+                      <Text style={{ fontSize: 12, color: colors.muted }}>trocar</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    value={testimonialText}
+                    onChangeText={setTestimonialText}
+                    placeholder="Escreva um depoimento sincero..."
+                    placeholderTextColor={colors.muted}
+                    multiline
+                    maxLength={500}
+                    style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, minHeight: 100, fontFamily: FONTS.sans, fontSize: 14, color: colors.foreground, textAlignVertical: "top", marginBottom: 16 }}
+                  />
+                  <TouchableOpacity
+                    onPress={handleSendTestimonial}
+                    disabled={!testimonialText.trim() || sendingTestimonial}
+                    style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 14, alignItems: "center", opacity: (!testimonialText.trim() || sendingTestimonial) ? 0.5 : 1 }}
+                  >
+                    <Text style={{ fontFamily: FONTS.sans, fontWeight: "700", fontSize: 15, color: "#1a1a1a" }}>{sendingTestimonial ? "Enviando..." : "Publicar depoimento"}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Sair da conta</Text>
@@ -244,6 +389,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     avatarText: { fontFamily: FONTS.display, fontSize: 36, fontWeight: "700", color: "#1A1A1A" },
     username: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: colors.foreground },
     usernameHandle: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted },
+    profileBio: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground, textAlign: "center", paddingHorizontal: 18 },
     profileMeta: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
     levelBadge: {
       backgroundColor: colors.secondary,
@@ -290,25 +436,23 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     statEmoji: { fontSize: 28 },
     statValue: { fontFamily: FONTS.mono, fontWeight: "700", fontSize: 18, color: colors.foreground },
     statLabel: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
-    achievementsSection: {
+    medalsSection: {
       backgroundColor: colors.card,
       borderRadius: 20,
       padding: 16,
-      gap: 12,
+      gap: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    sectionTitle: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 16, color: colors.foreground },
-    achievementRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-    achievementIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.accent,
+    medalsSectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
       alignItems: "center",
-      justifyContent: "center",
     },
-    achievementEmoji: { fontSize: 20 },
-    achievementTitle: { fontFamily: FONTS.sans, fontWeight: "600", fontSize: 14, color: colors.foreground },
-    achievementDesc: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
+    medalsCount: { fontFamily: FONTS.mono, fontSize: 12, fontWeight: "700", color: colors.primaryDark },
+    sectionTitle: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 16, color: colors.foreground },
+    testimonialBox: { borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 12, gap: 6 },
+    testimonialAuthor: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark },
     logoutButton: {
       borderRadius: 16,
       paddingVertical: 14,

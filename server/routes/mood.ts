@@ -24,6 +24,11 @@ export function createMoodRouter(triggerMissionAction: (userId: string, actionTy
     const entry = await storage.createMoodEntry(parsed.data);
     storage.updateUserStreak(req.userId!).catch(() => {});
     triggerMissionAction(req.userId!, "set_mood").catch(() => {});
+    storage.ensureAchievement(req.userId!, {
+      type: "mood_first_log",
+      title: "Autoconsciência",
+      description: "Registrou seu humor pela primeira vez. Conhecer-se é o primeiro passo.",
+    }).catch(() => {});
 
     return sendCreated(res, entry);
   }));

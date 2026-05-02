@@ -65,9 +65,22 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
     return sendOk(res, community);
   }));
 
+  router.get("/api/communities/:id/members", requireAuth, asyncHandler(async (req, res) => {
+    const community = await storage.getCommunityById(req.params.id, req.userId!);
+    if (!community) {
+      throw notFound("Comunidade nÃ£o encontrada");
+    }
+    return sendOk(res, await storage.getCommunityMembers(req.params.id));
+  }));
+
   router.post("/api/communities/:id/join", requireAuth, asyncHandler(async (req, res) => {
     await storage.joinCommunity(req.params.id, req.userId!);
     triggerMissionAction(req.userId!, "join_community").catch(() => {});
+    storage.ensureAchievement(req.userId!, {
+      type: "community_joined",
+      title: "Cidadão do App",
+      description: "Entrou na sua primeira comunidade. Bem-vindo ao coletivo.",
+    }).catch(() => {});
     return sendOk(res, { ok: true });
   }));
 
@@ -82,7 +95,10 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
 
   router.post("/api/communities/:id/posts", requireAuth, asyncHandler(async (req, res) => {
     const content = String(req.body?.content || "").trim();
-    if (!content) {
+    const imageUrl = typeof req.body?.imageUrl === "string" && req.body.imageUrl.startsWith("data:image/")
+      ? req.body.imageUrl
+      : null;
+    if (!content && !imageUrl) {
       throw badRequest("Conteúdo obrigatório");
     }
 
@@ -91,9 +107,14 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
       throw forbidden("Entre na comunidade para publicar");
     }
 
-    const post = await storage.createCommunityPost({ communityId: req.params.id, userId: req.userId!, content });
+    const post = await storage.createCommunityPost({ communityId: req.params.id, userId: req.userId!, content: content || "Imagem compartilhada", imageUrl });
     const author = await storage.getUser(req.userId!);
     triggerMissionAction(req.userId!, "post_in_community").catch(() => {});
+    storage.ensureAchievement(req.userId!, {
+      type: "first_community_post",
+      title: "Voz na Comunidade",
+      description: "Publicou pela primeira vez em uma comunidade. Sua voz importa.",
+    }).catch(() => {});
 
     return sendCreated(res, {
       ...post,

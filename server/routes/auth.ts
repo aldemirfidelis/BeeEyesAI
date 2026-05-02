@@ -39,6 +39,13 @@ export function createAuthRouter() {
 
     req.logger.info("auth.register.success", { userId: user.id, username: user.username });
 
+    // Medalha early_adopter para todo novo usuário
+    storage.ensureAchievement(user.id, {
+      type: "early_adopter",
+      title: "Pioneiro BeeEyes",
+      description: "Faz parte da geração fundadora do app. Obrigado por estar aqui desde o início.",
+    }).catch(() => {});
+
     return sendCreated(res, {
       token: signToken(user.id),
       user: {
@@ -48,6 +55,9 @@ export function createAuthRouter() {
         gender: user.gender,
         level: user.level,
         xp: user.xp,
+        bio: user.bio,
+        language: user.language,
+        onboardingCompleted: user.onboardingCompleted,
         anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
         currentStreak: user.currentStreak,
       },
@@ -102,8 +112,13 @@ export function createAuthRouter() {
       user: {
         id: user.id,
         username: user.username,
+        displayName: user.displayName,
+        gender: user.gender,
         level: user.level,
         xp: user.xp,
+        bio: user.bio,
+        language: user.language,
+        onboardingCompleted: user.onboardingCompleted,
         anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
         currentStreak: user.currentStreak,
       },
@@ -133,6 +148,9 @@ export function createAuthRouter() {
         gender: user.gender,
         level: user.level,
         xp: user.xp,
+        bio: user.bio,
+        language: user.language,
+        onboardingCompleted: user.onboardingCompleted,
         anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
         currentStreak: user.currentStreak,
       },
@@ -149,9 +167,9 @@ export function createAuthRouter() {
   }));
 
   router.patch("/api/me/preferences", requireAuth, asyncHandler(async (req, res) => {
-    const { anonymousProfileVisitsEnabled } = req.body ?? {};
+    const { anonymousProfileVisitsEnabled, displayName, bio, language, onboardingCompleted } = req.body ?? {};
 
-    if (typeof anonymousProfileVisitsEnabled !== "boolean") {
+    if (anonymousProfileVisitsEnabled !== undefined && typeof anonymousProfileVisitsEnabled !== "boolean") {
       throw validationError("PreferÃªncias invÃ¡lidas", [
         {
           path: ["anonymousProfileVisitsEnabled"],
@@ -166,12 +184,20 @@ export function createAuthRouter() {
       throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
-    if (anonymousProfileVisitsEnabled && !hasAnonymousProfileVisitsUnlocked(user)) {
+    if (anonymousProfileVisitsEnabled === true && !hasAnonymousProfileVisitsUnlocked(user)) {
       throw forbidden("NavegaÃ§Ã£o anÃ´nima desbloqueia no nÃ­vel 3 com XP de missÃµes");
+    }
+
+    if (language !== undefined && !["pt-BR", "en", "es"].includes(String(language))) {
+      throw badRequest("Idioma nao suportado");
     }
 
     const updatedUser = await storage.updateUserPreferences(req.userId!, {
       anonymousProfileVisitsEnabled,
+      displayName: displayName !== undefined ? String(displayName).trim().slice(0, 80) || null : undefined,
+      bio: bio !== undefined ? String(bio).trim().slice(0, 300) || null : undefined,
+      language: language !== undefined ? String(language) : undefined,
+      onboardingCompleted: onboardingCompleted !== undefined ? Boolean(onboardingCompleted) : undefined,
     });
 
     req.logger.info("user.preferences.updated", {
@@ -182,5 +208,54 @@ export function createAuthRouter() {
     return sendOk(res, sanitizeUser(updatedUser));
   }));
 
+  router.patch("/api/me/password", requireAuth, asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      throw badRequest("Senha atual e nova senha sao obrigatorias");
+    }
+    if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      throw badRequest("A nova senha precisa ter ao menos 8 caracteres, uma letra e um numero");
+    }
+
+    const user = await storage.getUser(req.userId!);
+    if (!user) throw notFound("Usuario nao encontrado");
+    if (!(await verifyPassword(currentPassword, user.password))) {
+      throw unauthorized("Senha atual incorreta");
+    }
+
+    await storage.updateUserPassword(req.userId!, await hashPassword(newPassword));
+    return sendOk(res, { ok: true });
+  }));
+
+  router.post("/api/me/onboarding", requireAuth, asyncHandler(async (req, res) => {
+    const objective = String(req.body?.objective || "").trim().slice(0, 120);
+    const routine = String(req.body?.routine || "").trim().slice(0, 300);
+    const interests = Array.isArray(req.body?.interests)
+      ? req.body.interests.map((item: unknown) => String(item).trim()).filter(Boolean).slice(0, 12)
+      : [];
+
+    if (!objective || !routine || interests.length === 0) {
+      throw badRequest("Objetivo, rotina e interesses sao obrigatorios");
+    }
+
+    const personality = await storage.getPersonality(req.userId!);
+    await storage.upsertPersonality({
+      userId: req.userId!,
+      traits: JSON.stringify({
+        ...(personality?.traits ? JSON.parse(personality.traits) : {}),
+        objective,
+        routine,
+      }),
+      communicationStyle: personality?.communicationStyle ?? "friendly",
+      interests: JSON.stringify(interests),
+      recentTopics: personality?.recentTopics ?? "[]",
+    });
+
+    const updated = await storage.updateUserPreferences(req.userId!, { onboardingCompleted: true });
+    return sendOk(res, sanitizeUser(updated));
+  }));
+
   return router;
 }
+
+
