@@ -57,6 +57,8 @@ export default function ProfileScreen() {
     retry: false,
   });
 
+  const profile = me || user;
+
   const { data: testimonials = [] } = useQuery({
     queryKey: ["testimonials", profile?.id],
     queryFn: () => api.get(`/api/users/${profile!.id}/testimonials`).then((r) => r.data),
@@ -64,7 +66,6 @@ export default function ProfileScreen() {
     staleTime: 60 * 1000,
     retry: false,
   });
-  const profile = me || user;
 
   const { data: score } = useQuery<ScoreSnapshot>({
     queryKey: ["score"],
@@ -236,79 +237,160 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Modal>
 
-        <View style={styles.achievementsSection}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <Text style={styles.sectionTitle}>Depoimentos</Text>
+        {/* ── Depoimentos (estilo Orkut) ── */}
+        <View style={styles.testimonialsSection}>
+          <View style={styles.testimonialsSectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Depoimentos 💬</Text>
+              <Text style={styles.testimonialsSub}>
+                {safeTestimonials.length > 0
+                  ? `${safeTestimonials.length} depoimento${safeTestimonials.length > 1 ? "s" : ""}`
+                  : "Nenhum depoimento ainda"}
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => setShowTestimonialModal(true)}
-              style={{ backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}
+              style={styles.testimonialWriteBtn}
             >
-              <Text style={{ fontSize: 12, fontFamily: FONTS.sans, fontWeight: "700", color: "#1a1a1a" }}>+ Escrever</Text>
+              <Feather name="edit-3" size={14} color="#1a1a1a" />
+              <Text style={styles.testimonialWriteBtnText}>Escrever</Text>
             </TouchableOpacity>
           </View>
+
           {safeTestimonials.length === 0 ? (
-            <Text style={styles.achievementDesc}>Seus amigos ainda nao escreveram depoimentos.</Text>
-          ) : safeTestimonials.map((item: any) => (
-            <View key={item.id} style={styles.testimonialBox}>
-              <Text style={styles.achievementDesc}>{item.content}</Text>
-              <Text style={styles.testimonialAuthor}>por {item.authorDisplayName || item.authorUsername}</Text>
+            <View style={styles.testimonialEmpty}>
+              <Text style={styles.testimonialEmptyIcon}>💭</Text>
+              <Text style={styles.testimonialEmptyText}>
+                Seus amigos ainda não escreveram depoimentos.{"\n"}Peça para alguém deixar um!
+              </Text>
             </View>
-          ))}
+          ) : (
+            safeTestimonials.map((item: any) => (
+              <View key={item.id} style={styles.testimonialCard}>
+                {/* Avatar do autor */}
+                <View style={styles.testimonialAuthorRow}>
+                  <View style={styles.testimonialAvatar}>
+                    <Text style={styles.testimonialAvatarText}>
+                      {(item.authorDisplayName || item.authorUsername || "?")[0].toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.testimonialAuthorName}>
+                      {item.authorDisplayName || item.authorUsername}
+                    </Text>
+                    {item.createdAt ? (
+                      <Text style={styles.testimonialDate}>
+                        {new Date(item.createdAt).toLocaleDateString("pt-BR", {
+                          day: "2-digit", month: "long", year: "numeric",
+                        })}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.testimonialQuoteMark}>
+                    <Text style={{ fontSize: 22, color: colors.primary, lineHeight: 26 }}>"</Text>
+                  </View>
+                </View>
+                <Text style={styles.testimonialContent}>{item.content}</Text>
+              </View>
+            ))
+          )}
         </View>
 
-        {/* Modal de depoimento */}
-        <Modal visible={showTestimonialModal} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowTestimonialModal(false)}>
-          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} activeOpacity={1} onPress={() => setShowTestimonialModal(false)}>
-            <TouchableOpacity activeOpacity={1} style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-              <View style={{ width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
-              <Text style={{ fontFamily: FONTS.display, fontSize: 18, fontWeight: "800", color: colors.foreground, marginBottom: 16 }}>Escrever depoimento</Text>
+        {/* Modal — escrever depoimento para um amigo */}
+        <Modal
+          visible={showTestimonialModal}
+          animationType="slide"
+          transparent
+          presentationStyle="overFullScreen"
+          onRequestClose={() => { setShowTestimonialModal(false); setSelectedFriend(null); setTestimonialText(""); }}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}
+            activeOpacity={1}
+            onPress={() => { setShowTestimonialModal(false); setSelectedFriend(null); setTestimonialText(""); }}
+          >
+            <TouchableOpacity activeOpacity={1} style={styles.testimonialModal}>
+              <View style={styles.testimonialModalHandle} />
 
               {!selectedFriend ? (
+                /* Step 1 — Escolher amigo */
                 <>
-                  <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: colors.muted, marginBottom: 12 }}>Selecione um amigo:</Text>
+                  <Text style={styles.testimonialModalTitle}>Para quem você quer escrever?</Text>
+                  <Text style={styles.testimonialModalSub}>Selecione um amigo para deixar um depoimento</Text>
                   <FlatList
                     data={safeFriends}
                     keyExtractor={(item: any) => String(item.id)}
-                    style={{ maxHeight: 220 }}
+                    style={{ maxHeight: 280, marginTop: 12 }}
                     renderItem={({ item }: { item: any }) => (
                       <TouchableOpacity
                         onPress={() => setSelectedFriend({ id: item.id, displayName: item.displayName, username: item.username })}
-                        style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}
+                        style={styles.friendPickerRow}
                       >
-                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 10 }}>
-                          <Text style={{ fontWeight: "700", color: "#1a1a1a" }}>{(item.displayName || item.username || "?")[0].toUpperCase()}</Text>
+                        <View style={styles.friendPickerAvatar}>
+                          <Text style={styles.friendPickerAvatarText}>
+                            {(item.displayName || item.username || "?")[0].toUpperCase()}
+                          </Text>
                         </View>
-                        <Text style={{ fontFamily: FONTS.sans, fontSize: 14, color: colors.foreground }}>{item.displayName || item.username}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.friendPickerName}>{item.displayName || item.username}</Text>
+                          {item.displayName ? (
+                            <Text style={styles.friendPickerHandle}>@{item.username}</Text>
+                          ) : null}
+                        </View>
+                        <Feather name="chevron-right" size={16} color={colors.muted} />
                       </TouchableOpacity>
                     )}
-                    ListEmptyComponent={<Text style={{ color: colors.muted, fontSize: 13 }}>Nenhum amigo encontrado.</Text>}
+                    ListEmptyComponent={
+                      <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center", paddingVertical: 24 }}>
+                        Nenhum amigo conectado ainda.
+                      </Text>
+                    }
                   />
                 </>
               ) : (
+                /* Step 2 — Escrever depoimento */
                 <>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                    <Text style={{ fontFamily: FONTS.sans, fontSize: 13, color: colors.muted }}>Para: </Text>
-                    <Text style={{ fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: colors.foreground }}>{selectedFriend.displayName || selectedFriend.username}</Text>
-                    <TouchableOpacity onPress={() => setSelectedFriend(null)} style={{ marginLeft: 8 }}>
-                      <Text style={{ fontSize: 12, color: colors.muted }}>trocar</Text>
+                  <View style={styles.testimonialForRow}>
+                    <TouchableOpacity onPress={() => setSelectedFriend(null)} style={styles.testimonialBackBtn}>
+                      <Feather name="arrow-left" size={16} color={colors.foreground} />
                     </TouchableOpacity>
+                    <View style={styles.testimonialForAvatar}>
+                      <Text style={styles.testimonialForAvatarText}>
+                        {(selectedFriend.displayName || selectedFriend.username)[0].toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.testimonialForLabel}>Escrevendo para</Text>
+                      <Text style={styles.testimonialForName}>{selectedFriend.displayName || selectedFriend.username}</Text>
+                    </View>
                   </View>
+
+                  <Text style={styles.testimonialModalTitle}>Seu depoimento</Text>
                   <TextInput
                     value={testimonialText}
                     onChangeText={setTestimonialText}
-                    placeholder="Escreva um depoimento sincero..."
+                    placeholder={`Escreva o que você pensa sobre ${selectedFriend.displayName || selectedFriend.username}...`}
                     placeholderTextColor={colors.muted}
                     multiline
                     maxLength={500}
-                    style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, minHeight: 100, fontFamily: FONTS.sans, fontSize: 14, color: colors.foreground, textAlignVertical: "top", marginBottom: 16 }}
+                    autoFocus
+                    style={styles.testimonialTextInput}
                   />
-                  <TouchableOpacity
-                    onPress={handleSendTestimonial}
-                    disabled={!testimonialText.trim() || sendingTestimonial}
-                    style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 14, alignItems: "center", opacity: (!testimonialText.trim() || sendingTestimonial) ? 0.5 : 1 }}
-                  >
-                    <Text style={{ fontFamily: FONTS.sans, fontWeight: "700", fontSize: 15, color: "#1a1a1a" }}>{sendingTestimonial ? "Enviando..." : "Publicar depoimento"}</Text>
-                  </TouchableOpacity>
+                  <View style={styles.testimonialFooter}>
+                    <Text style={[styles.testimonialCharCount, testimonialText.length > 450 && { color: colors.destructive }]}>
+                      {testimonialText.length}/500
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handleSendTestimonial}
+                      disabled={!testimonialText.trim() || sendingTestimonial}
+                      style={[styles.testimonialPublishBtn, (!testimonialText.trim() || sendingTestimonial) && { opacity: 0.5 }]}
+                    >
+                      <Feather name="send" size={14} color="#1a1a1a" />
+                      <Text style={styles.testimonialPublishText}>
+                        {sendingTestimonial ? "Enviando..." : "Publicar"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               )}
             </TouchableOpacity>
@@ -443,8 +525,110 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     medalsCount: { fontFamily: FONTS.mono, fontSize: 12, fontWeight: "700", color: colors.primaryDark },
     sectionTitle: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 16, color: colors.foreground },
-    testimonialBox: { borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 12, gap: 6 },
-    testimonialAuthor: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark },
+    // ── Testimonials ─────────────────────────────────────────────────────────
+    testimonialsSection: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 16,
+      gap: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    testimonialsSectionHeader: {
+      flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
+    },
+    testimonialsSub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
+    testimonialWriteBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      backgroundColor: colors.primary,
+      borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    },
+    testimonialWriteBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: "#1a1a1a" },
+    testimonialEmpty: { alignItems: "center", gap: 8, paddingVertical: 16 },
+    testimonialEmptyIcon: { fontSize: 32 },
+    testimonialEmptyText: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted, textAlign: "center", lineHeight: 19 },
+    testimonialCard: {
+      backgroundColor: colors.background,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      gap: 10,
+    },
+    testimonialAuthorRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    testimonialAvatar: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: colors.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    testimonialAvatarText: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "700", color: "#1a1a1a" },
+    testimonialAuthorName: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: colors.foreground },
+    testimonialDate: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted, marginTop: 1 },
+    testimonialQuoteMark: {
+      width: 30, height: 30, alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.primary + "22", borderRadius: 15,
+    },
+    testimonialContent: {
+      fontFamily: FONTS.sans, fontSize: 14, lineHeight: 21,
+      color: colors.foreground,
+      fontStyle: "italic",
+    },
+    // Modal
+    testimonialModal: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      padding: 22, paddingBottom: 40, gap: 12,
+    },
+    testimonialModalHandle: { width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+    testimonialModalTitle: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "800", color: colors.foreground },
+    testimonialModalSub: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted, marginTop: -4 },
+    friendPickerRow: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      paddingVertical: 12,
+      borderBottomWidth: 1, borderBottomColor: colors.border,
+    },
+    friendPickerAvatar: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: colors.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    friendPickerAvatarText: { fontFamily: FONTS.display, fontSize: 20, fontWeight: "700", color: "#1a1a1a" },
+    friendPickerName: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "700", color: colors.foreground },
+    friendPickerHandle: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
+    testimonialForRow: {
+      flexDirection: "row", alignItems: "center", gap: 10,
+      backgroundColor: colors.secondary,
+      borderRadius: 16, padding: 12, marginBottom: 4,
+    },
+    testimonialBackBtn: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: colors.card,
+      alignItems: "center", justifyContent: "center",
+    },
+    testimonialForAvatar: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: colors.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    testimonialForAvatarText: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "700", color: "#1a1a1a" },
+    testimonialForLabel: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted },
+    testimonialForName: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "700", color: colors.foreground },
+    testimonialTextInput: {
+      borderWidth: 1.5, borderColor: colors.border,
+      borderRadius: 16, padding: 14,
+      minHeight: 120, maxHeight: 200,
+      fontFamily: FONTS.sans, fontSize: 15, color: colors.foreground,
+      textAlignVertical: "top",
+      backgroundColor: colors.background,
+    },
+    testimonialFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    testimonialCharCount: { fontFamily: FONTS.mono, fontSize: 12, color: colors.muted },
+    testimonialPublishBtn: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      backgroundColor: colors.primary, borderRadius: 18,
+      paddingHorizontal: 20, paddingVertical: 11,
+    },
+    testimonialPublishText: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 14, color: "#1a1a1a" },
     logoutButton: {
       borderRadius: 16,
       paddingVertical: 14,
