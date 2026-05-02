@@ -8,11 +8,12 @@ import {
   RefreshControl,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Image,
   Platform,
   Share,
 } from "react-native";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
@@ -58,25 +59,45 @@ const SENTIMENT_EMOJI: Record<string, string> = {
   proud: "🏆",
 };
 
+async function processImage(uri: string, onChange: (imageUrl: string) => void) {
+  const processed = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 1080 } }],
+    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+  if (processed.base64) onChange(`data:image/jpeg;base64,${processed.base64}`);
+}
+
 async function pickFeedImage(onChange: (imageUrl: string) => void) {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
-    Alert.alert("Permissao necessaria", "Permita acesso a galeria para publicar uma foto.");
+    Alert.alert("Permissão necessária", "Permita acesso à galeria para publicar uma foto.");
     return;
   }
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: "images",
     allowsEditing: true,
     aspect: [4, 3],
-    quality: 0.7,
+    quality: 0.8,
   });
   if (result.canceled || !result.assets?.[0]?.uri) return;
-  const processed = await ImageManipulator.manipulateAsync(
-    result.assets[0].uri,
-    [{ resize: { width: 900 } }],
-    { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-  );
-  if (processed.base64) onChange(`data:image/jpeg;base64,${processed.base64}`);
+  await processImage(result.assets[0].uri, onChange);
+}
+
+async function takeFeedPhoto(onChange: (imageUrl: string) => void) {
+  const permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted) {
+    Alert.alert("Permissão necessária", "Permita acesso à câmera para tirar uma foto.");
+    return;
+  }
+  const result = await ImagePicker.launchCameraAsync({
+    mediaTypes: "images",
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 0.8,
+  });
+  if (result.canceled || !result.assets?.[0]?.uri) return;
+  await processImage(result.assets[0].uri, onChange);
 }
 
 export default function FeedScreen() {
@@ -89,8 +110,20 @@ export default function FeedScreen() {
   const [postText, setPostText] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
   const [pickingImage, setPickingImage] = useState(false);
-  const [showPostInput, setShowPostInput] = useState(false);
+  const [showComposer, setShowComposer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  function openComposer() {
+    setShowComposer(true);
+    setTimeout(() => inputRef.current?.focus(), 300);
+  }
+
+  function closeComposer() {
+    setShowComposer(false);
+    setPostText("");
+    setPostImageUrl("");
+  }
 
   const { data: feed = [], isLoading } = useQuery<FeedPost[]>({
     queryKey: ["feed"],
@@ -119,7 +152,7 @@ export default function FeedScreen() {
       ]);
       setPostText("");
       setPostImageUrl("");
-      setShowPostInput(false);
+      closeComposer();
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["feed"] });
         queryClient.invalidateQueries({ queryKey: ["me"] });
@@ -155,17 +188,131 @@ export default function FeedScreen() {
     createPost.mutate({ content: postText.trim() || "Imagem compartilhada", imageUrl: postImageUrl });
   }
 
+  const authorInitial = (user?.displayName || user?.username || "?")[0].toUpperCase();
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      {/* ── Composer Modal ── */}
+      <Modal
+        visible={showComposer}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={closeComposer}
+      >
+        <View style={{ flex: 1 }}>
+          {/* Dimmer */}
+          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} activeOpacity={1} onPress={closeComposer} />
+          {/* Sheet */}
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={styles.composerSheet}>
+              {/* Handle */}
+              <View style={styles.composerHandle} />
+
+              {/* Header */}
+              <View style={styles.composerHeader}>
+                <View style={styles.composerAvatar}>
+                  <Text style={styles.composerAvatarText}>{authorInitial}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.composerName}>{user?.displayName || user?.username}</Text>
+                  <Text style={styles.composerSub}>Publicação pública</Text>
+                </View>
+                <TouchableOpacity onPress={closeComposer} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Feather name="x" size={22} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Text input */}
+              <TextInput
+                ref={inputRef}
+                style={styles.composerInput}
+                placeholder="O que você está pensando?"
+                placeholderTextColor={colors.muted}
+                multiline
+                maxLength={500}
+                value={postText}
+                onChangeText={setPostText}
+                textAlignVertical="top"
+              />
+
+              {/* Image preview */}
+              {postImageUrl ? (
+                <View style={styles.composerImageWrap}>
+                  <Image source={{ uri: postImageUrl }} style={styles.composerImage} resizeMode="cover" />
+                  <TouchableOpacity
+                    onPress={() => setPostImageUrl("")}
+                    style={styles.composerImageRemove}
+                  >
+                    <Feather name="x" size={16} color="#fff" />
+                  </TouchableOpacity>
+                  <View style={styles.composerImageLabel}>
+                    <Feather name="image" size={12} color="#fff" />
+                    <Text style={{ color: "#fff", fontSize: 11, fontWeight: "600", marginLeft: 4 }}>Foto anexada</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Action bar */}
+              <View style={[styles.composerActions, { paddingBottom: insets.bottom + 8 }]}>
+                {/* Câmera */}
+                <TouchableOpacity
+                  style={styles.composerActionBtn}
+                  disabled={pickingImage}
+                  onPress={async () => {
+                    setPickingImage(true);
+                    try { await takeFeedPhoto(setPostImageUrl); } finally { setPickingImage(false); }
+                  }}
+                >
+                  <Feather name="camera" size={20} color={colors.primaryDark} />
+                  <Text style={styles.composerActionLabel}>Câmera</Text>
+                </TouchableOpacity>
+
+                {/* Galeria */}
+                <TouchableOpacity
+                  style={styles.composerActionBtn}
+                  disabled={pickingImage}
+                  onPress={async () => {
+                    setPickingImage(true);
+                    try { await pickFeedImage(setPostImageUrl); } finally { setPickingImage(false); }
+                  }}
+                >
+                  <Feather name={postImageUrl ? "refresh-cw" : "image"} size={20} color={colors.primaryDark} />
+                  <Text style={styles.composerActionLabel}>{postImageUrl ? "Trocar" : "Galeria"}</Text>
+                </TouchableOpacity>
+
+                <View style={{ flex: 1 }} />
+
+                {/* Char count */}
+                <Text style={[styles.composerCharCount, postText.length > 450 && { color: colors.destructive }]}>
+                  {postText.length}/500
+                </Text>
+
+                {/* Publicar */}
+                <TouchableOpacity
+                  style={[
+                    styles.composerPublishBtn,
+                    ((!postText.trim() && !postImageUrl) || createPost.isPending) && styles.composerPublishDisabled,
+                  ]}
+                  onPress={handlePost}
+                  disabled={(!postText.trim() && !postImageUrl) || createPost.isPending}
+                >
+                  <Text style={styles.composerPublishText}>
+                    {createPost.isPending ? "Publicando..." : "Publicar"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Feed</Text>
-            <Text style={styles.headerSubtitle}>Compartilhe, comente e acompanhe sua rede</Text>
+            <Text style={styles.headerSubtitle}>Compartilhe e acompanhe sua rede</Text>
           </View>
-          <TouchableOpacity style={styles.newPostBtn} onPress={() => setShowPostInput((v) => !v)}>
-            <Text style={styles.newPostBtnText}>{showPostInput ? "Cancelar" : "+ Post"}</Text>
-          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -173,53 +320,16 @@ export default function FeedScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-          {showPostInput && (
-            <View style={styles.postInputCard}>
-              <Text style={styles.postInputLabel}>O que esta acontecendo?</Text>
-              <TextInput
-                style={styles.postInput}
-                placeholder="Compartilhe um momento, conquista ou pensamento..."
-                placeholderTextColor={colors.muted}
-                multiline
-                maxLength={500}
-                value={postText}
-                onChangeText={setPostText}
-                autoFocus
-              />
-              {postImageUrl ? (
-                <View style={{ position: "relative" }}>
-                  <Image source={{ uri: postImageUrl }} style={{ width: "100%", height: 160, borderRadius: 12, backgroundColor: colors.secondary }} resizeMode="cover" />
-                  <TouchableOpacity
-                    onPress={() => setPostImageUrl("")}
-                    style={{ position: "absolute", top: 8, right: 8, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14, padding: 5 }}
-                  >
-                    <Feather name="x" size={14} color="white" />
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              <View style={styles.postInputFooter}>
-                <Text style={styles.charCount}>{postText.length}/500</Text>
-                <TouchableOpacity
-                  style={styles.photoBtn}
-                  onPress={async () => {
-                    setPickingImage(true);
-                    try { await pickFeedImage(setPostImageUrl); } finally { setPickingImage(false); }
-                  }}
-                  disabled={pickingImage}
-                >
-                  <Feather name="image" size={13} color={colors.foreground} style={{ marginRight: 4 }} />
-                  <Text style={styles.photoBtnText}>{pickingImage ? "Carregando..." : postImageUrl ? "Trocar foto" : "Foto"}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.publishBtn, ((!postText.trim() && !postImageUrl) || createPost.isPending) && styles.publishBtnDisabled]}
-                  onPress={handlePost}
-                  disabled={(!postText.trim() && !postImageUrl) || createPost.isPending}
-                >
-                  <Text style={styles.publishBtnText}>{createPost.isPending ? "Publicando..." : "Publicar"}</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Composer trigger row */}
+          <TouchableOpacity style={styles.composerTrigger} onPress={openComposer} activeOpacity={0.75}>
+            <View style={styles.composerTriggerAvatar}>
+              <Text style={styles.composerTriggerAvatarText}>{authorInitial}</Text>
             </View>
-          )}
+            <Text style={styles.composerTriggerPlaceholder}>O que você está pensando?</Text>
+            <View style={styles.composerTriggerPhotoBtn}>
+              <Feather name="image" size={16} color={colors.primaryDark} />
+            </View>
+          </TouchableOpacity>
 
           {suggestions.length > 0 && (
             <View style={styles.suggestionsCard}>
@@ -284,7 +394,7 @@ export default function FeedScreen() {
             />
           ))}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }
@@ -576,34 +686,105 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     newPostBtnText: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 13, color: "#1A1A1A" },
     content: { padding: 16, gap: 12, paddingBottom: 32 },
-    postInputCard: {
+
+    // ── Composer trigger row ──
+    composerTrigger: {
+      flexDirection: "row",
+      alignItems: "center",
       backgroundColor: colors.card,
       borderRadius: 20,
-      padding: 16,
+      padding: 14,
       gap: 10,
-      borderWidth: 1.5,
-      borderColor: colors.primary + "66",
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    postInputLabel: { fontFamily: FONTS.sans, fontWeight: "600", fontSize: 14, color: colors.foreground },
-    postInput: {
-      fontFamily: FONTS.sans,
-      fontSize: 15,
-      color: colors.foreground,
-      minHeight: 80,
+    composerTriggerAvatar: {
+      width: 38, height: 38, borderRadius: 19,
+      backgroundColor: colors.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    composerTriggerAvatarText: { fontFamily: FONTS.display, fontSize: 16, fontWeight: "700", color: "#1A1A1A" },
+    composerTriggerPlaceholder: { flex: 1, fontFamily: FONTS.sans, fontSize: 14, color: colors.muted },
+    composerTriggerPhotoBtn: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: colors.primary + "22",
+      alignItems: "center", justifyContent: "center",
+    },
+
+    // ── Composer bottom sheet ──
+    composerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingTop: 10,
+    },
+    composerHandle: {
+      width: 40, height: 4, borderRadius: 2,
+      backgroundColor: colors.border,
+      alignSelf: "center",
+      marginBottom: 14,
+    },
+    composerHeader: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      paddingHorizontal: 18, paddingBottom: 14,
+      borderBottomWidth: 1, borderBottomColor: colors.border,
+    },
+    composerAvatar: {
+      width: 42, height: 42, borderRadius: 21,
+      backgroundColor: colors.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    composerAvatarText: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "700", color: "#1A1A1A" },
+    composerName: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 15, color: colors.foreground },
+    composerSub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 1 },
+    composerInput: {
+      fontFamily: FONTS.sans, fontSize: 16, color: colors.foreground,
+      minHeight: 110, maxHeight: 200,
+      paddingHorizontal: 18, paddingVertical: 14,
       textAlignVertical: "top",
     },
-    postInputFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    charCount: { fontFamily: FONTS.mono, fontSize: 12, color: colors.muted },
-    photoBtn: { flexDirection: "row", alignItems: "center", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.secondary },
-    photoBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.foreground },
-    publishBtn: {
-      backgroundColor: colors.primary,
-      borderRadius: 16,
-      paddingHorizontal: 20,
-      paddingVertical: 8,
+    composerImageWrap: {
+      position: "relative",
+      marginHorizontal: 18,
+      marginBottom: 10,
+      borderRadius: 14,
+      overflow: "hidden",
     },
+    composerImage: { width: "100%", height: 180, backgroundColor: colors.secondary },
+    composerImageRemove: {
+      position: "absolute", top: 8, right: 8,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      borderRadius: 16, padding: 6,
+    },
+    composerImageLabel: {
+      position: "absolute", bottom: 8, left: 8,
+      flexDirection: "row", alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.5)",
+      borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
+    },
+    composerActions: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      paddingHorizontal: 14, paddingTop: 10,
+      borderTopWidth: 1, borderTopColor: colors.border,
+    },
+    composerActionBtn: {
+      alignItems: "center", gap: 3,
+      paddingHorizontal: 10, paddingVertical: 8,
+      borderRadius: 14,
+      backgroundColor: colors.primary + "18",
+      minWidth: 64,
+    },
+    composerActionLabel: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "700", color: colors.primaryDark },
+    composerCharCount: { fontFamily: FONTS.mono, fontSize: 12, color: colors.muted },
+    composerPublishBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: 18,
+      paddingHorizontal: 20, paddingVertical: 10,
+    },
+    composerPublishDisabled: { opacity: 0.45 },
+    composerPublishText: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 14, color: "#1A1A1A" },
+
     publishBtnDisabled: { opacity: 0.5 },
-    publishBtnText: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 14, color: "#1A1A1A" },
     suggestionsCard: {
       backgroundColor: colors.card,
       borderRadius: 20,
