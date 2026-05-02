@@ -156,43 +156,13 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
   }));
 
   router.get("/api/notifications/center", requireAuth, asyncHandler(async (req, res) => {
-    const [snapshot, recentMessages, notificationReads] = await Promise.all([
-      getUserActivitySnapshot(req.userId!),
+    const [recentMessages, notificationReads] = await Promise.all([
       storage.getMessagesByUser(req.userId!, 40),
       storage.getNotificationReadsByUser(req.userId!),
     ]);
     const readIds = new Set(notificationReads.map((item) => item.notificationId));
 
-    const score = buildScoreSnapshot({
-      activeDays: snapshot.activeDays,
-      completedMissions: snapshot.completedMissions,
-      totalMissionsTouched: snapshot.totalMissionsTouched,
-      streak: snapshot.user.currentStreak,
-      level: snapshot.user.level,
-      xp: snapshot.user.xp,
-      lastActiveHours: snapshot.lastActiveHours,
-      pendingMissions: snapshot.pendingMissions,
-    });
-
-    const intelligentItems: NotificationCenterItem[] = buildIntelligentNotifications({
-      focusScore: score.focusScore,
-      consistencyScore: score.consistencyScore,
-      disciplineScore: score.disciplineScore,
-      completedMissions: snapshot.completedMissions,
-      pendingMissions: snapshot.pendingMissions,
-      streak: snapshot.user.currentStreak,
-      lastActiveHours: snapshot.lastActiveHours,
-    }).map((item) => ({
-      id: item.id,
-      category: item.type === "celebration" ? "activity" : "alert",
-      source: "intelligent" as const,
-      title: item.title,
-      body: item.body,
-      tone: item.tone,
-      createdAt: new Date().toISOString(),
-      read: false,
-    }));
-
+    // Apenas eventos reais — sem leitura de score/análise (essa fica no Insight do Chat)
     const messageItems = recentMessages.flatMap<NotificationCenterItem>((message) => {
       if (message.role !== "assistant") return [];
 
@@ -245,7 +215,7 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return [];
     });
 
-    const deduped: NotificationCenterItem[] = [...intelligentItems, ...messageItems]
+    const deduped: NotificationCenterItem[] = [...messageItems]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
       .map((item) => ({ ...item, read: readIds.has(item.id) }))
