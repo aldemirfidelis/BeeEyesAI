@@ -2,7 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../api/async-handler";
 import { notFound, validationError } from "../api/errors";
 import { sendCreated, sendNoContent, sendOk } from "../api/response";
-import { buildDailyContext, buildWeeklyReport, generateAdaptiveDailyMissionPlan, generateMissionCelebration } from "../ai";
+import { buildDailyContext, buildWeeklyReport, generateAdaptiveDailyMissionPlan, generateBonusMissions, generateMissionCelebration } from "../ai";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { insertMissionSchema } from "../../shared/schema";
@@ -65,6 +65,26 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
     return todaysDaily;
   }
 
+  // Cria 3 missões bônus aleatórias quando o usuário concluiu tudo.
+  // Limita a 6 bônus pendentes para não inflar a lista.
+  async function ensureBonusMissions(userId: string) {
+    const allMissions = await storage.getMissionsByUser(userId);
+    const pendingBonus = allMissions.filter((m) => m.type === "ai_bonus" && !m.completed);
+    if (pendingBonus.length >= 3) return; // já tem bônus suficientes
+    const existingTitles = new Set(allMissions.map((m) => m.title));
+    const drafts = generateBonusMissions(existingTitles);
+    for (const draft of drafts) {
+      await storage.createMission({
+        userId,
+        title: draft.title,
+        description: draft.description,
+        xpReward: draft.xpReward,
+        type: draft.type,
+        tier: draft.tier,
+      });
+    }
+  }
+
   router.get("/api/missions/daily-context", requireAuth, asyncHandler(async (req, res) => {
     const userId = req.userId!;
     const [user, personality, history, allMissions, recentMoods] = await Promise.all([
@@ -96,6 +116,14 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
   router.get("/api/missions", requireAuth, asyncHandler(async (req, res) => {
     const completedQuery = req.query.completed;
     const completed = completedQuery === "true" ? true : completedQuery === "false" ? false : undefined;
+    if (completed === undefined) {
+      const all = await storage.getMissionsByUser(req.userId!);
+      const allDone = all.length > 0 && all.every((m) => m.completed);
+      if (allDone) {
+        await ensureDailyMissions(req.userId!);
+        await ensureBonusMissions(req.userId!);
+      }
+    }
     return sendOk(res, await storage.getMissionsByUser(req.userId!, completed));
   }));
 
@@ -126,15 +154,30 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
     let achievement = null;
     const completedMissions = await storage.getMissionsByUser(req.userId!, true);
     if (completedMissions.length === 1) {
-      const has = await storage.hasAchievement(req.userId!, "first_mission");
-      if (!has) {
-        achievement = await storage.createAchievement({
-          userId: req.userId!,
-          type: "first_mission",
-          title: "Primeira Missão!",
-          description: "Você completou sua primeira missão. Continue assim! 🎯",
-        });
-      }
+      achievement = await storage.ensureAchievement(req.userId!, {
+        type: "first_mission",
+        title: "Primeira Missao!",
+        description: "Voce completou sua primeira missao. Continue assim!",
+      });
+    } else if (completedMissions.length === 5) {
+      achievement = await storage.ensureAchievement(req.userId!, {
+        type: "five_missions",
+        title: "Sequencia de acao",
+        description: "Cinco missoes concluidas. A Bee ja reconhece seu ritmo.",
+      });
+    } else if (completedMissions.length === 10) {
+      achievement = await storage.ensureAchievement(req.userId!, {
+        type: "ten_missions",
+        title: "Disciplina em movimento",
+        description: "Dez missoes concluidas e um perfil mais forte.",
+      });
+    }
+
+    const allMissions = await storage.getMissionsByUser(req.userId!);
+    const allDone = allMissions.length > 0 && allMissions.every((item) => item.completed);
+    if (allDone) {
+      await ensureDailyMissions(req.userId!);
+      await ensureBonusMissions(req.userId!);
     }
 
     let celebrationMessage: string | null = null;
@@ -219,3 +262,4 @@ export function createMissionsRouter(triggerMissionAction: (userId: string, acti
 
   return router;
 }
+

@@ -69,7 +69,8 @@ export default function MissionsScreen() {
   const xpNeeded = xpForLevel(level);
   const progress = Math.min(xp / xpNeeded, 1);
 
-  const dailyMissions = missions.filter((m: any) => m.type === "ai_daily");
+  const dailyMissions  = missions.filter((m: any) => m.type === "ai_daily");
+  const bonusMissions  = missions.filter((m: any) => m.type === "ai_bonus");
   const systemMissions = missions.filter((m: any) => m.type === "system");
   const byTier: Record<number, any[]> = { 1: [], 2: [], 3: [], 4: [] };
   for (const m of systemMissions) {
@@ -77,6 +78,7 @@ export default function MissionsScreen() {
     if (byTier[t]) byTier[t].push(m);
   }
 
+  const pendingBonus = bonusMissions.filter((m: any) => !m.completed).length;
   const totalDone = systemMissions.filter((m: any) => m.completed).length;
   const totalCount = systemMissions.length;
 
@@ -157,6 +159,35 @@ export default function MissionsScreen() {
           <Text style={styles.reportLine}><Text style={styles.reportLabel}>Ponto forte:</Text> {weeklyReport.positive}</Text>
           <Text style={styles.reportLine}><Text style={styles.reportLabel}>Atencao:</Text> {weeklyReport.attention}</Text>
           <Text style={styles.reportLine}><Text style={styles.reportLabel}>Proximo passo:</Text> {weeklyReport.nextAction}</Text>
+        </View>
+      ) : null}
+
+      {/* Missões bônus — aparecem após concluir todas as outras */}
+      {bonusMissions.length > 0 ? (
+        <View style={styles.bonusSection}>
+          <View style={styles.bonusHeader}>
+            <Text style={styles.bonusTitle}>🎁 Desafios Bônus</Text>
+            <Text style={styles.bonusHint}>{pendingBonus} pendente{pendingBonus !== 1 ? "s" : ""} • ganhe XP extra</Text>
+          </View>
+          {bonusMissions.map((m: any) => (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.bonusMissionRow, m.completed && styles.missionRowDone]}
+              disabled={m.completed || completeMission.isPending}
+              onPress={() => !m.completed && completeMission.mutate(m.id)}
+            >
+              <View style={[styles.missionCheck, m.completed && styles.missionCheckDone]}>
+                {m.completed && <Text style={styles.missionCheckTick}>✓</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.missionTitle, m.completed && styles.missionTitleDone]}>{m.title}</Text>
+                {m.description ? <Text style={styles.missionDesc}>{m.description}</Text> : null}
+              </View>
+              <View style={[styles.xpBadgeBonus, m.completed && styles.xpBadgeDone]}>
+                <Text style={[styles.xpBadgeText, m.completed && styles.xpBadgeTextDone]}>+{m.xpReward} XP</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
       ) : null}
 
@@ -353,6 +384,35 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     reportSummary: { fontFamily: FONTS.sans, fontSize: 13, color: colors.foreground, lineHeight: 19 },
     reportLine: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, lineHeight: 18 },
     reportLabel: { color: colors.foreground, fontWeight: "700" },
+
+    bonusSection: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: colors.primary + "66",
+      overflow: "hidden",
+    },
+    bonusHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: colors.primary + "18",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.primary + "33",
+    },
+    bonusTitle: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "800", color: colors.primaryDark },
+    bonusHint:  { fontFamily: FONTS.sans, fontSize: 11, color: colors.primaryDark, opacity: 0.8 },
+    bonusMissionRow: {
+      flexDirection: "row", alignItems: "center",
+      gap: 12, paddingHorizontal: 16, paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+    },
+    xpBadgeBonus: {
+      backgroundColor: colors.primary + "33",
+      borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+    },
 
     dailySection: {
       backgroundColor: colors.card,

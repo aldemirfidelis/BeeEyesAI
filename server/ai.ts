@@ -1252,6 +1252,54 @@ export function generateAdaptiveDailyMissionPlan(
   return [consistencyMission, focusMission, leverageMission];
 }
 
+// ── Bonus Missions Pool ────────────────────────────────────────────────────────
+
+const BONUS_MISSION_POOL: DailyMissionDraft[] = [
+  // 🧠 Reflexão / Mentalidade
+  { title: "Defina sua prioridade do dia",       description: "Escreva no chat qual e a coisa mais importante que voce quer concluir hoje.", xpReward: 18, tier: 1, type: "ai_bonus" },
+  { title: "Liste 3 vitórias desta semana",       description: "Anote no chat 3 coisas que voce fez bem essa semana, mesmo que pequenas.", xpReward: 15, tier: 1, type: "ai_bonus" },
+  { title: "Identifique um habito a melhorar",    description: "Escolha UM habito que quer mudar e escreva qual sera o primeiro passo concreto.", xpReward: 20, tier: 2, type: "ai_bonus" },
+  { title: "Reflita sobre seu ritmo atual",       description: "Diga para a Bee como voce esta se sentindo com seu ritmo de vida. Ela vai ajudar.", xpReward: 14, tier: 1, type: "ai_bonus" },
+  { title: "Defina sua meta da proxima semana",   description: "Escreva uma meta objetiva para a semana que vem. Seja especifico.", xpReward: 22, tier: 2, type: "ai_bonus" },
+  { title: "Escreva uma intencao de manha",       description: "Amanha cedo, antes de abrir o celular, defina uma intencao do dia no chat.", xpReward: 16, tier: 1, type: "ai_bonus" },
+  // 💪 Ação direta
+  { title: "Conclua uma tarefa adiada",           description: "Escolha uma tarefa que voce vem adiando e conclua ela hoje. Depois registre aqui.", xpReward: 28, tier: 3, type: "ai_bonus" },
+  { title: "Elimine uma distracao do dia",        description: "Identifique o que mais rouba seu foco e elimine ou reduza por hoje.", xpReward: 20, tier: 2, type: "ai_bonus" },
+  { title: "Trabalhe 25 min sem interrupcao",     description: "Coloque o celular no silencioso e foque em UMA coisa por 25 minutos.", xpReward: 24, tier: 2, type: "ai_bonus" },
+  { title: "Planeje as tarefas de amanha agora",  description: "Separe 5 minutos agora para listar o que voce quer fazer amanha.", xpReward: 16, tier: 1, type: "ai_bonus" },
+  { title: "Acorde 30 min mais cedo amanha",      description: "Use esse tempo para algo que nao e trabalho: caminhar, ler ou tomar cafe com calma.", xpReward: 20, tier: 2, type: "ai_bonus" },
+  { title: "Faca uma pausa ativa hoje",           description: "Levante, se mova por 10 minutos. Pode ser caminhar, se alongar ou fazer algo leve.", xpReward: 15, tier: 1, type: "ai_bonus" },
+  // 🌐 Social / Conexão
+  { title: "Mande mensagem para um amigo",        description: "Fale com alguem que voce nao conversa ha alguns dias. Uma mensagem simples conta.", xpReward: 18, tier: 2, type: "ai_bonus" },
+  { title: "Comente em um post do feed",          description: "Entre no Feed e deixe um comentario genuino em um post de alguem.", xpReward: 14, tier: 1, type: "ai_bonus" },
+  { title: "Publique um progresso no feed",       description: "Compartilhe algo que voce concluiu ou aprendeu recentemente no Feed.", xpReward: 20, tier: 2, type: "ai_bonus" },
+  { title: "Explore uma nova comunidade",         description: "Acesse Comunidades, descubra uma nova e leia o que os membros estao falando.", xpReward: 16, tier: 1, type: "ai_bonus" },
+  { title: "Faca uma conexao intencional",        description: "Conecte-se com alguem no app que tenha interesses parecidos com os seus.", xpReward: 22, tier: 2, type: "ai_bonus" },
+  // 📈 Evolução pessoal
+  { title: "Registre seu humor por 3 dias",       description: "Abra o Humor e registre como voce esta se sentindo hoje. Repita nos proximos 2 dias.", xpReward: 18, tier: 2, type: "ai_bonus" },
+  { title: "Atualize sua bio no perfil",          description: "Acesse seu perfil e escreva uma bio que represente quem voce e agora.", xpReward: 15, tier: 1, type: "ai_bonus" },
+  { title: "Leia uma noticia e reflita",          description: "Acesse Noticias, leia um artigo relevante e escreva no chat o que achou.", xpReward: 18, tier: 2, type: "ai_bonus" },
+  { title: "Reduza o tempo de tela hoje",         description: "Escolha UM periodo do dia para ficar longe do celular por pelo menos 1 hora.", xpReward: 20, tier: 2, type: "ai_bonus" },
+  { title: "Aprenda algo novo em 10 minutos",     description: "Pesquise sobre um assunto que voce tem curiosidade mas nunca aprofundou.", xpReward: 22, tier: 2, type: "ai_bonus" },
+  // 🎯 Desafio extra
+  { title: "Conclua 2 missoes em sequencia",      description: "Complete duas missoes em um intervalo de 30 minutos. Foco total.", xpReward: 30, tier: 3, type: "ai_bonus" },
+  { title: "Zero distracoes por 1 hora",          description: "Escolha uma hora do dia, feche redes sociais e foque em sua atividade principal.", xpReward: 28, tier: 3, type: "ai_bonus" },
+  { title: "Beba 2 litros de agua hoje",          description: "Hidratacao e parte da performance. Registre quando concluir.", xpReward: 14, tier: 1, type: "ai_bonus" },
+  { title: "Durma antes da meia-noite",           description: "Estabeleca um horario de dormir hoje. Descanso e produtividade andam juntos.", xpReward: 16, tier: 1, type: "ai_bonus" },
+  { title: "Organize seu espaco de trabalho",     description: "Dedique 10 minutos para deixar seu ambiente mais limpo e organizado.", xpReward: 18, tier: 1, type: "ai_bonus" },
+];
+
+export function generateBonusMissions(existingTitles: Set<string>): DailyMissionDraft[] {
+  // Embaralha o pool e pega 3 que ainda nao existem
+  const shuffled = [...BONUS_MISSION_POOL].sort(() => Math.random() - 0.5);
+  const result: DailyMissionDraft[] = [];
+  for (const mission of shuffled) {
+    if (result.length >= 3) break;
+    if (!existingTitles.has(mission.title)) result.push(mission);
+  }
+  return result;
+}
+
 export function buildPersonalizedFeedInsight(input: {
   viewer: User;
   viewerPersonality: UserPersonality | null | undefined;
