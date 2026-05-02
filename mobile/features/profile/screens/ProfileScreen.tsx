@@ -170,7 +170,7 @@ export default function ProfileScreen() {
         {score ? (
           <View style={styles.scoreCard}>
             <View style={styles.scoreHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.sectionTitle}>Ritmo atual</Text>
                 <Text style={styles.scoreSummary}>{score.summary}</Text>
               </View>
@@ -179,11 +179,6 @@ export default function ProfileScreen() {
                 <Text style={styles.scoreChipLabel}>{score.scoreTone}</Text>
               </View>
             </View>
-            <View style={styles.scoreMetaRow}>
-              <Text style={styles.scoreMeta}>{score.consistencyScore}% constancia</Text>
-              <Text style={styles.scoreMeta}>{score.disciplineScore}% disciplina</Text>
-            </View>
-            <Text style={styles.scoreInsight}>{score.insight}</Text>
           </View>
         ) : null}
 
@@ -411,14 +406,11 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    scoreHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
-    scoreSummary: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.muted, marginTop: 2, maxWidth: 220 },
+    scoreHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+    scoreSummary: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.muted, marginTop: 2 },
     scoreChip: { minWidth: 78, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.secondary, alignItems: "center", gap: 2 },
     scoreChipValue: { fontFamily: FONTS.display, fontSize: 26, fontWeight: "800", color: colors.foreground },
     scoreChipLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark, textTransform: "uppercase" },
-    scoreMetaRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-    scoreMeta: { fontFamily: FONTS.mono, fontSize: 12, fontWeight: "700", color: colors.foreground },
-    scoreInsight: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground },
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
