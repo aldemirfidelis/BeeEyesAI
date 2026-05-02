@@ -92,6 +92,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
+            <img src="/bee-logo.svg" alt="bee-eyes" className="w-8 h-8 shrink-0" />
             <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
             <button type="button" onClick={onToggleSettings} className="w-9 h-9 rounded-full border border-border overflow-hidden bg-primary/20 flex items-center justify-center shrink-0" aria-label="Abrir configuracoes de perfil">
               {profilePhotoUrl ? <img src={profilePhotoUrl} alt="Foto de perfil" className="w-full h-full object-cover" /> : <span className="text-xs font-bold">{(user?.username || "?")[0].toUpperCase()}</span>}

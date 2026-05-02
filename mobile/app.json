@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFF8E7"
+      "backgroundColor": "#FFD940"
     },
     "plugins": [
       "expo-router",
@@ -26,7 +26,7 @@
       "package": "com.beeeyes.ai",
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
-        "backgroundColor": "#FFF8E7",
+        "backgroundColor": "#FFD940",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

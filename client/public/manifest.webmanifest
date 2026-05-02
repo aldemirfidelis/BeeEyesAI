@@ -1,0 +1,24 @@
+{
+  "name": "bee-eyes",
+  "short_name": "bee-eyes",
+  "description": "Sua IA amiga — assistente pessoal gamificado com inteligência artificial",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFD940",
+  "theme_color": "#FFD940",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/bee-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/bee-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
