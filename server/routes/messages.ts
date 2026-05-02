@@ -89,6 +89,29 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     };
   }
 
+  function shouldCreateMissionFromChat(userMessage: string, suggestedMission?: { title: string; description: string; xp_reward: number }) {
+    if (!suggestedMission) return false;
+    const text = userMessage.toLowerCase().trim();
+
+    // Exige pedido EXPLÍCITO de criação de missão/meta/tarefa.
+    // Menções genéricas ("quero estudar", "vou treinar") NÃO criam missão.
+    const explicitRequest =
+      // "crie uma missão para X" / "cria uma tarefa" / "adiciona uma meta"
+      /\b(cri[ae]|registr[ae]|adicion[ae]|coloc[ae]|quer[ao] (criar|registrar|adicionar))\b.{0,40}\b(miss[aã]o|tarefa|meta|objetivo|compromisso)\b/.test(text) ||
+      // "pode colocar isso como missão" / "transforma isso em missão"
+      /\b(transform[ae]|coloc[ae]|bot[ae])\b.{0,30}\b(miss[aã]o|tarefa|meta)\b/.test(text) ||
+      // "quero criar uma missão de X"
+      /\bquero criar (uma |a )?(miss[aã]o|tarefa|meta)\b/.test(text);
+
+    if (!explicitRequest) return false;
+
+    const title = suggestedMission.title?.trim() ?? "";
+    // Título precisa ser concreto: entre 8 e 70 chars, não pode ser genérico
+    if (title.length < 8 || title.length > 70) return false;
+    const isGenericTitle = /^(fazer algo|tarefa|missao|meta|objetivo|compromisso|estudar|treinar)$/i.test(title);
+    return !isGenericTitle;
+  }
+
   router.get("/api/messages", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 50, min: 1, max: 100 });
     return sendOk(res, await storage.getMessagesByUser(req.userId!, limit));
@@ -311,12 +334,13 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     const { cleanText, suggestedMission, achievement, fetchNews } = parseAIActions(fullResponse);
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
 
-    if (suggestedMission) {
+    const missionDraft = suggestedMission && shouldCreateMissionFromChat(content, suggestedMission) ? suggestedMission : null;
+    if (missionDraft) {
       const mission = await storage.createMission({
         userId,
-        title: suggestedMission.title,
-        description: suggestedMission.description,
-        xpReward: suggestedMission.xp_reward || 20,
+        title: missionDraft.title,
+        description: missionDraft.description,
+        xpReward: missionDraft.xp_reward || 20,
       });
       res.write(`data: ${JSON.stringify({ type: "mission_created", mission })}\n\n`);
     }
@@ -414,7 +438,16 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return sendOk(res, { message: null });
     }
 
-    const content = await generateProactiveMessage(user, personality, missions);
+    const usageTips = [
+      "Dica da Bee: se quiser transformar uma conversa em meta, diga claramente 'crie uma missao para...'. Assim eu separo papo de compromisso.",
+      "Use comunidades para postar pequenos progressos. Uma foto simples tambem ajuda sua rede a entender o que voce esta construindo.",
+      "Quando estiver sem foco, me mande uma frase curta sobre o que esta travando. Eu te ajudo a escolher a proxima acao.",
+      "Passe nos Alertas da Bee quando quiser ver sinais importantes sem abrir todo o chat.",
+    ];
+
+    const content = Math.random() < 0.45
+      ? usageTips[Math.floor(Math.random() * usageTips.length)]
+      : await generateProactiveMessage(user, personality, missions);
     if (!content) {
       return sendOk(res, { message: null });
     }
