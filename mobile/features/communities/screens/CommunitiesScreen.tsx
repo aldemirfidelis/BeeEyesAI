@@ -107,6 +107,13 @@ function CommunityList({
   onOpenCreate: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const [membersSheet, setMembersSheet] = useState<Community | null>(null);
+
+  const listMembersQuery = useQuery<CommunityMember[]>({
+    queryKey: ["community-members-list", membersSheet?.id],
+    queryFn: () => api.get(`/api/communities/${membersSheet!.id}/members`).then((r) => r.data),
+    enabled: Boolean(membersSheet),
+  });
 
   const communitiesQuery = useQuery<Community[]>({
     queryKey: ["communities", search],
@@ -119,6 +126,42 @@ function CommunityList({
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* Members sheet from list */}
+      <Modal visible={Boolean(membersSheet)} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setMembersSheet(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMembersSheet(null)}>
+          <TouchableOpacity activeOpacity={1} style={styles.membersSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.membersHeader}>
+              <Text style={styles.modalTitle}>
+                {membersSheet?.name} · {(listMembersQuery.data ?? []).length} membros
+              </Text>
+              <TouchableOpacity onPress={() => setMembersSheet(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            {listMembersQuery.isLoading ? (
+              <ActivityIndicator color={colors.primaryDark} style={{ marginVertical: 32 }} />
+            ) : (listMembersQuery.data ?? []).length === 0 ? (
+              <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Nenhum membro encontrado.</Text>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                {(listMembersQuery.data ?? []).map((member) => (
+                  <View key={member.id} style={styles.memberRow}>
+                    <View style={[styles.memberAvatar, member.role === "owner" && { backgroundColor: colors.primary }]}>
+                      <Text style={styles.memberAvatarText}>{(member.displayName || member.username)[0]?.toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.memberName}>{member.displayName || member.username}</Text>
+                      <Text style={styles.memberRole}>{member.role === "owner" ? "👑 Fundador" : "Membro"}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <View style={styles.listHeader}>
         <Text style={styles.listHeaderTitle}>Comunidades</Text>
         <TouchableOpacity style={styles.createBtn} onPress={onOpenCreate}>
@@ -161,7 +204,11 @@ function CommunityList({
                     </View>
                   )}
                 </View>
-                <Text style={styles.communityMeta}>{item.membersCount} membros • {item.category}</Text>
+                <TouchableOpacity onPress={(e) => { e.stopPropagation(); setMembersSheet(item); }} hitSlop={{ top: 6, bottom: 6, left: 0, right: 0 }}>
+                  <Text style={[styles.communityMeta, { color: colors.primaryDark }]}>
+                    {item.membersCount} membros 👥 • {item.category}
+                  </Text>
+                </TouchableOpacity>
                 {item.description ? (
                   <Text style={styles.communityDesc} numberOfLines={1}>{item.description}</Text>
                 ) : null}
@@ -391,12 +438,12 @@ function CommunityDetail({
         ) : (
           <Text style={styles.detailEmoji}>{detail.emoji}</Text>
         )}
-        <TouchableOpacity style={styles.detailHeaderInfo} onPress={() => setShowMembers(true)} activeOpacity={0.75}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <TouchableOpacity style={styles.detailHeaderInfo} onPress={() => setShowMembers(true)} activeOpacity={0.7}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary + "18", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, alignSelf: "flex-start" }}>
             <Text style={styles.detailName} numberOfLines={1}>{detail.name}</Text>
-            <Feather name="chevron-down" size={14} color={colors.muted} />
+            <Feather name="users" size={13} color={colors.primaryDark} />
           </View>
-          <Text style={[styles.detailMeta, { color: colors.primaryDark }]}>{detail.membersCount} membros • ver todos</Text>
+          <Text style={[styles.detailMeta, { color: colors.primaryDark, marginTop: 2 }]}>{detail.membersCount} membros • ver todos ↓</Text>
         </TouchableOpacity>
         {isOwner && (
           <TouchableOpacity onPress={openEditModal} style={styles.editIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
