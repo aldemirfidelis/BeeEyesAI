@@ -575,73 +575,98 @@ export default function CommunitiesScreen() {
         />
       )}
 
-      <Modal visible={showCreateModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "padding"} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalCard} showsVerticalScrollIndicator={false}>
-            <Text style={styles.modalTitle}>Nova comunidade</Text>
-            <TouchableOpacity style={styles.editPhotoBtn} onPress={handlePickCreateImage} disabled={pickingCreateImage}>
-              {communityForm.imageUrl ? (
-                <Image source={{ uri: communityForm.imageUrl }} style={styles.editPhotoPreview} />
-              ) : (
-                <View style={styles.editPhotoPlaceholder}>
-                  <Feather name="camera" size={24} color={colors.muted} />
-                  <Text style={styles.editPhotoLabel}>{pickingCreateImage ? "Carregando..." : "Adicionar foto"}</Text>
-                </View>
-              )}
-              <View style={styles.editPhotoBadge}>
-                <Feather name="edit-2" size={12} color="#1A1A1A" />
+      <Modal visible={showCreateModal} animationType="slide" transparent statusBarTranslucent>
+        <View style={{ flex: 1 }}>
+          {/* Dimmer — toque fora fecha o modal */}
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
+            activeOpacity={1}
+            onPress={() => setShowCreateModal(false)}
+          />
+          {/* KAV só envolve o sheet — empurra o conteúdo acima do teclado */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: "85%" }}
+              contentContainerStyle={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}
+            >
+              <View style={styles.sheetHandle} />
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <Text style={styles.modalTitle}>Nova comunidade</Text>
+                <TouchableOpacity onPress={() => setShowCreateModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Feather name="x" size={22} color={colors.muted} />
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-            {communityForm.imageUrl ? (
-              <TouchableOpacity onPress={() => setCommunityForm((prev) => ({ ...prev, imageUrl: "" }))} style={{ alignSelf: "center", marginTop: -6 }}>
-                <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: colors.muted }}>Remover imagem</Text>
+              <TouchableOpacity style={styles.editPhotoBtn} onPress={handlePickCreateImage} disabled={pickingCreateImage}>
+                {communityForm.imageUrl ? (
+                  <Image source={{ uri: communityForm.imageUrl }} style={styles.editPhotoPreview} />
+                ) : (
+                  <View style={styles.editPhotoPlaceholder}>
+                    <Feather name="camera" size={24} color={colors.muted} />
+                    <Text style={styles.editPhotoLabel}>{pickingCreateImage ? "Carregando..." : "Adicionar foto"}</Text>
+                  </View>
+                )}
+                <View style={styles.editPhotoBadge}>
+                  <Feather name="edit-2" size={12} color="#1A1A1A" />
+                </View>
               </TouchableOpacity>
-            ) : null}
-            <TextInput
-              style={styles.modalInput}
-              value={communityForm.name}
-              onChangeText={(v) => setCommunityForm((p) => ({ ...p, name: v }))}
-              placeholder="Nome"
-              placeholderTextColor={colors.muted}
-            />
-            <TextInput
-              style={styles.modalInput}
-              value={communityForm.emoji}
-              onChangeText={(v) => setCommunityForm((p) => ({ ...p, emoji: v || "🐝" }))}
-              placeholder="Emoji"
-              placeholderTextColor={colors.muted}
-            />
-            <TextInput
-              style={styles.modalInput}
-              value={communityForm.category}
-              onChangeText={(v) => setCommunityForm((p) => ({ ...p, category: v || "geral" }))}
-              placeholder="Categoria"
-              placeholderTextColor={colors.muted}
-            />
-            <TextInput
-              style={[styles.modalInput, styles.modalTextarea]}
-              value={communityForm.description}
-              onChangeText={(v) => setCommunityForm((p) => ({ ...p, description: v }))}
-              placeholder="Descrição"
-              placeholderTextColor={colors.muted}
-              multiline
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalSecondary} onPress={() => setShowCreateModal(false)}>
-                <Text style={styles.modalSecondaryText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalPrimary, (!communityForm.name.trim() || createCommunity.isPending) && { opacity: 0.5 }]}
-                onPress={() => createCommunity.mutate()}
-                disabled={!communityForm.name.trim() || createCommunity.isPending}
-              >
-                <Text style={styles.modalPrimaryText}>{createCommunity.isPending ? "Criando..." : "Criar"}</Text>
-              </TouchableOpacity>
-            </View>
+              {communityForm.imageUrl ? (
+                <TouchableOpacity onPress={() => setCommunityForm((prev) => ({ ...prev, imageUrl: "" }))} style={{ alignSelf: "center", marginTop: -6 }}>
+                  <Text style={{ fontFamily: FONTS.sans, fontSize: 12, color: colors.muted }}>Remover imagem</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TextInput
+                style={styles.modalInput}
+                value={communityForm.name}
+                onChangeText={(v) => setCommunityForm((p) => ({ ...p, name: v }))}
+                placeholder="Nome da comunidade"
+                placeholderTextColor={colors.muted}
+                returnKeyType="next"
+              />
+              <TextInput
+                style={styles.modalInput}
+                value={communityForm.emoji}
+                onChangeText={(v) => setCommunityForm((p) => ({ ...p, emoji: v || "🐝" }))}
+                placeholder="Emoji (ex: 🐝)"
+                placeholderTextColor={colors.muted}
+                returnKeyType="next"
+              />
+              <TextInput
+                style={styles.modalInput}
+                value={communityForm.category}
+                onChangeText={(v) => setCommunityForm((p) => ({ ...p, category: v || "geral" }))}
+                placeholder="Categoria (ex: estudo, treino...)"
+                placeholderTextColor={colors.muted}
+                returnKeyType="next"
+              />
+              <TextInput
+                style={[styles.modalInput, styles.modalTextarea]}
+                value={communityForm.description}
+                onChangeText={(v) => setCommunityForm((p) => ({ ...p, description: v }))}
+                placeholder="Descrição (opcional)"
+                placeholderTextColor={colors.muted}
+                multiline
+                returnKeyType="done"
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.modalSecondary} onPress={() => setShowCreateModal(false)}>
+                  <Text style={styles.modalSecondaryText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalPrimary, (!communityForm.name.trim() || createCommunity.isPending) && { opacity: 0.5 }]}
+                  onPress={() => createCommunity.mutate()}
+                  disabled={!communityForm.name.trim() || createCommunity.isPending}
+                >
+                  <Text style={styles.modalPrimaryText}>{createCommunity.isPending ? "Criando..." : "Criar"}</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </>
   );
@@ -1045,7 +1070,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-    modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12, maxHeight: "86%" },
+    modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
     membersSheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 12 },
     sheetHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
     membersHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
