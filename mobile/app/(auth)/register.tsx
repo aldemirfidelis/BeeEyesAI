@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Alert,
+  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Alert, Modal,
 } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withRepeat,
@@ -13,6 +13,8 @@ import { router, Link } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import * as GoogleAuth from "expo-auth-session/providers/google";
+import { useTranslation } from "react-i18next";
+import { PRIVACY_POLICY, TERMS_OF_USE } from "../../lib/legalTexts";
 import { api } from "../../lib/api";
 import { useAuthStore } from "../../stores/authStore";
 import BeeEyes from "../../components/BeeEyes";
@@ -56,24 +58,7 @@ function EyeIcon({ visible, color = "#888" }: { visible: boolean; color?: string
   );
 }
 
-// ── Password strength ─────────────────────────────────────────────────────────
-function passwordStrength(pw: string): { label: string; color: string; width: string } {
-  if (pw.length === 0) return { label: "", color: "transparent", width: "0%" };
-  if (pw.length < 6) return { label: "Fraca", color: "#E53E3E", width: "25%" };
-  if (pw.length < 10) return { label: "Média", color: "#F5A623", width: "55%" };
-  if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: "Forte", color: "#4CAF50", width: "100%" };
-  return { label: "Boa", color: "#4CAF50", width: "80%" };
-}
-
-function GoogleRegisterButton({
-  loading,
-  googleLoading,
-  onSuccess,
-}: {
-  loading: boolean;
-  googleLoading: boolean;
-  onSuccess: (accessToken: string) => void;
-}) {
+function GoogleRegisterButton({ loading, googleLoading, onSuccess }: { loading: boolean; googleLoading: boolean; onSuccess: (accessToken: string) => void }) {
   const [request, response, promptAsync] = GoogleAuth.useAuthRequest({
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -83,21 +68,16 @@ function GoogleRegisterButton({
   useEffect(() => {
     if (response?.type === "success") {
       const accessToken = response.authentication?.accessToken;
-      if (accessToken) {
-        onSuccess(accessToken);
-      }
+      if (accessToken) onSuccess(accessToken);
     }
   }, [onSuccess, response]);
 
   async function handlePress() {
     if (Platform.OS === "android") {
       const accessToken = await signInWithGoogleNative();
-      if (accessToken) {
-        onSuccess(accessToken);
-      }
+      if (accessToken) onSuccess(accessToken);
       return;
     }
-
     await promptAsync();
   }
 
@@ -121,6 +101,8 @@ function GoogleRegisterButton({
 }
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
+  const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [gender, setGender] = useState("");
@@ -147,13 +129,21 @@ export default function RegisterScreen() {
     }),
   );
 
+  function passwordStrength(pw: string): { label: string; color: string; width: string } {
+    if (pw.length === 0) return { label: "", color: "transparent", width: "0%" };
+    if (pw.length < 6) return { label: t("pw_weak"), color: "#E53E3E", width: "25%" };
+    if (pw.length < 10) return { label: t("pw_medium"), color: "#F5A623", width: "55%" };
+    if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: t("pw_strong"), color: "#4CAF50", width: "100%" };
+    return { label: t("pw_good"), color: "#4CAF50", width: "80%" };
+  }
+
   async function handleRegister() {
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Atenção", "Preencha usuário e senha");
+      Alert.alert(t("attention"), t("register_fill_fields"));
       return;
     }
     if (password.length < 6) {
-      Alert.alert("Atenção", "A senha deve ter pelo menos 6 caracteres");
+      Alert.alert(t("attention"), t("register_short_password"));
       return;
     }
     setLoading(true);
@@ -167,9 +157,9 @@ export default function RegisterScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)");
+      router.replace(data.user?.onboardingCompleted ? "/(tabs)" : "/onboarding");
     } catch (err: any) {
-      Alert.alert("Erro", err.response?.data?.message || "Falha ao criar conta");
+      Alert.alert(t("error"), err.response?.data?.message || t("register_failed"));
     } finally {
       setLoading(false);
     }
@@ -182,9 +172,9 @@ export default function RegisterScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)");
+      router.replace(data.user?.onboardingCompleted ? "/(tabs)" : "/onboarding");
     } catch (err: any) {
-      Alert.alert("Erro", err.response?.data?.message || "Falha ao entrar com Google");
+      Alert.alert(t("error"), err.response?.data?.message || t("login_google_failed"));
     } finally {
       setGoogleLoading(false);
     }
@@ -194,24 +184,21 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      {/* Hero gradient */}
       <LinearGradient colors={["#FFF3D0", "#FFD700", "#F5C842"]} style={styles.hero}>
         <Animated.View style={[styles.beeContainer, floatStyle]}>
           <BeeEyes expression="excited" size={100} />
         </Animated.View>
         <Text style={styles.brandName}>bee-eyes</Text>
-        <Text style={styles.brandTagline}>Comece sua jornada hoje 🚀</Text>
+        <Text style={styles.brandTagline}>{t("register_tagline")}</Text>
       </LinearGradient>
 
-      {/* Form card */}
       <Animated.View entering={SlideInDown.springify().damping(18)} style={styles.card}>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Animated.View entering={FadeInDown.delay(100)}>
-            <Text style={styles.cardTitle}>Criar conta 🎉</Text>
-            <Text style={styles.cardSubtitle}>É rápido, grátis e a BeeEyes te espera!</Text>
+            <Text style={styles.cardTitle}>{t("register_title")}</Text>
+            <Text style={styles.cardSubtitle}>{t("register_subtitle")}</Text>
           </Animated.View>
 
-          {/* Social first */}
           <Animated.View entering={FadeInDown.delay(160)} style={styles.socialRow}>
             {googleEnabled ? (
               <GoogleRegisterButton
@@ -222,17 +209,16 @@ export default function RegisterScreen() {
             ) : (
               <TouchableOpacity
                 style={[styles.socialBtn, styles.btnDisabled]}
-                onPress={() => Alert.alert("Google indisponível", "Configure EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID para ativar o login com Google.")}
+                onPress={() => Alert.alert(t("login_google_unavailable"), t("login_google_config"))}
                 activeOpacity={0.8}
               >
                 <GoogleIcon />
                 <Text style={styles.socialBtnText}>Google</Text>
               </TouchableOpacity>
             )}
-
             <TouchableOpacity
               style={[styles.socialBtn, styles.appleBtnStyle]}
-              onPress={() => Alert.alert("Em breve", "Login com Apple estará disponível em breve!")}
+              onPress={() => Alert.alert(t("register_apple_soon"), t("register_apple_soon_msg"))}
               activeOpacity={0.8}
             >
               <AppleIcon color="#1A1A1A" />
@@ -240,19 +226,17 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Divider */}
           <Animated.View entering={FadeInDown.delay(200)} style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou crie com e-mail</Text>
+            <Text style={styles.dividerText}>{t("register_or_create_email")}</Text>
             <View style={styles.dividerLine} />
           </Animated.View>
 
-          {/* Username */}
           <Animated.View entering={FadeInDown.delay(260)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Nome de usuário</Text>
+            <Text style={styles.inputLabel}>{t("register_username")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="como quer ser chamado(a)?"
+              placeholder={t("register_username_placeholder")}
               placeholderTextColor={COLORS.muted}
               value={username}
               onChangeText={setUsername}
@@ -262,10 +246,10 @@ export default function RegisterScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(290)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Nome de exibicao</Text>
+            <Text style={styles.inputLabel}>{t("register_displayname")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="opcional"
+              placeholder={t("register_displayname_placeholder")}
               placeholderTextColor={COLORS.muted}
               value={displayName}
               onChangeText={setDisplayName}
@@ -273,12 +257,12 @@ export default function RegisterScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(305)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Genero</Text>
+            <Text style={styles.inputLabel}>{t("register_gender")}</Text>
             <View style={styles.genderRow}>
               {[
-                { label: "Feminino", value: "female" },
-                { label: "Masculino", value: "male" },
-                { label: "Outro", value: "other" },
+                { label: t("register_female"), value: "female" },
+                { label: t("register_male"), value: "male" },
+                { label: t("register_other"), value: "other" },
               ].map((option) => (
                 <TouchableOpacity
                   key={option.value}
@@ -293,13 +277,12 @@ export default function RegisterScreen() {
             </View>
           </Animated.View>
 
-          {/* Password */}
           <Animated.View entering={FadeInDown.delay(320)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Senha</Text>
+            <Text style={styles.inputLabel}>{t("register_password")}</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="mínimo 6 caracteres"
+                placeholder={t("register_password_placeholder")}
                 placeholderTextColor={COLORS.muted}
                 value={password}
                 onChangeText={setPassword}
@@ -309,8 +292,6 @@ export default function RegisterScreen() {
                 <EyeIcon visible={showPassword} />
               </TouchableOpacity>
             </View>
-
-            {/* Password strength bar */}
             {password.length > 0 && (
               <View style={styles.strengthContainer}>
                 <View style={styles.strengthBarBg}>
@@ -321,7 +302,6 @@ export default function RegisterScreen() {
             )}
           </Animated.View>
 
-          {/* Register button */}
           <Animated.View entering={FadeInDown.delay(400)}>
             <TouchableOpacity
               style={[styles.primaryBtn, loading && styles.btnDisabled]}
@@ -335,264 +315,106 @@ export default function RegisterScreen() {
                 style={styles.primaryBtnGradient}
               >
                 {loading ? (
-                  <Text style={styles.primaryBtnText}>Criando conta...</Text>
+                  <Text style={styles.primaryBtnText}>{t("register_creating")}</Text>
                 ) : (
-                  <Text style={styles.primaryBtnText}>Criar conta  🐝</Text>
+                  <Text style={styles.primaryBtnText}>{t("register_create")}</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Terms */}
           <Animated.View entering={FadeInDown.delay(440)}>
             <Text style={styles.termsText}>
-              Ao criar uma conta você concorda com os{" "}
-              <Text style={styles.termsLink}>Termos de Uso</Text>
-              {" "}e{" "}
-              <Text style={styles.termsLink}>Política de Privacidade</Text>
+              {t("register_terms_text")}{" "}
+              <Text style={styles.termsLink} onPress={() => setLegalModal("terms")}>{t("register_terms_of_use")}</Text>
+              {" "}{t("register_and")}{" "}
+              <Text style={styles.termsLink} onPress={() => setLegalModal("privacy")}>{t("register_privacy_policy")}</Text>
             </Text>
           </Animated.View>
 
-          {/* Login link */}
           <Animated.View entering={FadeInDown.delay(480)} style={styles.footer}>
-            <Text style={styles.footerText}>Já tem conta? </Text>
+            <Text style={styles.footerText}>{t("register_have_account")}</Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text style={styles.footerLink}>Entrar ↗</Text>
+                <Text style={styles.footerLink}>{t("register_sign_in")}</Text>
               </TouchableOpacity>
             </Link>
           </Animated.View>
         </ScrollView>
       </Animated.View>
+
+      <Modal visible={legalModal !== null} animationType="slide" transparent onRequestClose={() => setLegalModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {legalModal === "privacy" ? t("settings_privacy_policy") : t("settings_terms_of_use")}
+              </Text>
+              <TouchableOpacity onPress={() => setLegalModal(null)} style={styles.modalClose}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.legalText}>
+                {legalModal === "privacy" ? PRIVACY_POLICY : TERMS_OF_USE}
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setLegalModal(null)}>
+              <Text style={styles.closeBtnText}>{t("close")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#F5C842",
-  },
-  hero: {
-    height: height * 0.36,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    paddingBottom: 20,
-  },
+  root: { flex: 1, backgroundColor: "#F5C842" },
+  hero: { height: height * 0.36, alignItems: "center", justifyContent: "flex-end", paddingBottom: 20 },
   beeContainer: { marginBottom: 4 },
-  brandName: {
-    fontFamily: "System",
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#1A1A1A",
-    letterSpacing: -0.5,
-  },
-  brandTagline: {
-    fontFamily: "System",
-    fontSize: 14,
-    color: "#6B5000",
-    marginTop: 2,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 28,
-    paddingTop: 28,
-    paddingBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  cardTitle: {
-    fontFamily: "System",
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1A1A1A",
-  },
-  cardSubtitle: {
-    fontFamily: "System",
-    fontSize: 14,
-    color: COLORS.muted,
-    marginTop: 4,
-    marginBottom: 20,
-  },
-  socialRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 4,
-  },
-  socialBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#EDE9E0",
-    backgroundColor: "#FFFFFF",
-  },
-  appleBtnStyle: {
-    backgroundColor: "#F8F6F0",
-  },
-  socialBtnText: {
-    fontFamily: "System",
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#EDE9E0",
-  },
-  dividerText: {
-    fontFamily: "System",
-    fontSize: 12,
-    color: COLORS.muted,
-  },
+  brandName: { fontFamily: "System", fontSize: 30, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.5 },
+  brandTagline: { fontFamily: "System", fontSize: 14, color: "#6B5000", marginTop: 2 },
+  card: { flex: 1, backgroundColor: "#FFFFFF", borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 28, paddingTop: 28, paddingBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 12 },
+  cardTitle: { fontFamily: "System", fontSize: 24, fontWeight: "800", color: "#1A1A1A" },
+  cardSubtitle: { fontFamily: "System", fontSize: 14, color: COLORS.muted, marginTop: 4, marginBottom: 20 },
+  socialRow: { flexDirection: "row", gap: 12, marginBottom: 4 },
+  socialBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#EDE9E0", backgroundColor: "#FFFFFF" },
+  appleBtnStyle: { backgroundColor: "#F8F6F0" },
+  socialBtnText: { fontFamily: "System", fontSize: 14, fontWeight: "600", color: "#333" },
+  divider: { flexDirection: "row", alignItems: "center", marginVertical: 20, gap: 12 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#EDE9E0" },
+  dividerText: { fontFamily: "System", fontSize: 12, color: COLORS.muted },
   inputWrapper: { marginBottom: 16 },
-  genderRow: {
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  genderChip: {
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: "#EDE9E0",
-    backgroundColor: "#F8F6F0",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  genderChipActive: {
-    borderColor: COLORS.primaryDark,
-    backgroundColor: "#FFF3D0",
-  },
-  genderChipText: {
-    fontFamily: "System",
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#555",
-  },
-  genderChipTextActive: {
-    color: COLORS.primaryDark,
-  },
-  inputLabel: {
-    fontFamily: "System",
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#555",
-    marginBottom: 6,
-    marginLeft: 2,
-  },
-  input: {
-    backgroundColor: "#F8F6F0",
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 15,
-    fontSize: 15,
-    fontFamily: "System",
-    color: "#1A1A1A",
-    borderWidth: 1.5,
-    borderColor: "#EDE9E0",
-  },
-  passwordRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  eyeBtn: {
-    padding: 14,
-    backgroundColor: "#F8F6F0",
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#EDE9E0",
-  },
-  strengthContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 8,
-  },
-  strengthBarBg: {
-    flex: 1,
-    height: 4,
-    backgroundColor: "#EDE9E0",
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  strengthBarFill: {
-    height: 4,
-    borderRadius: 2,
-  },
-  strengthLabel: {
-    fontFamily: "System",
-    fontSize: 11,
-    fontWeight: "600",
-    width: 40,
-  },
-  primaryBtn: {
-    borderRadius: 16,
-    overflow: "hidden",
-    marginTop: 4,
-    marginBottom: 12,
-    shadowColor: "#F5C842",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  primaryBtnGradient: {
-    paddingVertical: 17,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    fontFamily: "System",
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#1A1A1A",
-    letterSpacing: 0.3,
-  },
+  inputLabel: { fontFamily: "System", fontSize: 13, fontWeight: "600", color: "#555", marginBottom: 6, marginLeft: 2 },
+  input: { backgroundColor: "#F8F6F0", borderRadius: 14, paddingHorizontal: 18, paddingVertical: 15, fontSize: 15, fontFamily: "System", color: "#1A1A1A", borderWidth: 1.5, borderColor: "#EDE9E0" },
+  genderRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  genderChip: { borderRadius: 999, borderWidth: 1.5, borderColor: "#EDE9E0", backgroundColor: "#F8F6F0", paddingHorizontal: 14, paddingVertical: 10 },
+  genderChipActive: { borderColor: COLORS.primaryDark, backgroundColor: "#FFF3D0" },
+  genderChipText: { fontFamily: "System", fontSize: 12, fontWeight: "700", color: "#555" },
+  genderChipTextActive: { color: COLORS.primaryDark },
+  passwordRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  eyeBtn: { padding: 14, backgroundColor: "#F8F6F0", borderRadius: 14, borderWidth: 1.5, borderColor: "#EDE9E0" },
+  strengthContainer: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  strengthBarBg: { flex: 1, height: 4, backgroundColor: "#EDE9E0", borderRadius: 2, overflow: "hidden" },
+  strengthBarFill: { height: 4, borderRadius: 2 },
+  strengthLabel: { fontFamily: "System", fontSize: 11, fontWeight: "600", width: 40 },
+  primaryBtn: { borderRadius: 16, overflow: "hidden", marginTop: 4, marginBottom: 12, shadowColor: "#F5C842", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 },
+  primaryBtnGradient: { paddingVertical: 17, alignItems: "center" },
+  primaryBtnText: { fontFamily: "System", fontSize: 16, fontWeight: "800", color: "#1A1A1A", letterSpacing: 0.3 },
   btnDisabled: { opacity: 0.6 },
-  termsText: {
-    fontFamily: "System",
-    fontSize: 11,
-    color: COLORS.muted,
-    textAlign: "center",
-    lineHeight: 16,
-    marginBottom: 16,
-  },
-  termsLink: {
-    color: COLORS.primaryDark,
-    fontWeight: "600",
-  },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingBottom: 8,
-  },
-  footerText: {
-    fontFamily: "System",
-    fontSize: 14,
-    color: COLORS.muted,
-  },
-  footerLink: {
-    fontFamily: "System",
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.primaryDark,
-  },
+  termsText: { fontFamily: "System", fontSize: 11, color: COLORS.muted, textAlign: "center", lineHeight: 16, marginBottom: 16 },
+  termsLink: { color: COLORS.primaryDark, fontWeight: "600" },
+  footer: { flexDirection: "row", justifyContent: "center", alignItems: "center", paddingBottom: 8 },
+  footerText: { fontFamily: "System", fontSize: 14, color: COLORS.muted },
+  footerLink: { fontFamily: "System", fontSize: 14, fontWeight: "700", color: COLORS.primaryDark },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalCard: { maxHeight: "88%", backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  modalTitle: { fontFamily: "System", fontSize: 17, fontWeight: "800", color: "#1A1A1A", flex: 1 },
+  modalClose: { padding: 6 },
+  modalCloseText: { fontSize: 18, color: COLORS.muted },
+  legalText: { fontFamily: "System", fontSize: 13, lineHeight: 20, color: "#333", paddingBottom: 8 },
+  closeBtn: { backgroundColor: "#F5C842", borderRadius: 14, paddingVertical: 13, alignItems: "center", marginTop: 4 },
+  closeBtnText: { fontFamily: "System", fontWeight: "800", fontSize: 15, color: "#1A1A1A" },
 });

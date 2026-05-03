@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AnimatePresence } from "framer-motion";
-import { MessageCircle, Search, Send, Settings } from "lucide-react";
+import { ImagePlus, MessageCircle, Search, Send, Settings, X } from "lucide-react";
 import type { Message, User } from "@/features/home/types";
 
 interface ChatWorkspaceProps {
@@ -30,6 +30,8 @@ interface ChatWorkspaceProps {
   inputValue: string;
   isLoading: boolean;
   postText: string;
+  postImageUrl: string;
+  pickingPostImage: boolean;
   showInlinePost: boolean;
   isPosting: boolean;
   messageActionsRenderer: (message: Message) => ReactNode;
@@ -39,6 +41,8 @@ interface ChatWorkspaceProps {
   onScrollStateChange: () => void;
   onInlinePostClose: () => void;
   onPostTextChange: (value: string) => void;
+  onPickPostImage: () => void;
+  onRemovePostImage: () => void;
   onCreatePost: () => void;
   onInputChange: (value: string) => void;
   onInputFocusChange: (focused: boolean) => void;
@@ -67,6 +71,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     inputValue,
     isLoading,
     postText,
+    postImageUrl,
+    pickingPostImage,
     showInlinePost,
     isPosting,
     messageActionsRenderer,
@@ -76,6 +82,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     onScrollStateChange,
     onInlinePostClose,
     onPostTextChange,
+    onPickPostImage,
+    onRemovePostImage,
     onCreatePost,
     onInputChange,
     onInputFocusChange,

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import BeeEyes from "@/components/BeeEyes";
 import { Input } from "@/components/ui/input";
+import { PRIVACY_POLICY, TERMS_OF_USE } from "@/lib/legalTexts";
 
 interface PasswordStrength {
   w: string;
@@ -52,6 +54,7 @@ export function AuthScreen(props: AuthScreenProps) {
     onGoogleLogin,
     onClearError,
   } = props;
+  const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
@@ -103,7 +106,7 @@ export function AuthScreen(props: AuthScreenProps) {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-1 gap-3 mb-6">
             <button
               disabled={googleLoading}
               className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-60"
@@ -123,15 +126,6 @@ export function AuthScreen(props: AuthScreenProps) {
                 </svg>
               )}
               <span>{googleLoading ? "Aguarde..." : "Google"}</span>
-            </button>
-            <button
-              disabled
-              className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-sm font-semibold text-gray-400 cursor-not-allowed opacity-50"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-              </svg>
-              Apple
             </button>
           </div>
 
@@ -230,7 +224,10 @@ export function AuthScreen(props: AuthScreenProps) {
 
           {authMode === "register" && (
             <p className="text-center text-xs text-muted-foreground mt-3">
-              Ao criar uma conta você concorda com os <span className="text-yellow-600 font-semibold">Termos de Uso</span>
+              Ao criar uma conta voce concorda com os{" "}
+              <button type="button" className="text-yellow-600 font-semibold hover:underline" onClick={() => setLegalModal("terms")}>Termos de Uso</button>
+              {" "}e a{" "}
+              <button type="button" className="text-yellow-600 font-semibold hover:underline" onClick={() => setLegalModal("privacy")}>Politica de Privacidade</button>
             </p>
           )}
 
@@ -245,6 +242,18 @@ export function AuthScreen(props: AuthScreenProps) {
           </button>
         </motion.div>
       </div>
+
+      {legalModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white w-full md:max-w-2xl md:rounded-2xl rounded-t-2xl max-h-[82vh] p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-black text-gray-900">{legalModal === "privacy" ? "Politica de Privacidade" : "Termos de Uso"}</h3>
+              <button type="button" className="text-sm font-semibold text-gray-600" onClick={() => setLegalModal(null)}>Fechar</button>
+            </div>
+            <pre className="whitespace-pre-wrap overflow-y-auto text-xs leading-relaxed text-gray-700 font-sans">{legalModal === "privacy" ? PRIVACY_POLICY : TERMS_OF_USE}</pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

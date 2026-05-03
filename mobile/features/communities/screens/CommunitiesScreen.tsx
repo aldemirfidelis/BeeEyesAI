@@ -68,10 +68,20 @@ async function pickCommunityImage(onChange: (imageUrl: string) => void) {
   onChange(`data:image/jpeg;base64,${processed.base64}`);
 }
 
+// Compressão agressiva para uso recreativo no feed (legível mas leve)
+async function compressPostImage(uri: string): Promise<string | null> {
+  const processed = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 720 } }],
+    { compress: 0.52, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+  return processed.base64 ? `data:image/jpeg;base64,${processed.base64}` : null;
+}
+
 async function pickPostImage(onChange: (imageUrl: string) => void) {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
-    Alert.alert("Permissao necessaria", "Permita acesso a galeria para anexar uma imagem.");
+    Alert.alert("Permissão necessária", "Permita acesso à galeria para anexar uma imagem.");
     return;
   }
 
@@ -79,23 +89,35 @@ async function pickPostImage(onChange: (imageUrl: string) => void) {
     mediaTypes: "images",
     allowsEditing: true,
     aspect: [4, 3],
-    quality: 0.7,
+    quality: 1,
   });
 
   if (result.canceled || !result.assets?.[0]?.uri) return;
 
-  const processed = await ImageManipulator.manipulateAsync(
-    result.assets[0].uri,
-    [{ resize: { width: 900 } }],
-    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-  );
+  const url = await compressPostImage(result.assets[0].uri);
+  if (!url) { Alert.alert("Erro", "Não foi possível preparar a imagem."); return; }
+  onChange(url);
+}
 
-  if (!processed.base64) {
-    Alert.alert("Erro", "Nao foi possivel preparar a imagem.");
+async function takePostPhoto(onChange: (imageUrl: string) => void) {
+  const permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted) {
+    Alert.alert("Permissão necessária", "Permita acesso à câmera para tirar uma foto.");
     return;
   }
 
-  onChange(`data:image/jpeg;base64,${processed.base64}`);
+  const result = await ImagePicker.launchCameraAsync({
+    mediaTypes: "images",
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 1,
+  });
+
+  if (result.canceled || !result.assets?.[0]?.uri) return;
+
+  const url = await compressPostImage(result.assets[0].uri);
+  if (!url) { Alert.alert("Erro", "Não foi possível preparar a foto."); return; }
+  onChange(url);
 }
 
 // ── Community List ────────────────────────────────────────────────────────────
@@ -243,7 +265,7 @@ function CommunityDetail({
   const [editForm, setEditForm] = useState({ name: community.name, description: community.description || "", imageUrl: community.imageUrl || "" });
   const [pickingImage, setPickingImage] = useState(false);
   const [postImageUrl, setPostImageUrl] = useState("");
-  const [pickingPostImage, setPickingPostImage] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
 
   const detailQuery = useQuery<Community>({
     queryKey: ["community", community.id],
@@ -487,33 +509,87 @@ function CommunityDetail({
         </ScrollView>
 
         {detail.isMember && (
-          <View style={[styles.inputRow, { paddingBottom: insets.bottom + 6 }]}>
-            <TouchableOpacity
-              style={styles.attachBtn}
-              onPress={async () => {
-                setPickingPostImage(true);
-                try { await pickPostImage(setPostImageUrl); } finally { setPickingPostImage(false); }
-              }}
-              disabled={pickingPostImage}
-            >
-              <Feather name={postImageUrl ? "image" : "camera"} size={18} color={postImageUrl ? colors.primaryDark : colors.muted} />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.postInput}
-              value={newPost}
-              onChangeText={setNewPost}
-              placeholder="Compartilhe algo..."
-              placeholderTextColor={colors.muted}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, ((!newPost.trim() && !postImageUrl) || createPost.isPending) && styles.sendBtnDisabled]}
-              onPress={() => { if (newPost.trim() || postImageUrl) createPost.mutate({ content: newPost.trim() || "Imagem compartilhada", imageUrl: postImageUrl }); }}
-              disabled={(!newPost.trim() && !postImageUrl) || createPost.isPending}
-            >
-              <Feather name="send" size={18} color="#1A1A1A" />
-            </TouchableOpacity>
+          <View style={[styles.composeWrapper, { paddingBottom: insets.bottom + 6 }]}>
+            {/* Image preview with remove button */}
+            {postImageUrl ? (
+              <View style={styles.imagePreviewRow}>
+                <Image source={{ uri: postImageUrl }} style={styles.imagePreviewThumb} />
+                <View style={styles.imagePreviewInfo}>
+                  <Text style={styles.imagePreviewLabel}>📸 Imagem anexada</Text>
+                  <Text style={styles.imagePreviewSub}>Comprimida para o feed</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.imageRemoveBtn}
+                  onPress={() => setPostImageUrl("")}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Feather name="x" size={16} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {/* Input row */}
+            <View style={styles.inputRow}>
+              {/* Camera/gallery picker */}
+              <TouchableOpacity
+                style={[styles.attachBtn, processingImage && { opacity: 0.5 }]}
+                disabled={processingImage}
+                onPress={() =>
+                  Alert.alert(
+                    "Adicionar imagem",
+                    "Escolha de onde quer pegar a foto",
+                    [
+                      {
+                        text: "📷 Câmera",
+                        onPress: async () => {
+                          setProcessingImage(true);
+                          try { await takePostPhoto(setPostImageUrl); } finally { setProcessingImage(false); }
+                        },
+                      },
+                      {
+                        text: "🖼 Galeria",
+                        onPress: async () => {
+                          setProcessingImage(true);
+                          try { await pickPostImage(setPostImageUrl); } finally { setProcessingImage(false); }
+                        },
+                      },
+                      { text: "Cancelar", style: "cancel" },
+                    ],
+                  )
+                }
+              >
+                <Feather
+                  name={processingImage ? "loader" : postImageUrl ? "image" : "image"}
+                  size={18}
+                  color={postImageUrl ? colors.primaryDark : colors.muted}
+                />
+              </TouchableOpacity>
+
+              <TextInput
+                style={styles.postInput}
+                value={newPost}
+                onChangeText={setNewPost}
+                placeholder={postImageUrl ? "Adicione uma legenda..." : "Compartilhe algo..."}
+                placeholderTextColor={colors.muted}
+                multiline
+                maxLength={500}
+              />
+
+              <TouchableOpacity
+                style={[styles.sendBtn, ((!newPost.trim() && !postImageUrl) || createPost.isPending) && styles.sendBtnDisabled]}
+                onPress={() => {
+                  if (newPost.trim() || postImageUrl) {
+                    createPost.mutate({
+                      content: newPost.trim() || "📸",
+                      imageUrl: postImageUrl,
+                    });
+                  }
+                }}
+                disabled={(!newPost.trim() && !postImageUrl) || createPost.isPending}
+              >
+                <Feather name="send" size={18} color="#1A1A1A" />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -969,15 +1045,46 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
 
     // Posts
     postsList: { padding: 16, gap: 12 },
+    composeWrapper: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    imagePreviewRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      paddingBottom: 6,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    imagePreviewThumb: {
+      width: 56,
+      height: 42,
+      borderRadius: 8,
+      backgroundColor: colors.background,
+    },
+    imagePreviewInfo: { flex: 1, gap: 2 },
+    imagePreviewLabel: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.foreground },
+    imagePreviewSub: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted },
+    imageRemoveBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     inputRow: {
       flexDirection: "row",
       alignItems: "flex-end",
       gap: 10,
       paddingHorizontal: 16,
       paddingTop: 10,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: colors.card,
     },
     attachBtn: {
       width: 44,

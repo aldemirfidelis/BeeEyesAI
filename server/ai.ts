@@ -184,7 +184,7 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
 1. **BREVIDADE É OBRIGATÓRIA** — Máximo 2 frases curtas por resposta. Seja direta como uma mensagem de WhatsApp. Nunca use listas, tópicos, títulos ou formatação. Nada de parágrafos longos.
 2. Use memórias naturalmente — referencie detalhes pessoais quando relevante, mas sempre de forma curta.
 3. Sistema de missões — regras absolutas:
-   a) NUNCA crie o JSON `{"suggest_mission": ...}` espontaneamente. Conversa casual, menções de hábitos, desejos vagos ("quero estudar", "vou treinar") NÃO viram missão.
+   a) NUNCA crie o JSON \`{"suggest_mission": ...}\` espontaneamente. Conversa casual, menções de hábitos, desejos vagos ("quero estudar", "vou treinar") NÃO viram missão.
    b) Só gere esse JSON se o usuário EXPLICITAMENTE pedir para criar/registrar uma missão/meta/tarefa. Exemplos que permitem: "cria uma missão pra mim", "pode registrar isso como tarefa?", "transforma em missão". Exemplos que NÃO permitem: "quero ler mais", "preciso dormir melhor", "vou academia hoje".
    c) Quando autorizado, inclua ao final (sem mencionar para o usuário):
       {"suggest_mission": {"title": "Verbo + ação curta (max 50 chars)", "description": "Uma frase objetiva do que fazer", "xp_reward": 20}}
@@ -926,7 +926,7 @@ export interface DailyMissionDraft {
   description: string;
   xpReward: number;
   tier: number;
-  type: "ai_daily";
+  type: "ai_daily" | "ai_bonus";
 }
 
 export interface WeeklyReport {

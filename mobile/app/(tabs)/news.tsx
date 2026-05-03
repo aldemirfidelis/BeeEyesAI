@@ -1,9 +1,10 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Linking,
-  SafeAreaView,
+  
   ScrollView,
   StyleSheet,
   Text,

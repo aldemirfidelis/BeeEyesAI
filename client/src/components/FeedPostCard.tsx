@@ -32,6 +32,7 @@ interface FeedPostCardProps {
     likesCount: number;
     liked: boolean;
     commentsCount: number;
+    imageUrl?: string | null;
     aiComment?: string | null;
     sentimentLabel?: string | null;
     sentiment?: string | null;
@@ -193,6 +194,15 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }
         <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
           {initialPost.content}
         </p>
+
+        {initialPost.imageUrl && (
+          <img
+            src={initialPost.imageUrl}
+            alt="Imagem da publicacao"
+            className="mt-3 w-full max-h-[360px] rounded-xl object-cover border border-border/50"
+            loading="lazy"
+          />
+        )}
 
         {/* AI comment */}
         {initialPost.aiComment && (

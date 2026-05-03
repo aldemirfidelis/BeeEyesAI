@@ -9,6 +9,7 @@ export interface FeedPost {
   id: string;
   userId: string;
   content: string;
+  imageUrl?: string | null;
   sentiment: string | null;
   sentimentLabel: string | null;
   aiComment: string | null;
@@ -79,12 +80,21 @@ export interface CommunityPost {
   communityId: string;
   userId: string;
   content: string;
+  imageUrl?: string | null;
   createdAt: string;
   username: string;
   displayName: string | null;
   likesCount: number;
   liked: boolean;
   commentsCount: number;
+}
+
+export interface CommunityMember {
+  id: string;
+  username: string;
+  displayName: string | null;
+  role: string;
+  joinedAt: string;
 }
 
 export interface NewsItem {

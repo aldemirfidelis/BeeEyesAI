@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { View, StyleSheet } from "react-native";
-import Svg, { Polygon, Rect, G } from "react-native-svg";
+import Svg, { Polygon, Rect, G, Path } from "react-native-svg";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -32,15 +32,74 @@ function clampN(v: number, min: number, max: number) {
   return Math.min(Math.max(v, min), max);
 }
 
-// Per-expression vertical scale + pupil offset
-const EXPR: Record<EyeExpression, { scaleY: number; pupilX: number; pupilY: number }> = {
-  neutral:     { scaleY: 1,    pupilX: 0, pupilY: 0  },
-  happy:       { scaleY: 0.55, pupilX: 0, pupilY: 4  },
-  curious:     { scaleY: 1.08, pupilX: 8, pupilY: -4 },
-  excited:     { scaleY: 1.14, pupilX: 0, pupilY: -2 },
-  sleepy:      { scaleY: 0.32, pupilX: 0, pupilY: 4  },
-  celebrating: { scaleY: 1.1,  pupilX: 0, pupilY: -3 },
+// Per-expression vertical scale + pupil offset + eyebrow config
+const EXPR: Record<EyeExpression, {
+  scaleY: number;
+  pupilX: number;
+  pupilY: number;
+  browLeft: { rotate: number; translateY: number; opacity: number };
+  browRight: { rotate: number; translateY: number; opacity: number };
+}> = {
+  neutral: {
+    scaleY: 1,    pupilX: 0, pupilY: 0,
+    browLeft:  { rotate: -6,  translateY: 0,  opacity: 1   },
+    browRight: { rotate:  6,  translateY: 0,  opacity: 1   },
+  },
+  happy: {
+    scaleY: 0.55, pupilX: 0, pupilY: 4,
+    browLeft:  { rotate:  12, translateY: -3, opacity: 1   },
+    browRight: { rotate: -12, translateY: -3, opacity: 1   },
+  },
+  curious: {
+    scaleY: 1.08, pupilX: 8, pupilY: -4,
+    browLeft:  { rotate: -18, translateY: -6, opacity: 1   },
+    browRight: { rotate:   6, translateY: -1, opacity: 1   },
+  },
+  excited: {
+    scaleY: 1.14, pupilX: 0, pupilY: -2,
+    browLeft:  { rotate:  14, translateY: -5, opacity: 1   },
+    browRight: { rotate: -14, translateY: -5, opacity: 1   },
+  },
+  sleepy: {
+    scaleY: 0.32, pupilX: 0, pupilY: 4,
+    browLeft:  { rotate: -10, translateY:  4, opacity: 0.6 },
+    browRight: { rotate:  10, translateY:  4, opacity: 0.6 },
+  },
+  celebrating: {
+    scaleY: 1.1,  pupilX: 0, pupilY: -3,
+    browLeft:  { rotate:  18, translateY: -7, opacity: 1   },
+    browRight: { rotate: -18, translateY: -7, opacity: 1   },
+  },
 };
+
+function Eyebrow({
+  side,
+  expression,
+}: {
+  side: "left" | "right";
+  expression: EyeExpression;
+}) {
+  const cfg = side === "left" ? EXPR[expression].browLeft : EXPR[expression].browRight;
+
+  const browStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: withTiming(cfg.translateY, { duration: 220 }) }],
+    opacity: withTiming(cfg.opacity, { duration: 180 }),
+  }));
+
+  return (
+    <Animated.View style={[{ width: 56, height: 14, alignItems: "center", justifyContent: "flex-end" }, browStyle]}>
+      <Svg width={56} height={14} viewBox="0 0 56 14">
+        <Path
+          d={`M 10 10 Q 28 ${cfg.rotate > 0 ? 3 : cfg.rotate < -8 ? 1 : 5} 46 10`}
+          fill="none"
+          stroke={COLORS.foreground}
+          strokeWidth={5.5}
+          strokeLinecap="round"
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
 
 function Eye({
   side,
@@ -59,7 +118,6 @@ function Eye({
 }) {
   const cfg = EXPR[expression];
 
-  // Pupil offset: expression bias + attention tracking
   const pX = clampN(cfg.pupilX + attentionX * 6, -8, 8);
   const pY = clampN(cfg.pupilY + attentionY * 4, -6, 6);
 
@@ -67,6 +125,7 @@ function Eye({
     transform: [{ translateY: bounceY.value }],
   }));
 
+  // Eye only — eyebrow is separate, NOT affected by blinkScale
   const blinkStyle = useAnimatedStyle(() => ({
     transform: [{ scaleY: blinkScale.value * cfg.scaleY }],
   }));
@@ -74,7 +133,11 @@ function Eye({
   const isCelebrating = expression === "celebrating" || expression === "excited";
 
   return (
-    <Animated.View style={bounceStyle}>
+    <Animated.View style={[{ alignItems: "center" }, bounceStyle]}>
+      {/* Eyebrow — outside blinkStyle, always visible */}
+      <Eyebrow side={side} expression={expression} />
+
+      {/* Eye body — affected by blink + expression scaleY */}
       <Animated.View style={blinkStyle}>
         <Svg width={56} height={56} viewBox="0 0 56 56">
           {/* Eye body — hexagon */}
@@ -171,22 +234,24 @@ export default function BeeEyes({
   }, [bounceY, expression, sparkle1Opacity, sparkle2Opacity]);
 
   const scale = size / 120;
+  // Height is now taller to accommodate eyebrows above the eyes
+  const eyeH = 56 + 14; // eye (56) + eyebrow area (14)
   const containerW = 120 * scale;
-  const containerH = 56 * scale;
+  const containerH = eyeH * scale;
 
   const sparkle1Style = useAnimatedStyle(() => ({ opacity: sparkle1Opacity.value }));
   const sparkle2Style = useAnimatedStyle(() => ({ opacity: sparkle2Opacity.value }));
 
   return (
-    <View style={[styles.container, { width: containerW, height: containerH + 16 }]}>
+    <View style={[styles.container, { width: containerW, height: containerH + 8 }]}>
       <View
         style={{
           transform: [{ scale }],
           width: 120,
-          height: 56,
+          height: eyeH,
           flexDirection: "row",
           gap: 8,
-          alignItems: "center",
+          alignItems: "flex-end",
         }}
       >
         <Eye

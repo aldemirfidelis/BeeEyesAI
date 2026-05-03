@@ -35,6 +35,10 @@ export function useChat() {
     const token = await SecureStore.getItemAsync("bee_token");
 
     try {
+      const controller = new AbortController();
+      // 60s para o stream de IA — pode demorar em 5G/dados móveis
+      const chatTimeout = setTimeout(() => controller.abort(), 60000);
+
       const response = await fetch(`${API_URL_RAW}/api/chat`, {
         method: "POST",
         headers: {
@@ -42,7 +46,10 @@ export function useChat() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ content }),
+        signal: controller.signal,
       });
+
+      clearTimeout(chatTimeout);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -114,9 +121,12 @@ export function useChat() {
       queryClient.invalidateQueries({ queryKey: ["score"] });
       queryClient.invalidateQueries({ queryKey: ["intelligent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications-center"] });
-    } catch (err) {
-      console.error("[useChat] erro:", err);
-      finalizeStream(getApiErrorMessage(err, "Não consegui me conectar agora. Verifique sua conexão e tente novamente!"));
+    } catch (err: any) {
+      const isAbort = err?.name === "AbortError";
+      const msg = isAbort
+        ? "A resposta demorou muito. Verifique sua conexão e tente novamente."
+        : getApiErrorMessage(err, "Não consegui me conectar agora. Verifique sua conexão e tente novamente!");
+      finalizeStream(msg);
       setEyeExpression("neutral");
     }
   }

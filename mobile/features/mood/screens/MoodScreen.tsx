@@ -1,25 +1,22 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from "react";
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useTranslation } from "react-i18next";
 import { useMood } from "@mobile/hooks/useMood";
 import MoodSelector from "@mobile/components/MoodSelector";
 import { COLORS, FONTS } from "@mobile/lib/theme";
 
 const MOOD_COLORS = ["", "#E53E3E", "#FF8C42", "#888888", "#4CAF50", COLORS.primary];
-const MOOD_LABELS = ["", "Muito mal", "Mal", "Normal", "Bem", "Ótimo!"];
-const MOOD_MESSAGES = [
-  "",
-  "Sinto muito que não esteja bem. Estou aqui para te ajudar! 💙",
-  "Dias difíceis fazem parte. Vamos trabalhar juntos para melhorar! 💪",
-  "Tudo bem ter dias normais. Continue firme! 🙂",
-  "Que bom que você está bem! Aproveite esse momento! ✨",
-  "Incrível! Você está radiante hoje! Continue assim! 🌟",
-];
 
 export default function MoodScreen() {
+  const { t } = useTranslation();
+  const MOOD_LABELS = ["", t("mood_very_bad"), t("mood_bad"), t("mood_normal"), t("mood_good"), t("mood_great")];
+  const MOOD_MESSAGES = ["", t("mood_msg_1"), t("mood_msg_2"), t("mood_msg_3"), t("mood_msg_4"), t("mood_msg_5")];
+
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
@@ -51,7 +48,7 @@ export default function MoodScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <Text style={styles.header}>Como você está? 💛</Text>
+        <Text style={styles.header}>{t("mood_header")}</Text>
 
         {/* Mood Selector */}
         <View style={styles.selectorSection}>
@@ -71,7 +68,7 @@ export default function MoodScreen() {
           <Animated.View entering={FadeInDown.duration(300).delay(100)} style={styles.noteSection}>
             <TextInput
               style={styles.noteInput}
-              placeholder="Quer falar mais sobre como está se sentindo? (opcional)"
+              placeholder={t("mood_note_placeholder")}
               placeholderTextColor={COLORS.muted}
               value={note}
               onChangeText={setNote}
@@ -84,7 +81,7 @@ export default function MoodScreen() {
               disabled={logMood.isPending}
             >
               <Text style={styles.saveButtonText}>
-                {logMood.isPending ? "Salvando..." : "Registrar Humor"}
+                {logMood.isPending ? t("mood_saving") : t("mood_save")}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -92,13 +89,13 @@ export default function MoodScreen() {
 
         {saved && (
           <Animated.View entering={FadeInDown} style={styles.savedBadge}>
-            <Text style={styles.savedText}>✓ Humor registrado!</Text>
+            <Text style={styles.savedText}>{t("mood_saved")}</Text>
           </Animated.View>
         )}
 
         {/* 30-day calendar heatmap */}
         <View style={styles.calendarSection}>
-          <Text style={styles.calendarTitle}>📅 Últimos 30 dias</Text>
+          <Text style={styles.calendarTitle}>{t("mood_calendar_title")}</Text>
           <View style={styles.grid}>
             {calendarDays.map((d, i) => {
               const key = d.toDateString();

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content \"$env:APPDATA\\\\Expo\\\\state.json\" -ErrorAction SilentlyContinue | ConvertFrom-Json | Select-Object -Property sessionSecret,accessToken 2>$null; if \\(-not $?\\) { \"File not found or no token fields\" })",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Expo\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:USERPROFILE\\\\.expo\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "PowerShell(Get-ChildItem \"$env:LOCALAPPDATA\\\\Expo\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:USERPROFILE\\\\.config\\\\expo\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:USERPROFILE\\\\.expo\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "Bash(cmd /c \"gradlew.bat assembleRelease --stacktrace 2>&1\")",
+      "PowerShell(Set-Location \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\android\"; $env:ANDROID_HOME = \"C:\\\\Users\\\\aldem\\\\AppData\\\\Local\\\\Android\\\\Sdk\"; .\\\\gradlew.bat assembleRelease --stacktrace 2>&1 | Select-Object -Last 100)",
+      "PowerShell(Set-Location \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\android\"; $env:ANDROID_HOME = \"C:\\\\Users\\\\aldem\\\\AppData\\\\Local\\\\Android\\\\Sdk\"; .\\\\gradlew.bat assembleDebug 2>&1 | Select-Object -Last 30)",
+      "PowerShell(Set-Location \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\android\"; $env:ANDROID_HOME = \"C:\\\\Users\\\\aldem\\\\AppData\\\\Local\\\\Android\\\\Sdk\"; .\\\\gradlew.bat assembleDebug 2>&1 | Select-Object -Last 60)",
+      "PowerShell($adb = \"C:\\\\Users\\\\aldem\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices)",
+      "PowerShell(Set-Location \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\android\"; $env:ANDROID_HOME = \"C:\\\\Users\\\\aldem\\\\AppData\\\\Local\\\\Android\\\\Sdk\"; .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 20)",
+      "PowerShell($adb = \"C:\\\\Users\\\\aldem\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb install -r \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" 2>&1)",
+      "Bash(git commit -m 'feat: members bottom sheet from community list + improved detail header *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: keyboard covering create community form on Android *)",
+      "Bash(dir shared\\\\schema*)",
+      "PowerShell(Get-Command psql -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell(node --version)",
+      "PowerShell(node \"D:\\\\Projetos\\\\BeeEyesAI\\\\server\\\\scripts\\\\cleanup-communities.mjs\" 2>&1)",
+      "Bash(git commit -m 'fix: missions only created on explicit user request *)",
+      "Bash(git push *)",
+      "Bash(git commit -m 'feat: random bonus missions after completing all missions *)"
+    ]
+  }
+}

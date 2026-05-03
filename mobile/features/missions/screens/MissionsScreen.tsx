@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "@mobile/lib/api";
 import { useMissions } from "@mobile/hooks/useMissions";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
@@ -13,21 +14,22 @@ import { useUIStore } from "@mobile/stores/uiStore";
 
 function xpForLevel(level: number) { return level * 100 + (level - 1) * 50; }
 
-const TIER_META: Record<number, { label: string; emoji: string; color: string }> = {
-  1: { label: "Boas-vindas",   emoji: "👋", color: "#F59E0B" },
-  2: { label: "Social",        emoji: "🤝", color: "#3B82F6" },
-  3: { label: "Conectado",     emoji: "💬", color: "#8B5CF6" },
-  4: { label: "Criador",       emoji: "🚀", color: "#10B981" },
+const TIER_META: Record<number, { labelKey: string; emoji: string; color: string }> = {
+  1: { labelKey: "missions_tier_welcome", emoji: "👋", color: "#F59E0B" },
+  2: { labelKey: "missions_tier_social",  emoji: "🤝", color: "#3B82F6" },
+  3: { labelKey: "missions_tier_connected", emoji: "💬", color: "#8B5CF6" },
+  4: { labelKey: "missions_tier_creator", emoji: "🚀", color: "#10B981" },
 };
 
-const LEVEL_UNLOCKS: Record<number, { icon: string; label: string }> = {
-  2: { icon: "📨", label: "Mensagens Diretas desbloqueadas" },
-  3: { icon: "👻", label: "Visita anônima de perfil desbloqueada" },
-  4: { icon: "🏅", label: "Badge exclusiva no perfil desbloqueada" },
-  5: { icon: "🤖", label: "Modo IA Avançado desbloqueado" },
+const LEVEL_UNLOCKS: Record<number, { icon: string; labelKey: string }> = {
+  2: { icon: "📨", labelKey: "missions_unlock_dm" },
+  3: { icon: "👻", labelKey: "missions_unlock_anon" },
+  4: { icon: "🏅", labelKey: "missions_unlock_badge" },
+  5: { icon: "🤖", labelKey: "missions_unlock_ai" },
 };
 
 export default function MissionsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const themeMode = useUIStore((s) => s.themeMode);
   const colors = getThemeColors(themeMode);
@@ -90,9 +92,9 @@ export default function MissionsScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Missões 🎯</Text>
+        <Text style={styles.headerTitle}>{t("missions_title")}</Text>
         <Text style={styles.headerSub}>
-          {totalDone}/{totalCount} concluídas
+          {totalDone}/{totalCount} {t("missions_completed")}
         </Text>
       </View>
 
@@ -124,7 +126,7 @@ export default function MissionsScreen() {
               <Text style={styles.levelNum}>{level}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.levelLabel}>Nível {level}</Text>
+              <Text style={styles.levelLabel}>{t("missions_level")} {level}</Text>
               <Text style={styles.xpLabel}>{xp} / {xpNeeded} XP</Text>
             </View>
             <Text style={styles.levelPct}>{Math.round(progress * 100)}%</Text>
@@ -137,8 +139,8 @@ export default function MissionsScreen() {
           {LEVEL_UNLOCKS[level + 1] && (
             <View style={styles.nextUnlock}>
               <Text style={styles.nextUnlockText}>
-                {LEVEL_UNLOCKS[level + 1].icon} Próximo desbloqueio no nível {level + 1}:{" "}
-                <Text style={{ fontWeight: "700" }}>{LEVEL_UNLOCKS[level + 1].label}</Text>
+                {LEVEL_UNLOCKS[level + 1].icon} {t("missions_next_unlock_prefix")} {level + 1}:{" "}
+                <Text style={{ fontWeight: "700" }}>{t(LEVEL_UNLOCKS[level + 1].labelKey as any)}</Text>
               </Text>
             </View>
           )}
@@ -149,16 +151,16 @@ export default function MissionsScreen() {
       {weeklyReport ? (
         <View style={styles.reportCard}>
           <View style={styles.reportHeader}>
-            <Text style={styles.reportTitle}>Resumo semanal</Text>
+            <Text style={styles.reportTitle}>{t("missions_weekly_report")}</Text>
             <View style={styles.reportScores}>
-              <Text style={styles.reportScore}>{weeklyReport.consistencyScore}% constancia</Text>
-              <Text style={styles.reportScore}>{weeklyReport.disciplineScore}% disciplina</Text>
+              <Text style={styles.reportScore}>{weeklyReport.consistencyScore}{t("missions_consistency")}</Text>
+              <Text style={styles.reportScore}>{weeklyReport.disciplineScore}{t("missions_discipline")}</Text>
             </View>
           </View>
           <Text style={styles.reportSummary}>{weeklyReport.summary}</Text>
-          <Text style={styles.reportLine}><Text style={styles.reportLabel}>Ponto forte:</Text> {weeklyReport.positive}</Text>
-          <Text style={styles.reportLine}><Text style={styles.reportLabel}>Atencao:</Text> {weeklyReport.attention}</Text>
-          <Text style={styles.reportLine}><Text style={styles.reportLabel}>Proximo passo:</Text> {weeklyReport.nextAction}</Text>
+          <Text style={styles.reportLine}><Text style={styles.reportLabel}>{t("missions_strong_point")}</Text> {weeklyReport.positive}</Text>
+          <Text style={styles.reportLine}><Text style={styles.reportLabel}>{t("missions_attention")}</Text> {weeklyReport.attention}</Text>
+          <Text style={styles.reportLine}><Text style={styles.reportLabel}>{t("missions_next_step")}</Text> {weeklyReport.nextAction}</Text>
         </View>
       ) : null}
 
@@ -166,8 +168,8 @@ export default function MissionsScreen() {
       {bonusMissions.length > 0 ? (
         <View style={styles.bonusSection}>
           <View style={styles.bonusHeader}>
-            <Text style={styles.bonusTitle}>🎁 Desafios Bônus</Text>
-            <Text style={styles.bonusHint}>{pendingBonus} pendente{pendingBonus !== 1 ? "s" : ""} • ganhe XP extra</Text>
+            <Text style={styles.bonusTitle}>{t("missions_bonus_title")}</Text>
+            <Text style={styles.bonusHint}>{pendingBonus} {pendingBonus !== 1 ? t("missions_bonus_pending_other") : t("missions_bonus_pending_one")} • {t("missions_bonus_xp")}</Text>
           </View>
           {bonusMissions.map((m: any) => (
             <TouchableOpacity
@@ -194,8 +196,8 @@ export default function MissionsScreen() {
       {dailyMissions.length > 0 ? (
         <View style={styles.dailySection}>
           <View style={styles.dailyHeader}>
-            <Text style={styles.dailyTitle}>Missoes da Bee para hoje</Text>
-            <Text style={styles.dailyHint}>toque para concluir</Text>
+            <Text style={styles.dailyTitle}>{t("missions_daily_title")}</Text>
+            <Text style={styles.dailyHint}>{t("missions_daily_hint")}</Text>
           </View>
           {dailyMissions.map((mission: any) => (
             <TouchableOpacity
@@ -225,7 +227,7 @@ export default function MissionsScreen() {
         .map(([lvl, info]) => (
           <View key={lvl} style={styles.unlockedBanner}>
             <Text style={styles.unlockedIcon}>{info.icon}</Text>
-            <Text style={styles.unlockedLabel}>{info.label}</Text>
+            <Text style={styles.unlockedLabel}>{t(info.labelKey as any)}</Text>
           </View>
         ))}
 
@@ -242,8 +244,8 @@ export default function MissionsScreen() {
             <View key={tier} style={styles.tierSection}>
               <View style={styles.tierHeader}>
                 <View style={[styles.tierDot, { backgroundColor: meta.color }]} />
-                <Text style={styles.tierLabel}>{meta.emoji} {meta.label}</Text>
-                {allDone && <Text style={styles.tierDone}>✓ Completo</Text>}
+                <Text style={styles.tierLabel}>{meta.emoji} {t(meta.labelKey as any)}</Text>
+                {allDone && <Text style={styles.tierDone}>{t("missions_tier_done")}</Text>}
               </View>
               {tierMissions.map((m: any) => (
                 <TouchableOpacity

@@ -9,6 +9,9 @@ interface UserBasic {
   level: number;
   xp: number;
   anonymousProfileVisitsEnabled?: boolean;
+  bio?: string | null;
+  language?: string;
+  onboardingCompleted?: boolean;
   currentStreak: number;
 }
 

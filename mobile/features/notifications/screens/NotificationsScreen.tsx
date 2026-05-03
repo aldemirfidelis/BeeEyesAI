@@ -2,15 +2,17 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { useEffect, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@mobile/lib/api";
-import type { NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
+import type { NotificationCenterItem } from "@mobile/lib/intelligence";
 import { timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
@@ -22,13 +24,6 @@ export default function NotificationsScreen() {
     queryFn: () => api.get("/api/notifications/center").then((r) => r.data),
     staleTime: 45 * 1000,
     refetchInterval: 90 * 1000,
-    retry: false,
-  });
-
-  const { data: score } = useQuery<ScoreSnapshot>({
-    queryKey: ["score"],
-    queryFn: () => api.get("/api/score").then((r) => r.data),
-    staleTime: 30 * 1000,
     retry: false,
   });
 
@@ -54,36 +49,16 @@ export default function NotificationsScreen() {
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Alertas da Bee</Text>
-          <Text style={styles.headerSub}>Tudo o que pede sua atencao agora</Text>
+          <Text style={styles.headerTitle}>{t("notifications_title")}</Text>
+          <Text style={styles.headerSub}>{t("notifications_subtitle")}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {score ? (
-          <View style={styles.scoreCard}>
-            <Text style={styles.cardTitle}>Leitura atual</Text>
-            <View style={styles.scoreTopRow}>
-              <View style={styles.scoreBadge}>
-                <Text style={styles.scoreValue}>{score.focusScore}</Text>
-                <Text style={styles.scoreTone}>{score.scoreTone}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.scoreLine}>{score.summary}</Text>
-                <Text style={styles.scoreHint}>{score.insight}</Text>
-              </View>
-            </View>
-            <View style={styles.scoreMetaRow}>
-              <Text style={styles.scoreMeta}>{score.consistencyScore}% constancia</Text>
-              <Text style={styles.scoreMeta}>{score.disciplineScore}% disciplina</Text>
-            </View>
-          </View>
-        ) : null}
-
         {safeNotifications.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Nada urgente por aqui.</Text>
-            <Text style={styles.emptyText}>Quando a Bee detectar risco, progresso ou movimento da rede, isso aparece aqui.</Text>
+            <Text style={styles.emptyTitle}>{t("notifications_empty_title")}</Text>
+            <Text style={styles.emptyText}>{t("notifications_empty_text")}</Text>
           </View>
         ) : (
           safeNotifications.map((item) => (
@@ -107,7 +82,7 @@ export default function NotificationsScreen() {
               </View>
               <Text style={styles.notificationBody}>{item.body}</Text>
               <Text style={styles.notificationSource}>
-                {item.category === "social" ? "Social" : item.category === "activity" ? "Atividade" : "Alerta"} · {item.source}
+                {item.category === "social" ? t("notifications_social") : item.category === "activity" ? t("notifications_activity") : t("notifications_alert")} · {item.source}
               </Text>
             </View>
           ))
@@ -134,31 +109,6 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     headerTitle: { fontFamily: FONTS.display, fontSize: 24, fontWeight: "800", color: colors.foreground },
     headerSub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
     content: { padding: 16, gap: 12, paddingBottom: 32 },
-    scoreCard: {
-      backgroundColor: colors.card,
-      borderRadius: 20,
-      padding: 16,
-      gap: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    cardTitle: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: colors.foreground },
-    scoreTopRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-    scoreBadge: {
-      width: 84,
-      borderRadius: 18,
-      paddingVertical: 12,
-      paddingHorizontal: 10,
-      backgroundColor: colors.secondary,
-      alignItems: "center",
-      gap: 2,
-    },
-    scoreValue: { fontFamily: FONTS.display, fontSize: 28, fontWeight: "800", color: colors.foreground },
-    scoreTone: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark, textTransform: "uppercase" },
-    scoreLine: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground },
-    scoreHint: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.muted, marginTop: 4 },
-    scoreMetaRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-    scoreMeta: { fontFamily: FONTS.mono, fontSize: 12, fontWeight: "700", color: colors.foreground },
     emptyState: {
       backgroundColor: colors.card,
       borderRadius: 20,

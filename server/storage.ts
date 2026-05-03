@@ -1,7 +1,7 @@
 import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, userPersonality, messages, notificationReads, missions, moodEntries, achievements,
+  users, userPersonality, messages, notificationReads, missions, moodEntries, achievements, testimonials,
   posts, postLikes, userConnections, directMessages,
   communities, communityMembers, communityPosts,
   communityPostLikes, communityPostComments, communityPostCommentLikes,
@@ -15,6 +15,7 @@ import {
   type Achievement, type InsertAchievement,
   type Post, type InsertPost,
   type UserConnection, type InsertConnection,
+  type Testimonial, type InsertTestimonial,
   type DirectMessage, type InsertDirectMessage,
   type Community, type InsertCommunity,
   type CommunityPost, type InsertCommunityPost,
@@ -30,7 +31,9 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User>;
-  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean }): Promise<User>;
+  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean }): Promise<User>;
+  updateUserPassword(userId: string, passwordHash: string): Promise<void>;
+  updateUserPushToken(userId: string, token: string | null): Promise<void>;
   updateUserXP(userId: string, xpToAdd: number): Promise<User>;
   updateUserStreak(userId: string): Promise<User>;
   incrementMessageCount(userId: string): Promise<void>;
@@ -63,6 +66,7 @@ export interface IStorage {
   getAchievementsByUser(userId: string): Promise<Achievement[]>;
   createAchievement(achievement: InsertAchievement): Promise<Achievement>;
   hasAchievement(userId: string, type: string): Promise<boolean>;
+  ensureAchievement(userId: string, achievement: Omit<InsertAchievement, "userId">): Promise<Achievement | null>;
 
   // Posts
   createPost(post: InsertPost & { sentiment?: string; sentimentLabel?: string; aiComment?: string }): Promise<Post>;
@@ -106,6 +110,10 @@ export interface IStorage {
     unreadCount: number;
   }>>;
 
+  // Testimonials
+  getTestimonialsForProfile(profileUserId: string): Promise<(Testimonial & { authorUsername: string; authorDisplayName: string | null })[]>;
+  upsertTestimonial(data: InsertTestimonial): Promise<Testimonial>;
+
   // Comments
   getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]>;
   createPostComment(data: InsertPostComment): Promise<PostComment>;
@@ -117,6 +125,7 @@ export interface IStorage {
   createCommunity(data: InsertCommunity): Promise<Community>;
   updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null>;
   getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null>;
+  getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]>;
   joinCommunity(communityId: string, userId: string): Promise<void>;
   leaveCommunity(communityId: string, userId: string): Promise<void>;
   getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
@@ -150,11 +159,15 @@ export class DrizzleStorage implements IStorage {
     return user;
   }
 
-  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean }): Promise<User> {
+  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean }): Promise<User> {
     const updates: Partial<typeof users.$inferInsert> = {};
     if (preferences.anonymousProfileVisitsEnabled !== undefined) {
       updates.anonymousProfileVisitsEnabled = preferences.anonymousProfileVisitsEnabled;
     }
+    if (preferences.displayName !== undefined) updates.displayName = preferences.displayName;
+    if (preferences.bio !== undefined) updates.bio = preferences.bio;
+    if (preferences.language !== undefined) updates.language = preferences.language;
+    if (preferences.onboardingCompleted !== undefined) updates.onboardingCompleted = preferences.onboardingCompleted;
 
     if (Object.keys(updates).length === 0) {
       const user = await this.getUser(userId);
@@ -175,6 +188,14 @@ export class DrizzleStorage implements IStorage {
     }
 
     return updated;
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string): Promise<void> {
+    await db.update(users).set({ password: passwordHash }).where(eq(users.id, userId));
+  }
+
+  async updateUserPushToken(userId: string, token: string | null): Promise<void> {
+    await db.update(users).set({ expoPushToken: token }).where(eq(users.id, userId));
   }
 
   async getAllUsersExcept(userId: string): Promise<User[]> {
@@ -430,6 +451,11 @@ export class DrizzleStorage implements IStorage {
     return !!existing;
   }
 
+  async ensureAchievement(userId: string, achievement: Omit<InsertAchievement, "userId">): Promise<Achievement | null> {
+    if (await this.hasAchievement(userId, achievement.type)) return null;
+    return this.createAchievement({ userId, ...achievement });
+  }
+
   // ── Posts ─────────────────────────────────────────────────────────────────
 
   async createPost(post: InsertPost & { sentiment?: string; sentimentLabel?: string; aiComment?: string }): Promise<Post> {
@@ -467,6 +493,7 @@ export class DrizzleStorage implements IStorage {
         id: posts.id,
         userId: posts.userId,
         content: posts.content,
+        imageUrl: posts.imageUrl,
         sentiment: posts.sentiment,
         sentimentLabel: posts.sentimentLabel,
         aiComment: posts.aiComment,
@@ -486,6 +513,7 @@ export class DrizzleStorage implements IStorage {
       id: r.id,
       userId: r.userId,
       content: r.content,
+      imageUrl: r.imageUrl,
       sentiment: r.sentiment,
       sentimentLabel: r.sentimentLabel,
       aiComment: r.aiComment,
@@ -811,6 +839,42 @@ export class DrizzleStorage implements IStorage {
   }
   // ── Communities ───────────────────────────────────────────────────────────
 
+  async getTestimonialsForProfile(profileUserId: string): Promise<(Testimonial & { authorUsername: string; authorDisplayName: string | null })[]> {
+    return db
+      .select({
+        id: testimonials.id,
+        profileUserId: testimonials.profileUserId,
+        authorUserId: testimonials.authorUserId,
+        content: testimonials.content,
+        createdAt: testimonials.createdAt,
+        authorUsername: users.username,
+        authorDisplayName: users.displayName,
+      })
+      .from(testimonials)
+      .innerJoin(users, eq(testimonials.authorUserId, users.id))
+      .where(eq(testimonials.profileUserId, profileUserId))
+      .orderBy(desc(testimonials.createdAt));
+  }
+
+  async upsertTestimonial(data: InsertTestimonial): Promise<Testimonial> {
+    const [existing] = await db
+      .select()
+      .from(testimonials)
+      .where(and(eq(testimonials.profileUserId, data.profileUserId), eq(testimonials.authorUserId, data.authorUserId)));
+
+    if (existing) {
+      const [updated] = await db
+        .update(testimonials)
+        .set({ content: data.content, createdAt: new Date() })
+        .where(eq(testimonials.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db.insert(testimonials).values(data).returning();
+    return created;
+  }
+
   async getCommunities(userId: string, search?: string): Promise<(Community & { isMember: boolean })[]> {
     const rows = search?.trim()
       ? await db.select().from(communities).where(
@@ -854,6 +918,21 @@ export class DrizzleStorage implements IStorage {
     return { ...community, isMember: !!membership, memberRole: membership?.role };
   }
 
+  async getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]> {
+    return db
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        role: communityMembers.role,
+        joinedAt: communityMembers.joinedAt,
+      })
+      .from(communityMembers)
+      .innerJoin(users, eq(communityMembers.userId, users.id))
+      .where(eq(communityMembers.communityId, communityId))
+      .orderBy(communityMembers.joinedAt);
+  }
+
   async joinCommunity(communityId: string, userId: string): Promise<void> {
     const [existing] = await db.select().from(communityMembers).where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, userId)));
     if (existing) return;
@@ -875,6 +954,7 @@ export class DrizzleStorage implements IStorage {
         communityId: communityPosts.communityId,
         userId: communityPosts.userId,
         content: communityPosts.content,
+        imageUrl: communityPosts.imageUrl,
         createdAt: communityPosts.createdAt,
         username: users.username,
         displayName: users.displayName,

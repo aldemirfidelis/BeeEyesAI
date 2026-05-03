@@ -228,24 +228,56 @@ export function createAuthRouter() {
   }));
 
   router.post("/api/me/onboarding", requireAuth, asyncHandler(async (req, res) => {
-    const objective = String(req.body?.objective || "").trim().slice(0, 120);
-    const routine = String(req.body?.routine || "").trim().slice(0, 300);
-    const interests = Array.isArray(req.body?.interests)
+    // Accept objectives as array (new) or single string (compat)
+    const rawObjectives: string[] = Array.isArray(req.body?.objectives)
+      ? req.body.objectives.map((o: unknown) => String(o).trim()).filter(Boolean).slice(0, 5)
+      : req.body?.objective
+      ? [String(req.body.objective).trim()]
+      : [];
+
+    const routine     = String(req.body?.routine     || "").trim().slice(0, 400);
+    const workProfile = String(req.body?.workProfile || "").trim().slice(0, 60);
+    const activePeriod: string[] = Array.isArray(req.body?.activePeriod)
+      ? req.body.activePeriod.map((p: unknown) => String(p).trim()).filter(Boolean)
+      : [];
+
+    const interests: string[] = Array.isArray(req.body?.interests)
       ? req.body.interests.map((item: unknown) => String(item).trim()).filter(Boolean).slice(0, 12)
       : [];
 
-    if (!objective || !routine || interests.length === 0) {
-      throw badRequest("Objetivo, rotina e interesses sao obrigatorios");
+    if (rawObjectives.length === 0 || !routine || interests.length === 0) {
+      throw badRequest("Objetivos, rotina e interesses sao obrigatorios");
     }
 
+    // Build fact strings so parseFacts() injects them into the AI system prompt
+    const onboardingFacts: string[] = [
+      `Objetivos principais do usuário: ${rawObjectives.join(", ")}`,
+      ...(workProfile ? [`Perfil profissional: ${workProfile}`] : []),
+      ...(activePeriod.length > 0 ? [`Período mais ativo do dia: ${activePeriod.join(", ")}`] : []),
+      `Rotina: ${routine}`,
+    ];
+
     const personality = await storage.getPersonality(req.userId!);
+
+    // Preserve existing AI-generated facts, removing old onboarding entries
+    let existingFacts: string[] = [];
+    try {
+      const parsed = JSON.parse(personality?.traits || "[]");
+      if (Array.isArray(parsed)) {
+        existingFacts = parsed.filter(
+          (f: unknown) =>
+            typeof f === "string" &&
+            !f.startsWith("Objetivos principais") &&
+            !f.startsWith("Perfil profissional") &&
+            !f.startsWith("Período mais ativo") &&
+            !f.startsWith("Rotina:"),
+        );
+      }
+    } catch { /* start fresh */ }
+
     await storage.upsertPersonality({
       userId: req.userId!,
-      traits: JSON.stringify({
-        ...(personality?.traits ? JSON.parse(personality.traits) : {}),
-        objective,
-        routine,
-      }),
+      traits: JSON.stringify([...onboardingFacts, ...existingFacts]),
       communicationStyle: personality?.communicationStyle ?? "friendly",
       interests: JSON.stringify(interests),
       recentTopics: personality?.recentTopics ?? "[]",

@@ -1,11 +1,12 @@
 import {
-  View, Text, StyleSheet, ScrollView, SafeAreaView,
-  TouchableOpacity, RefreshControl, Modal, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView,
+  TouchableOpacity, RefreshControl, Modal, ActivityIndicator, Alert,
   TextInput,
 } from "react-native";
 import { useState, useCallback, useRef } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "@mobile/lib/api";
 import type { ConnectionSuggestion } from "@mobile/lib/social";
 import { COLORS, FONTS } from "@mobile/lib/theme";
@@ -50,6 +51,14 @@ interface FriendProfile {
   activeMissionsCount: number;
 }
 
+interface Testimonial {
+  id: string;
+  content: string;
+  createdAt: string;
+  authorUsername: string;
+  authorDisplayName: string | null;
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -61,12 +70,16 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function FriendsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [profile, setProfile] = useState<FriendProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [testimonialInput, setTestimonialInput] = useState("");
+  const [sendingTestimonial, setSendingTestimonial] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -120,13 +133,16 @@ export default function FriendsScreen() {
   const openProfile = async (friendId: string) => {
     setSelectedFriendId(friendId);
     setProfile(null);
+    setTestimonials([]);
     setProfileLoading(true);
     try {
-      const [profileRes] = await Promise.all([
+      const [profileRes, testimonialsRes] = await Promise.all([
         api.get(`/api/users/${friendId}/profile`).then((r) => r.data),
+        api.get(`/api/users/${friendId}/testimonials`).then((r) => r.data).catch(() => []),
         api.post(`/api/users/${friendId}/visit`).catch(() => {}),
       ]);
       setProfile(profileRes);
+      setTestimonials(Array.isArray(testimonialsRes) ? testimonialsRes : []);
     } catch { /* ignore */ }
     finally { setProfileLoading(false); }
   };
@@ -134,12 +150,28 @@ export default function FriendsScreen() {
   const closeProfile = () => {
     setSelectedFriendId(null);
     setProfile(null);
+    setTestimonials([]);
+    setTestimonialInput("");
+  };
+
+  const sendTestimonial = async () => {
+    if (!selectedFriendId || !testimonialInput.trim() || sendingTestimonial) return;
+    setSendingTestimonial(true);
+    try {
+      const { data } = await api.post(`/api/users/${selectedFriendId}/testimonials`, { content: testimonialInput.trim() });
+      setTestimonials((prev) => [{ ...data, authorUsername: "voce", authorDisplayName: "Voce" }, ...prev]);
+      setTestimonialInput("");
+    } catch {
+      Alert.alert(t("error"), t("friends_error_testimonial"));
+    } finally {
+      setSendingTestimonial(false);
+    }
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>👥 Amigos</Text>
+        <Text style={styles.headerTitle}>{t("friends_title")}</Text>
       </View>
 
       <ScrollView
@@ -153,7 +185,7 @@ export default function FriendsScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar pessoas no BeeEyes..."
+            placeholder={t("friends_search_placeholder")}
             placeholderTextColor={COLORS.muted}
             value={searchQuery}
             onChangeText={handleSearch}
@@ -167,7 +199,7 @@ export default function FriendsScreen() {
         {searchQuery.trim().length > 0 && (
           <>
             {searchResults.length === 0 && !searchLoading && (
-              <Text style={styles.noResults}>Nenhum usuário encontrado.</Text>
+              <Text style={styles.noResults}>{t("friends_no_results")}</Text>
             )}
             {searchResults.map((u) => {
               const name = u.displayName || u.username;
@@ -188,16 +220,16 @@ export default function FriendsScreen() {
                     </View>
                   </TouchableOpacity>
                   {u.connectionStatus === "accepted" ? (
-                    <Text style={styles.friendTag}>✓ Amigos</Text>
+                    <Text style={styles.friendTag}>{t("friends_connected")}</Text>
                   ) : u.connectionStatus === "pending" ? (
-                    <Text style={styles.pendingTag}>Pendente</Text>
+                    <Text style={styles.pendingTag}>{t("friends_pending")}</Text>
                   ) : (
                     <TouchableOpacity
                       style={styles.connectBtn}
                       onPress={() => handleConnect(u.id)}
                       disabled={connecting.has(u.id)}
                     >
-                      <Text style={styles.connectBtnText}>+ Conectar</Text>
+                      <Text style={styles.connectBtnText}>+ {t("friends_connect")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -211,7 +243,7 @@ export default function FriendsScreen() {
           <>
             {suggestions.length > 0 && (
               <View style={styles.matchSection}>
-                <Text style={styles.sectionHeader}>MATCHES DA BEE</Text>
+                <Text style={styles.sectionHeader}>{t("friends_matches")}</Text>
                 {suggestions.slice(0, 3).map((suggestion) => {
                   const name = suggestion.displayName || suggestion.username;
                   return (
@@ -241,7 +273,7 @@ export default function FriendsScreen() {
                         onPress={() => handleConnect(suggestion.id)}
                         disabled={connecting.has(suggestion.id)}
                       >
-                        <Text style={styles.connectBtnText}>{connecting.has(suggestion.id) ? "..." : "Conectar"}</Text>
+                        <Text style={styles.connectBtnText}>{connecting.has(suggestion.id) ? t("friends_connecting") : t("friends_connect")}</Text>
                       </TouchableOpacity>
                     </View>
                   );
@@ -256,8 +288,8 @@ export default function FriendsScreen() {
             {!isLoading && friends.length === 0 && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyEmoji}>👥</Text>
-                <Text style={styles.emptyTitle}>Nenhum amigo ainda</Text>
-                <Text style={styles.emptyDesc}>Use a busca para encontrar pessoas!</Text>
+                <Text style={styles.emptyTitle}>{t("friends_no_friends_title")}</Text>
+                <Text style={styles.emptyDesc}>{t("friends_no_friends_desc")}</Text>
               </View>
             )}
           </>
@@ -313,7 +345,7 @@ export default function FriendsScreen() {
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalHeaderTitle}>Perfil</Text>
+            <Text style={styles.modalHeaderTitle}>{t("friends_profile_modal")}</Text>
             <TouchableOpacity onPress={closeProfile} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
@@ -342,25 +374,25 @@ export default function FriendsScreen() {
                   <View style={styles.statsRow}>
                     <View style={styles.statBox}>
                       <Text style={styles.statEmoji}>🏆</Text>
-                      <Text style={styles.statValue}>Nv {f.level}</Text>
-                      <Text style={styles.statLabel}>Nível</Text>
+                      <Text style={styles.statValue}>{t("level_abbr")} {f.level}</Text>
+                      <Text style={styles.statLabel}>{t("friends_level")}</Text>
                     </View>
                     <View style={styles.statBox}>
                       <Text style={styles.statEmoji}>🔥</Text>
                       <Text style={styles.statValue}>{f.currentStreak}d</Text>
-                      <Text style={styles.statLabel}>Streak</Text>
+                      <Text style={styles.statLabel}>{t("friends_streak")}</Text>
                     </View>
                     <View style={styles.statBox}>
                       <Text style={styles.statEmoji}>🎯</Text>
                       <Text style={styles.statValue}>{activeMissionsCount}</Text>
-                      <Text style={styles.statLabel}>Missões</Text>
+                      <Text style={styles.statLabel}>{t("friends_missions")}</Text>
                     </View>
                   </View>
 
                   {/* Interests */}
                   {interests.length > 0 && (
                     <View style={styles.section}>
-                      <Text style={styles.sectionTitle}>INTERESSES</Text>
+                      <Text style={styles.sectionTitle}>{t("friends_interests")}</Text>
                       <View style={styles.interestTags}>
                         {interests.slice(0, 8).map((interest) => (
                           <View key={interest} style={styles.tag}>
@@ -371,11 +403,39 @@ export default function FriendsScreen() {
                     </View>
                   )}
 
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>{t("friends_testimonials")}</Text>
+                    <TextInput
+                      style={styles.testimonialInput}
+                      value={testimonialInput}
+                      onChangeText={setTestimonialInput}
+                      placeholder={t("friends_write_testimonial_for", { name })}
+                      placeholderTextColor={COLORS.muted}
+                      multiline
+                      maxLength={500}
+                    />
+                    <TouchableOpacity
+                      style={[styles.connectBtn, (!testimonialInput.trim() || sendingTestimonial) && { opacity: 0.5 }]}
+                      onPress={sendTestimonial}
+                      disabled={!testimonialInput.trim() || sendingTestimonial}
+                    >
+                      <Text style={styles.connectBtnText}>{sendingTestimonial ? t("friends_testimonial_sending") : t("friends_testimonial_btn")}</Text>
+                    </TouchableOpacity>
+                    {testimonials.length === 0 ? (
+                      <Text style={styles.emptyDesc}>{t("friends_no_testimonials")}</Text>
+                    ) : testimonials.map((item) => (
+                      <View key={item.id} style={styles.postCard}>
+                        <Text style={styles.postContent}>{item.content}</Text>
+                        <Text style={styles.postTime}>por {item.authorDisplayName || item.authorUsername} - {timeAgo(item.createdAt)}</Text>
+                      </View>
+                    ))}
+                  </View>
+
                   {/* Recent posts */}
                   <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>PUBLICAÇÕES RECENTES</Text>
+                    <Text style={styles.sectionTitle}>{t("friends_recent_posts")}</Text>
                     {recentPosts.length === 0 && (
-                      <Text style={styles.emptyDesc}>{name} ainda não publicou nada.</Text>
+                      <Text style={styles.emptyDesc}>{t("friends_no_posts", { name })}</Text>
                     )}
                     {recentPosts.map((post) => (
                       <View key={post.id} style={styles.postCard}>
@@ -398,7 +458,7 @@ export default function FriendsScreen() {
 
                   {f.lastActiveAt && (
                     <Text style={styles.lastActiveCenter}>
-                      Último acesso: {timeAgo(f.lastActiveAt)}
+                      {t("friends_last_access")} {timeAgo(f.lastActiveAt)}
                     </Text>
                   )}
                 </>
@@ -579,6 +639,17 @@ const styles = StyleSheet.create({
   // Interests
   section: { gap: 10 },
   sectionTitle: { fontFamily: FONTS.mono, fontSize: 11, fontWeight: "700", color: COLORS.muted, letterSpacing: 1 },
+  testimonialInput: {
+    minHeight: 86,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    padding: 12,
+    fontFamily: FONTS.sans,
+    color: COLORS.foreground,
+    textAlignVertical: "top",
+  },
   interestTags: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag: {
     backgroundColor: COLORS.primary + "22",

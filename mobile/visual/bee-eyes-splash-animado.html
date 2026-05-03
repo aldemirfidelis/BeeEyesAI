@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>bee-eyes Splash</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bee-yellow:#FFD940;
+  --bee-gold:#EEB900;
+  --bee-black:#141414;
+  --bee-muted:#5C5237;
+  --bee-white:#FFFFFF;
+  --font-main: 'Poppins', Inter, Arial, sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  font-family:var(--font-main);
+  background:linear-gradient(180deg,var(--bee-yellow),var(--bee-gold));
+  overflow:hidden;
+}
+.splash{
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  position:relative;
+  color:var(--bee-black);
+}
+.honeycomb{
+  position:absolute;
+  right:-20px;
+  top:40px;
+  width:260px;
+  height:220px;
+  opacity:.15;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 36%, rgba(255,255,255,.8) 37%, rgba(255,255,255,.8) 42%, transparent 43%) 0 0,
+    radial-gradient(circle at 50% 50%, transparent 36%, rgba(255,255,255,.8) 37%, rgba(255,255,255,.8) 42%, transparent 43%) 25px 43.5px;
+  background-size:50px 87px;
+}
+.bee-container{
+  width: 280px;
+  height: 280px;
+  animation: float 3.5s ease-in-out infinite;
+  margin-bottom: 15px;
+  filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.1));
+}
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-25px); }
+  100% { transform: translateY(0px); }
+}
+.eyes {
+  transform-origin: 256px 216px;
+  animation: blink 4s infinite;
+}
+@keyframes blink {
+  0%, 95%, 98% { transform: scaleY(1); }
+  96.5% { transform: scaleY(0.1); }
+  100% { transform: scaleY(1); }
+}
+h1{
+  margin:16px 0 8px;
+  font-size:54px;
+  letter-spacing:-1.5px;
+  font-weight: 700;
+}
+p{
+  margin:0;
+  color:var(--bee-muted);
+  font-size:20px;
+}
+.loading{
+  display:flex;
+  gap:10px;
+  margin-top:60px;
+}
+.loading span{
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:var(--bee-black);
+  opacity:.3;
+  animation:pulse 1.4s infinite ease-in-out both;
+}
+.loading span:nth-child(1){animation-delay:-0.32s}
+.loading span:nth-child(2){animation-delay:-0.16s}
+@keyframes pulse {
+  0%, 80%, 100% { transform: scale(0); opacity:.3; }
+  40% { transform: scale(1); opacity:1; }
+}
+</style>
+</head>
+<body>
+  <div class="splash">
+    <div class="honeycomb"></div>
+    <div class="bee-container">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+        
+<g id="bee">
+  <!-- Sombra suave para dar sensação de flutuação -->
+  <ellipse cx="256" cy="420" rx="90" ry="20" fill="#000000" opacity="0.15"/>
+  
+  <!-- Ferrão -->
+  <path d="M 256 370 L 246 415 L 266 415 Z" fill="#141414" stroke="#141414" stroke-width="12" stroke-linejoin="round"/>
+  
+  <!-- Asas -->
+  <g opacity="0.95">
+    <ellipse cx="160" cy="190" rx="60" ry="100" fill="#FFFFFF" transform="rotate(-35 160 190)" stroke="#141414" stroke-width="10"/>
+    <ellipse cx="352" cy="190" rx="60" ry="100" fill="#FFFFFF" transform="rotate(35 352 190)" stroke="#141414" stroke-width="10"/>
+  </g>
+  
+  <!-- Antenas -->
+  <path d="M 210 180 Q 180 100 130 120" fill="none" stroke="#141414" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="130" cy="120" r="16" fill="#141414"/>
+  <path d="M 302 180 Q 332 100 382 120" fill="none" stroke="#141414" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="382" cy="120" r="16" fill="#141414"/>
+  
+  <!-- Corpo gordinho -->
+  <ellipse cx="256" cy="260" rx="130" ry="140" fill="#FFD940" stroke="#141414" stroke-width="14"/>
+  
+  <!-- Listras (cortadas pelo formato do corpo) -->
+  <clipPath id="body-clip">
+    <ellipse cx="256" cy="260" rx="123" ry="133"/>
+  </clipPath>
+  <g clip-path="url(#body-clip)">
+    <rect x="100" y="275" width="312" height="28" fill="#141414"/>
+    <rect x="100" y="335" width="312" height="28" fill="#141414"/>
+  </g>
+  
+  <!-- Bochechas coradas -->
+  <ellipse cx="186" cy="246" rx="16" ry="10" fill="#EEB900" opacity="0.8"/>
+  <ellipse cx="326" cy="246" rx="16" ry="10" fill="#EEB900" opacity="0.8"/>
+  
+  <!-- Rosto fofinho (olhos com brilho) -->
+  <g class="eyes">
+      <!-- Olho Esquerdo -->
+      <circle cx="206" cy="226" r="20" fill="#141414"/>
+      <circle cx="214" cy="218" r="7" fill="#FFFFFF"/>
+      <circle cx="198" cy="232" r="3" fill="#FFFFFF"/>
+      <!-- Olho Direito -->
+      <circle cx="306" cy="226" r="20" fill="#141414"/>
+      <circle cx="314" cy="218" r="7" fill="#FFFFFF"/>
+      <circle cx="298" cy="232" r="3" fill="#FFFFFF"/>
+  </g>
+  
+  <!-- Sorriso -->
+  <path d="M 244 246 Q 256 260 268 246" fill="none" stroke="#141414" stroke-width="8" stroke-linecap="round"/>
+</g>
+
+      </svg>
+    </div>
+    <h1>bee-eyes</h1>
+    <p>sua IA amiga</p>
+    <div class="loading">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</body>
+</html>

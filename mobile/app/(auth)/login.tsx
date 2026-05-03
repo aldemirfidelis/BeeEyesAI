@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Alert,
+  KeyboardAvoidingView, Platform, ScrollView, Dimensions, Alert, Modal,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withRepeat,
   withSequence, FadeInDown, SlideInDown,
@@ -18,6 +19,7 @@ import { useAuthStore } from "../../stores/authStore";
 import BeeEyes from "../../components/BeeEyes";
 import { COLORS } from "../../lib/theme";
 import { signInWithGoogleNative } from "../../lib/googleAuth";
+import { PRIVACY_POLICY, TERMS_OF_USE } from "../../lib/legalTexts";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -106,11 +108,13 @@ function GoogleLoginButton({
 }
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
   const { setToken, setUser } = useAuthStore();
 
   // BeeEyes float animation
@@ -134,7 +138,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Atenção", "Preencha usuário e senha");
+      Alert.alert(t("attention"), t("login_fill_fields"));
       return;
     }
     setLoading(true);
@@ -145,7 +149,7 @@ export default function LoginScreen() {
       setUser(data.user);
       router.replace("/(tabs)");
     } catch (err: any) {
-      Alert.alert("Erro", err.response?.data?.message || "Falha ao entrar");
+      Alert.alert(t("error"), err.response?.data?.message || t("login_failed"));
     } finally {
       setLoading(false);
     }
@@ -160,7 +164,7 @@ export default function LoginScreen() {
       setUser(data.user);
       router.replace("/(tabs)");
     } catch (err: any) {
-      Alert.alert("Erro", err.response?.data?.message || "Falha ao entrar com Google");
+      Alert.alert(t("error"), err.response?.data?.message || t("login_google_failed"));
     } finally {
       setGoogleLoading(false);
     }
@@ -181,23 +185,23 @@ export default function LoginScreen() {
           <BeeEyes expression="happy" size={90} />
         </Animated.View>
         <Text style={styles.brandName}>bee-eyes</Text>
-        <Text style={styles.brandTagline}>Sua melhor amiga com IA 🐝</Text>
+        <Text style={styles.brandTagline}>{t("login_tagline")}</Text>
       </LinearGradient>
 
       {/* Form card */}
       <Animated.View entering={SlideInDown.springify().damping(18)} style={styles.card}>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
           <Animated.View entering={FadeInDown.delay(100)}>
-            <Text style={styles.cardTitle}>Olá de novo! 👋</Text>
-            <Text style={styles.cardSubtitle}>Entre para continuar sua jornada</Text>
+            <Text style={styles.cardTitle}>{t("login_title")}</Text>
+            <Text style={styles.cardSubtitle}>{t("login_subtitle")}</Text>
           </Animated.View>
 
           {/* Inputs */}
           <Animated.View entering={FadeInDown.delay(200)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Usuário</Text>
+            <Text style={styles.inputLabel}>{t("login_username")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="seu_nome_aqui"
+              placeholder={t("login_username_placeholder")}
               placeholderTextColor={COLORS.muted}
               value={username}
               onChangeText={setUsername}
@@ -207,7 +211,7 @@ export default function LoginScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(280)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Senha</Text>
+            <Text style={styles.inputLabel}>{t("login_password")}</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -237,9 +241,9 @@ export default function LoginScreen() {
                 style={styles.primaryBtnGradient}
               >
                 {loading ? (
-                  <Text style={styles.primaryBtnText}>Entrando...</Text>
+                  <Text style={styles.primaryBtnText}>{t("login_signing_in")}</Text>
                 ) : (
-                  <Text style={styles.primaryBtnText}>Entrar  →</Text>
+                  <Text style={styles.primaryBtnText}>{t("login_sign_in")}</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
@@ -248,7 +252,7 @@ export default function LoginScreen() {
           {/* Divider */}
           <Animated.View entering={FadeInDown.delay(420)} style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou continue com</Text>
+            <Text style={styles.dividerText}>{t("login_or_continue_with")}</Text>
             <View style={styles.dividerLine} />
           </Animated.View>
 
@@ -275,15 +279,48 @@ export default function LoginScreen() {
 
           {/* Register link */}
           <Animated.View entering={FadeInDown.delay(540)} style={styles.footer}>
-            <Text style={styles.footerText}>Não tem conta? </Text>
+            <Text style={styles.footerText}>{t("login_no_account")}</Text>
             <Link href="/(auth)/register" asChild>
               <TouchableOpacity>
-                <Text style={styles.footerLink}>Criar conta ↗</Text>
+                <Text style={styles.footerLink}>{t("login_create_account")}</Text>
               </TouchableOpacity>
             </Link>
           </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(580)} style={styles.legalRow}>
+            <TouchableOpacity onPress={() => setLegalModal("privacy")}>
+              <Text style={styles.legalLink}>{t("login_privacy")}</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSep}>·</Text>
+            <TouchableOpacity onPress={() => setLegalModal("terms")}>
+              <Text style={styles.legalLink}>{t("login_terms")}</Text>
+            </TouchableOpacity>
+          </Animated.View>
         </ScrollView>
       </Animated.View>
+
+      <Modal visible={legalModal !== null} animationType="slide" transparent onRequestClose={() => setLegalModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {legalModal === "privacy" ? t("settings_privacy_policy") : t("settings_terms_of_use")}
+              </Text>
+              <TouchableOpacity onPress={() => setLegalModal(null)} style={styles.modalClose}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.legalText}>
+                {legalModal === "privacy" ? PRIVACY_POLICY : TERMS_OF_USE}
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setLegalModal(null)}>
+              <Text style={styles.closeBtnText}>{t("close")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -463,5 +500,75 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: COLORS.primaryDark,
+  },
+  legalRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    paddingBottom: 8,
+  },
+  legalLink: {
+    fontFamily: "System",
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.primaryDark,
+  },
+  legalSep: {
+    fontFamily: "System",
+    fontSize: 12,
+    color: COLORS.muted,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    maxHeight: "88%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    gap: 12,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalTitle: {
+    fontFamily: "System",
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1A1A1A",
+    flex: 1,
+  },
+  modalClose: {
+    padding: 6,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: COLORS.muted,
+  },
+  legalText: {
+    fontFamily: "System",
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#333",
+    paddingBottom: 8,
+  },
+  closeBtn: {
+    backgroundColor: "#F5C842",
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  closeBtnText: {
+    fontFamily: "System",
+    fontWeight: "800",
+    fontSize: 15,
+    color: "#1A1A1A",
   },
 });

@@ -1,10 +1,10 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ImagePlus, Pencil, Plus, Send, X } from "lucide-react";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Community, CommunityPost } from "@/features/home/types";
+import type { Community, CommunityMember, CommunityPost } from "@/features/home/types";
 
 type EditingCommunity = { id: string; name: string; description: string; imageUrl: string } | null;
 
@@ -16,6 +16,8 @@ interface CommunitiesPanelProps {
   communityPosts: CommunityPost[];
   communityPostsLoading: boolean;
   communityPostInput: string;
+  communityPostImageUrl: string;
+  pickingCommunityPostImage: boolean;
   communityPostSending: boolean;
   showCreateCommunity: boolean;
   newCommunity: { name: string; description: string; category: string; emoji: string; imageUrl: string };
@@ -29,6 +31,8 @@ interface CommunitiesPanelProps {
   onLeaveCommunity: (communityId: string) => void;
   onCloseCommunity: () => void;
   onCommunityPostInputChange: (value: string) => void;
+  onPickCommunityPostImage: () => void;
+  onRemoveCommunityPostImage: () => void;
   onSendCommunityPost: () => void;
   onShowCreateCommunity: (value: boolean) => void;
   onNewCommunityChange: (value: { name: string; description: string; category: string; emoji: string; imageUrl: string }) => void;
@@ -142,19 +146,38 @@ function ImagePicker({
 export function CommunitiesPanel(props: CommunitiesPanelProps) {
   const {
     communities, communitiesLoading, communitySearch, selectedCommunity,
-    communityPosts, communityPostsLoading, communityPostInput, communityPostSending,
+    communityPosts, communityPostsLoading, communityPostInput, communityPostImageUrl, pickingCommunityPostImage, communityPostSending,
     showCreateCommunity, newCommunity, creatingCommunity, communityJoining,
     editingCommunity, savingCommunity,
     onCommunitySearchChange, onOpenCommunity, onJoinCommunity, onLeaveCommunity,
-    onCloseCommunity, onCommunityPostInputChange, onSendCommunityPost,
+    onCloseCommunity, onCommunityPostInputChange, onPickCommunityPostImage, onRemoveCommunityPostImage, onSendCommunityPost,
     onShowCreateCommunity, onNewCommunityChange, onCreateCommunity,
     onOpenEditCommunity, onEditCommunityChange, onSaveEditCommunity, onCancelEditCommunity,
     authHeaders, timeAgo,
   } = props;
 
-  const myCommunities = communities.filter((c) => c.isMember);
-  const discoverCommunities = communities.filter((c) => !c.isMember);
+  const visibleCommunities = communities.filter((community) => {
+    const name = community.name.trim().toLowerCase();
+    return !name.startsWith("crew") && !name.startsWith("com");
+  });
+  const myCommunities = visibleCommunities.filter((c) => c.isMember);
+  const discoverCommunities = visibleCommunities.filter((c) => !c.isMember);
   const isOwner = selectedCommunity?.memberRole === "owner";
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [members, setMembers] = useState<CommunityMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+
+  async function openMembersSheet() {
+    if (!selectedCommunity) return;
+    setMembersOpen(true);
+    setMembersLoading(true);
+    try {
+      const res = await fetch(`/api/communities/${selectedCommunity.id}/members`, { headers: authHeaders() });
+      if (res.ok) setMembers(await res.json());
+    } finally {
+      setMembersLoading(false);
+    }
+  }
 
   return (
     // Outer div: positioning context only — NO overflow here so absolute overlays stay visible
@@ -172,7 +195,9 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                 <CommunityAvatar community={selectedCommunity} size="sm" />
                 <div className="flex-1 min-w-0">
                   <h2 className="font-bold text-sm truncate">{selectedCommunity.name}</h2>
-                  <p className="text-xs text-muted-foreground">{selectedCommunity.membersCount} membros</p>
+                  <button type="button" onClick={openMembersSheet} className="text-xs text-primary hover:underline">
+                    {selectedCommunity.membersCount} membros - ver todos
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {/* Edit button — owner only */}
@@ -209,18 +234,32 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                 <p className="text-sm text-muted-foreground bg-secondary/30 rounded-xl px-4 py-3">{selectedCommunity.description}</p>
               )}
               {selectedCommunity.isMember && (
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Escreva algo para a comunidade..."
-                    className="text-sm resize-none min-h-[60px]"
-                    value={communityPostInput}
-                    onChange={(e) => onCommunityPostInputChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSendCommunityPost(); }
-                    }}
-                  />
-                  <Button size="sm" className="self-end h-9 px-3" disabled={!communityPostInput.trim() || communityPostSending} onClick={onSendCommunityPost} aria-label="Publicar">
-                    <Send className="w-4 h-4" />
+                <div className="space-y-2 rounded-xl border border-border bg-card/60 p-3">
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Escreva algo para a comunidade..."
+                      className="text-sm resize-none min-h-[60px]"
+                      value={communityPostInput}
+                      onChange={(e) => onCommunityPostInputChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSendCommunityPost(); }
+                      }}
+                    />
+                    <Button size="sm" className="self-end h-9 px-3" disabled={(!communityPostInput.trim() && !communityPostImageUrl) || communityPostSending} onClick={onSendCommunityPost} aria-label="Publicar">
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {communityPostImageUrl && (
+                    <div className="relative overflow-hidden rounded-xl border border-border">
+                      <img src={communityPostImageUrl} alt="Previa da imagem" className="h-36 w-full object-cover" />
+                      <button type="button" onClick={onRemoveCommunityPostImage} className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white" aria-label="Remover imagem">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onPickCommunityPostImage} disabled={pickingCommunityPostImage}>
+                    <ImagePlus className="w-4 h-4 mr-1" />
+                    {communityPostImageUrl ? "Trocar imagem" : "Adicionar imagem"}
                   </Button>
                 </div>
               )}
@@ -245,6 +284,41 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
       )}
 
       {/* ── Edit community modal ──────────────────────────────── */}
+      {membersOpen && selectedCommunity && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end justify-center p-0 sm:items-center sm:p-4">
+          <div className="w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card p-4 shadow-xl">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border sm:hidden" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-bold truncate">{selectedCommunity.name}</h3>
+                <p className="text-xs text-muted-foreground">{members.length || selectedCommunity.membersCount} membros</p>
+              </div>
+              <button type="button" onClick={() => setMembersOpen(false)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar membros">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mt-4 max-h-[55vh] overflow-y-auto space-y-2">
+              {membersLoading && <p className="py-8 text-center text-sm text-muted-foreground">Carregando membros...</p>}
+              {!membersLoading && members.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum membro encontrado.</p>}
+              {members.map((member) => {
+                const name = member.displayName || member.username;
+                return (
+                  <div key={member.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-background px-3 py-2">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${member.role === "owner" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                      {name[0]?.toUpperCase() ?? "?"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">{name}</p>
+                      <p className="text-xs text-muted-foreground">{member.role === "owner" ? "Fundador" : "Membro"}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingCommunity && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-xl">

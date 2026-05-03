@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Plus, RefreshCw, UserPlus } from "lucide-react";
+import { Heart, ImagePlus, MessageCircle, Plus, RefreshCw, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,8 @@ interface FeedPanelProps {
   feed: FeedPost[];
   feedLoading: boolean;
   postText: string;
+  postImageUrl: string;
+  pickingPostImage: boolean;
   isPosting: boolean;
   showPostInput: boolean;
   suggestions: ConnectionSuggestion[];
@@ -25,6 +27,8 @@ interface FeedPanelProps {
   onLoadFeed: () => void;
   onTogglePostInput: () => void;
   onPostTextChange: (value: string) => void;
+  onPickPostImage: () => void;
+  onRemovePostImage: () => void;
   onCancelPost: () => void;
   onCreatePost: () => void;
   onConnect: (targetUserId: string) => void;
@@ -37,6 +41,8 @@ export function FeedPanel(props: FeedPanelProps) {
     feed,
     feedLoading,
     postText,
+    postImageUrl,
+    pickingPostImage,
     isPosting,
     showPostInput,
     suggestions,
@@ -44,6 +50,8 @@ export function FeedPanel(props: FeedPanelProps) {
     onLoadFeed,
     onTogglePostInput,
     onPostTextChange,
+    onPickPostImage,
+    onRemovePostImage,
     onCancelPost,
     onCreatePost,
     onConnect,
@@ -74,16 +82,28 @@ export function FeedPanel(props: FeedPanelProps) {
           <Textarea
             value={postText}
             onChange={(event) => onPostTextChange(event.target.value)}
-            placeholder="Compartilhe algo com seus amigos..."
+            placeholder="O que voce esta pensando?"
             className="resize-none text-sm min-h-[80px]"
             maxLength={500}
             data-testid="feed-post-input"
           />
+          {postImageUrl && (
+            <div className="relative overflow-hidden rounded-xl border border-border">
+              <img src={postImageUrl} alt="Previa da foto" className="h-44 w-full object-cover" />
+              <button type="button" onClick={onRemovePostImage} className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white" aria-label="Remover foto">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-xs text-muted-foreground">{postText.length}/500</span>
             <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={onPickPostImage} disabled={pickingPostImage}>
+                <ImagePlus className="w-4 h-4 mr-1" />
+                {postImageUrl ? "Trocar foto" : "Foto"}
+              </Button>
               <Button size="sm" variant="ghost" onClick={onCancelPost}>Cancelar</Button>
-              <Button size="sm" disabled={!postText.trim() || isPosting} onClick={onCreatePost} data-testid="feed-submit-post">
+              <Button size="sm" disabled={(!postText.trim() && !postImageUrl) || isPosting} onClick={onCreatePost} data-testid="feed-submit-post">
                 {isPosting ? "Publicando..." : "Publicar"}
               </Button>
             </div>
@@ -149,6 +169,7 @@ export function FeedPanel(props: FeedPanelProps) {
                 </div>
               </div>
               <p className="text-sm leading-relaxed">{post.content}</p>
+              {post.imageUrl && <img src={post.imageUrl} alt="Imagem da publicacao" className="w-full max-h-72 rounded-xl object-cover border border-border/40" loading="lazy" />}
               {post.aiComment && (
                 <div className="border-l-2 border-primary/40 pl-3 py-1 bg-secondary/20 rounded-r-lg">
                   <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>

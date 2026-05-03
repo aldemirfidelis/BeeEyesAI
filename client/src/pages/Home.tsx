@@ -16,6 +16,7 @@ import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
 import { AuthScreen } from "@/features/home/auth/AuthScreen";
+import { OnboardingScreen } from "@/features/home/auth/OnboardingScreen";
 import { FeedPanel } from "@/features/home/feed/FeedPanel";
 import { MissionsPanel } from "@/features/home/missions/MissionsPanel";
 import { FriendsPanel } from "@/features/home/friends/FriendsPanel";
@@ -25,6 +26,7 @@ import { SettingsScreen } from "@/features/home/settings/SettingsScreen";
 import { FriendProfileModal } from "@/features/home/friends/FriendProfileModal";
 import { ChatWorkspace } from "@/features/home/chat/ChatWorkspace";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
+import { fileToCompressedDataUrl } from "@/lib/image";
 import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
@@ -85,6 +87,8 @@ export default function Home() {
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [postText, setPostText] = useState("");
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [pickingPostImage, setPickingPostImage] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [showPostInput, setShowPostInput] = useState(false);
   const [suggestions, setSuggestions] = useState<ConnectionSuggestion[]>([]);
@@ -104,6 +108,8 @@ export default function Home() {
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([]);
   const [communityPostsLoading, setCommunityPostsLoading] = useState(false);
   const [communityPostInput, setCommunityPostInput] = useState("");
+  const [communityPostImageUrl, setCommunityPostImageUrl] = useState("");
+  const [pickingCommunityPostImage, setPickingCommunityPostImage] = useState(false);
   const [communityPostSending, setCommunityPostSending] = useState(false);
   const [showCreateCommunity, setShowCreateCommunity] = useState(false);
   const [newCommunity, setNewCommunity] = useState({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" });
@@ -144,6 +150,8 @@ export default function Home() {
   const dmEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
+  const feedImageInputRef = useRef<HTMLInputElement>(null);
+  const communityPostImageInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<Message[]>([]);
   const eyeEventTimeoutRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
@@ -556,18 +564,19 @@ export default function Home() {
   };
 
   const handleSendCommunityPost = async () => {
-    if (!communityPostInput.trim() || !selectedCommunity || communityPostSending) return;
+    if ((!communityPostInput.trim() && !communityPostImageUrl) || !selectedCommunity || communityPostSending) return;
     setCommunityPostSending(true);
     try {
       const res = await fetch(`/api/communities/${selectedCommunity.id}/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: communityPostInput.trim() }),
+        body: JSON.stringify({ content: communityPostInput.trim() || "Imagem compartilhada", imageUrl: communityPostImageUrl || null }),
       });
       if (res.ok) {
         const post = await res.json();
         setCommunityPosts((prev) => [post, ...prev]);
         setCommunityPostInput("");
+        setCommunityPostImageUrl("");
         setTimeout(loadMissions, 1000);
       }
     } finally {
@@ -1092,6 +1101,34 @@ export default function Home() {
     setSettingsMessage(`Tema ${mode === "dark" ? "escuro" : "claro"} aplicado.`);
   };
 
+  const handleFeedImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setPickingPostImage(true);
+    try {
+      setPostImageUrl(await fileToCompressedDataUrl(file, 1080, 0.75));
+    } catch (error) {
+      setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a foto."));
+    } finally {
+      setPickingPostImage(false);
+    }
+  };
+
+  const handleCommunityPostImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setPickingCommunityPostImage(true);
+    try {
+      setCommunityPostImageUrl(await fileToCompressedDataUrl(file, 720, 0.52));
+    } catch (error) {
+      setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a imagem."));
+    } finally {
+      setPickingCommunityPostImage(false);
+    }
+  };
+
   const handleToggleMission = async (id: string) => {
     const mission = missions.find((m) => m.id === id);
     if (!mission || mission.completed) return;
@@ -1174,13 +1211,13 @@ export default function Home() {
   };
 
   const handleCreatePost = async () => {
-    if (!postText.trim() || isPosting) return;
+    if ((!postText.trim() && !postImageUrl) || isPosting) return;
     setIsPosting(true);
     try {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: postText.trim() }),
+        body: JSON.stringify({ content: postText.trim() || "Imagem compartilhada", imageUrl: postImageUrl || null }),
       });
       if (!res.ok) return;
       const newPost = await res.json();
@@ -1192,6 +1229,7 @@ export default function Home() {
         liked: false,
       }, ...prev]);
       setPostText("");
+      setPostImageUrl("");
       setShowPostInput(false);
       // Reload in background to get AI comment + mission progress
       setTimeout(loadFeed, 3000);
@@ -1362,6 +1400,10 @@ export default function Home() {
     );
   }
 
+  if (user && user.onboardingCompleted === false) {
+    return <OnboardingScreen authHeaders={authHeaders} onComplete={setUser} />;
+  }
+
   const sidebarContent = (
     <>
       <div className="p-4 border-b">
@@ -1412,6 +1454,8 @@ export default function Home() {
             feed={feed}
             feedLoading={feedLoading}
             postText={postText}
+            postImageUrl={postImageUrl}
+            pickingPostImage={pickingPostImage}
             isPosting={isPosting}
             showPostInput={showPostInput}
             suggestions={suggestions}
@@ -1419,7 +1463,9 @@ export default function Home() {
             onLoadFeed={loadFeed}
             onTogglePostInput={() => setShowPostInput((value) => !value)}
             onPostTextChange={setPostText}
-            onCancelPost={() => { setShowPostInput(false); setPostText(""); }}
+            onPickPostImage={() => feedImageInputRef.current?.click()}
+            onRemovePostImage={() => setPostImageUrl("")}
+            onCancelPost={() => { setShowPostInput(false); setPostText(""); setPostImageUrl(""); }}
             onCreatePost={handleCreatePost}
             onConnect={handleConnect}
             onLikePost={handleLikePost}
@@ -1477,6 +1523,8 @@ export default function Home() {
             communityPosts={communityPosts}
             communityPostsLoading={communityPostsLoading}
             communityPostInput={communityPostInput}
+            communityPostImageUrl={communityPostImageUrl}
+            pickingCommunityPostImage={pickingCommunityPostImage}
             communityPostSending={communityPostSending}
             showCreateCommunity={showCreateCommunity}
             newCommunity={newCommunity}
@@ -1488,6 +1536,8 @@ export default function Home() {
             onLeaveCommunity={handleLeaveCommunity}
             onCloseCommunity={() => setSelectedCommunity(null)}
             onCommunityPostInputChange={setCommunityPostInput}
+            onPickCommunityPostImage={() => communityPostImageInputRef.current?.click()}
+            onRemoveCommunityPostImage={() => setCommunityPostImageUrl("")}
             onSendCommunityPost={handleSendCommunityPost}
             onShowCreateCommunity={setShowCreateCommunity}
             onNewCommunityChange={setNewCommunity}
@@ -1536,6 +1586,8 @@ export default function Home() {
         inputValue={inputValue}
         isLoading={isLoading}
         postText={postText}
+        postImageUrl={postImageUrl}
+        pickingPostImage={pickingPostImage}
         showInlinePost={showInlinePost}
         isPosting={isPosting}
         messageActionsRenderer={(message) => {
@@ -1638,6 +1690,8 @@ export default function Home() {
         }}
         onInlinePostClose={() => setShowInlinePost(false)}
         onPostTextChange={setPostText}
+        onPickPostImage={() => feedImageInputRef.current?.click()}
+        onRemovePostImage={() => setPostImageUrl("")}
         onCreatePost={handleCreatePost}
         onInputChange={handleEyeInputChange}
         onInputFocusChange={handleEyeInputFocusChange}
@@ -1709,6 +1763,20 @@ export default function Home() {
         className="hidden"
         onChange={handleProfileFileChange}
       />
+      <input
+        ref={feedImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFeedImageChange}
+      />
+      <input
+        ref={communityPostImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCommunityPostImageChange}
+      />
 
       <SettingsScreen
         show={showSettingsScreen}
@@ -1719,7 +1787,9 @@ export default function Home() {
         anonymousProfileVisitsEnabled={Boolean(user?.anonymousProfileVisitsEnabled)}
         anonymousProfileVisitsUnlocked={hasAnonymousProfileVisitsUnlocked(user)}
         anonymousProfileVisitsUnlockHint={getAnonymousProfileVisitsUnlockMessage()}
+        authHeaders={authHeaders}
         onClose={() => setShowSettingsScreen(false)}
+        onUserUpdate={setUser}
         onSelectProfilePhoto={handleSelectProfilePhoto}
         onRemoveProfilePhoto={handleRemoveProfilePhoto}
         onThemeSelect={handleThemeSelect}

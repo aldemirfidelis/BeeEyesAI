@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, Dimensions, Alert,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withRepeat,
   withSequence, FadeInDown, SlideInDown,
@@ -56,13 +57,15 @@ function EyeIcon({ visible, color = "#888" }: { visible: boolean; color?: string
   );
 }
 
-// ── Password strength ─────────────────────────────────────────────────────────
-function passwordStrength(pw: string): { label: string; color: string; width: string } {
-  if (pw.length === 0) return { label: "", color: "transparent", width: "0%" };
-  if (pw.length < 6) return { label: "Fraca", color: "#E53E3E", width: "25%" };
-  if (pw.length < 10) return { label: "Média", color: "#F5A623", width: "55%" };
-  if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: "Forte", color: "#4CAF50", width: "100%" };
-  return { label: "Boa", color: "#4CAF50", width: "80%" };
+function usePasswordStrength() {
+  const { t } = useTranslation();
+  return (pw: string): { label: string; color: string; width: string } => {
+    if (pw.length === 0) return { label: "", color: "transparent", width: "0%" };
+    if (pw.length < 6) return { label: t("pw_weak"), color: "#E53E3E", width: "25%" };
+    if (pw.length < 10) return { label: t("pw_medium"), color: "#F5A623", width: "55%" };
+    if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: t("pw_strong"), color: "#4CAF50", width: "100%" };
+    return { label: t("pw_good"), color: "#4CAF50", width: "80%" };
+  };
 }
 
 function GoogleRegisterButton({
@@ -121,6 +124,8 @@ function GoogleRegisterButton({
 }
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
+  const passwordStrength = usePasswordStrength();
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [gender, setGender] = useState("");
@@ -149,11 +154,11 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Atenção", "Preencha usuário e senha");
+      Alert.alert(t("attention"), t("register_fill_fields"));
       return;
     }
     if (password.length < 6) {
-      Alert.alert("Atenção", "A senha deve ter pelo menos 6 caracteres");
+      Alert.alert(t("attention"), t("register_short_password"));
       return;
     }
     setLoading(true);
@@ -169,7 +174,7 @@ export default function RegisterScreen() {
       setUser(data.user);
       router.replace("/(tabs)");
     } catch (err) {
-      Alert.alert("Erro", getApiErrorMessage(err, "Falha ao criar conta"));
+      Alert.alert(t("error"), getApiErrorMessage(err, t("register_failed")));
     } finally {
       setLoading(false);
     }
@@ -184,7 +189,7 @@ export default function RegisterScreen() {
       setUser(data.user);
       router.replace("/(tabs)");
     } catch (err) {
-      Alert.alert("Erro", getApiErrorMessage(err, "Falha ao entrar com Google"));
+      Alert.alert(t("error"), getApiErrorMessage(err, t("login_google_failed")));
     } finally {
       setGoogleLoading(false);
     }
@@ -200,15 +205,15 @@ export default function RegisterScreen() {
           <BeeEyes expression="excited" size={100} />
         </Animated.View>
         <Text style={styles.brandName}>bee-eyes</Text>
-        <Text style={styles.brandTagline}>Comece sua jornada hoje 🚀</Text>
+        <Text style={styles.brandTagline}>{t("register_tagline")}</Text>
       </LinearGradient>
 
       {/* Form card */}
       <Animated.View entering={SlideInDown.springify().damping(18)} style={styles.card}>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Animated.View entering={FadeInDown.delay(100)}>
-            <Text style={styles.cardTitle}>Criar conta 🎉</Text>
-            <Text style={styles.cardSubtitle}>É rápido, grátis e a BeeEyes te espera!</Text>
+            <Text style={styles.cardTitle}>{t("register_title")}</Text>
+            <Text style={styles.cardSubtitle}>{t("register_subtitle")}</Text>
           </Animated.View>
 
           {/* Social first */}
@@ -243,16 +248,16 @@ export default function RegisterScreen() {
           {/* Divider */}
           <Animated.View entering={FadeInDown.delay(200)} style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou crie com e-mail</Text>
+            <Text style={styles.dividerText}>{t("register_or_create_email")}</Text>
             <View style={styles.dividerLine} />
           </Animated.View>
 
           {/* Username */}
           <Animated.View entering={FadeInDown.delay(260)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Nome de usuário</Text>
+            <Text style={styles.inputLabel}>{t("register_username")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="como quer ser chamado(a)?"
+              placeholder={t("register_username_placeholder")}
               placeholderTextColor={COLORS.muted}
               value={username}
               onChangeText={setUsername}
@@ -262,10 +267,10 @@ export default function RegisterScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(290)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Nome de exibicao</Text>
+            <Text style={styles.inputLabel}>{t("register_displayname")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="opcional"
+              placeholder={t("register_displayname_placeholder")}
               placeholderTextColor={COLORS.muted}
               value={displayName}
               onChangeText={setDisplayName}
@@ -273,12 +278,12 @@ export default function RegisterScreen() {
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(305)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Genero</Text>
+            <Text style={styles.inputLabel}>{t("register_gender")}</Text>
             <View style={styles.genderRow}>
               {[
-                { label: "Feminino", value: "female" },
-                { label: "Masculino", value: "male" },
-                { label: "Outro", value: "other" },
+                { label: t("register_female"), value: "female" },
+                { label: t("register_male"), value: "male" },
+                { label: t("register_other"), value: "other" },
               ].map((option) => (
                 <TouchableOpacity
                   key={option.value}
@@ -295,11 +300,11 @@ export default function RegisterScreen() {
 
           {/* Password */}
           <Animated.View entering={FadeInDown.delay(320)} style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Senha</Text>
+            <Text style={styles.inputLabel}>{t("register_password")}</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="mínimo 6 caracteres"
+                placeholder={t("register_password_placeholder")}
                 placeholderTextColor={COLORS.muted}
                 value={password}
                 onChangeText={setPassword}
@@ -335,9 +340,9 @@ export default function RegisterScreen() {
                 style={styles.primaryBtnGradient}
               >
                 {loading ? (
-                  <Text style={styles.primaryBtnText}>Criando conta...</Text>
+                  <Text style={styles.primaryBtnText}>{t("register_creating")}</Text>
                 ) : (
-                  <Text style={styles.primaryBtnText}>Criar conta  🐝</Text>
+                  <Text style={styles.primaryBtnText}>{t("register_create")}</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
@@ -346,19 +351,19 @@ export default function RegisterScreen() {
           {/* Terms */}
           <Animated.View entering={FadeInDown.delay(440)}>
             <Text style={styles.termsText}>
-              Ao criar uma conta você concorda com os{" "}
-              <Text style={styles.termsLink}>Termos de Uso</Text>
-              {" "}e{" "}
-              <Text style={styles.termsLink}>Política de Privacidade</Text>
+              {t("register_terms_text")}{" "}
+              <Text style={styles.termsLink}>{t("register_terms_of_use")}</Text>
+              {" "}{t("register_and")}{" "}
+              <Text style={styles.termsLink}>{t("register_privacy_policy")}</Text>
             </Text>
           </Animated.View>
 
           {/* Login link */}
           <Animated.View entering={FadeInDown.delay(480)} style={styles.footer}>
-            <Text style={styles.footerText}>Já tem conta? </Text>
+            <Text style={styles.footerText}>{t("register_have_account")}</Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text style={styles.footerLink}>Entrar ↗</Text>
+                <Text style={styles.footerLink}>{t("register_sign_in")}</Text>
               </TouchableOpacity>
             </Link>
           </Animated.View>

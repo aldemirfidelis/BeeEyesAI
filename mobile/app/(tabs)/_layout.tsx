@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Alert, TouchableOpacity, View, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "../../lib/api";
 import { getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
@@ -34,6 +35,7 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
   const isDark = themeMode === "dark";
@@ -85,7 +87,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Chat",
+          title: t("tab_chat"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="message-circle" color={color} focused={focused} />
           ),
@@ -94,7 +96,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="feed"
         options={{
-          title: "Feed",
+          title: t("tab_feed"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="layout" color={color} focused={focused} />
           ),
@@ -103,7 +105,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="missions"
         options={{
-          title: "Missões",
+          title: t("tab_missions"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="zap" color={color} focused={focused} />
           ),
@@ -112,7 +114,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="inbox"
         options={{
-          title: "Mensagens",
+          title: t("tab_inbox"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon
               name="mail"
@@ -133,9 +135,9 @@ export default function TabsLayout() {
                   <TouchableOpacity
                     onPress={() =>
                       Alert.alert(
-                        "🔒 Bloqueado",
-                        "Mensagens Diretas são desbloqueadas no Nível 2.\nComplete mais missões para subir de nível!",
-                        [{ text: "Entendido", style: "cancel" }]
+                        t("tab_locked_title"),
+                        t("tab_locked_msg"),
+                        [{ text: t("understood"), style: "cancel" }]
                       )
                     }
                     accessibilityState={accessibilityState}
@@ -151,7 +153,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="communities"
         options={{
-          title: "Comunidades",
+          title: t("tab_communities"),
           tabBarLabelStyle: { fontSize: 9, fontWeight: "700", letterSpacing: 0 },
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="users" color={color} focused={focused} />

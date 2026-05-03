@@ -22,6 +22,9 @@ export interface User {
   username: string;
   displayName?: string | null;
   gender?: string | null;
+  bio?: string | null;
+  language?: string | null;
+  onboardingCompleted?: boolean;
   level: number;
   xp: number;
   anonymousProfileVisitsEnabled?: boolean;
@@ -36,6 +39,7 @@ export interface FeedPost {
   sentiment: string | null;
   sentimentLabel: string | null;
   aiComment: string | null;
+  imageUrl?: string | null;
   createdAt: string;
   author: { id: string; username: string; displayName: string | null; level: number };
   likesCount: number;
@@ -110,6 +114,35 @@ export interface CommunityPost {
   likesCount: number;
   liked: boolean;
   commentsCount: number;
+  imageUrl?: string | null;
+}
+
+export interface CommunityMember {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  role: "owner" | "member" | string;
+  joinedAt?: string | null;
+}
+
+export interface Achievement {
+  id: string;
+  userId: string;
+  type: string;
+  title?: string | null;
+  description?: string | null;
+  unlockedAt?: string | null;
+}
+
+export interface Testimonial {
+  id: string;
+  profileUserId: string;
+  authorUserId: string;
+  content: string;
+  createdAt?: string | null;
+  authorUsername?: string | null;
+  authorDisplayName?: string | null;
 }
 
 export interface DMConversation {

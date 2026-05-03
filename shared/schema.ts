@@ -18,6 +18,9 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   displayName: text("display_name"),
   gender: text("gender"),
+  bio: text("bio"),
+  language: varchar("language", { length: 10 }).notNull().default("pt-BR"),
+  onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
   googleId: text("google_id").unique(),
   level: integer("level").notNull().default(1),
   xp: integer("xp").notNull().default(0),
@@ -26,6 +29,7 @@ export const users = pgTable("users", {
   longestStreak: integer("longest_streak").notNull().default(0),
   totalMessagesCount: integer("total_messages_count").notNull().default(0),
   personalityProfile: text("personality_profile"),
+  expoPushToken: text("expo_push_token"),
   lastActiveAt: timestamp("last_active_at").defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -106,6 +110,7 @@ export const posts = pgTable("posts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
+  imageUrl: text("image_url"),
   sentiment: text("sentiment"),
   sentimentLabel: text("sentiment_label"),
   aiComment: text("ai_comment"),
@@ -169,6 +174,17 @@ export const directMessages = pgTable("direct_messages", {
   index("direct_messages_recipient_read_idx").on(table.recipientId, table.readAt),
 ]);
 
+export const testimonials = pgTable("testimonials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  profileUserId: varchar("profile_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  authorUserId: varchar("author_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("testimonials_profile_created_idx").on(table.profileUserId, table.createdAt),
+  uniqueIndex("testimonials_profile_author_uidx").on(table.profileUserId, table.authorUserId),
+]);
+
 export const communities = pgTable("communities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 100 }).notNull(),
@@ -200,6 +216,7 @@ export const communityPosts = pgTable("community_posts", {
   communityId: varchar("community_id").notNull().references(() => communities.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("community_posts_community_created_idx").on(table.communityId, table.createdAt),
@@ -306,6 +323,11 @@ export const insertDirectMessageSchema = createInsertSchema(directMessages).omit
   createdAt: true,
 });
 
+export const insertTestimonialSchema = createInsertSchema(testimonials).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertCommunitySchema = createInsertSchema(communities).omit({
   id: true,
   createdAt: true,
@@ -347,6 +369,8 @@ export type UserConnection = typeof userConnections.$inferSelect;
 export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 export type DirectMessage = typeof directMessages.$inferSelect;
 export type InsertDirectMessage = z.infer<typeof insertDirectMessageSchema>;
+export type Testimonial = typeof testimonials.$inferSelect;
+export type InsertTestimonial = z.infer<typeof insertTestimonialSchema>;
 export type Community = typeof communities.$inferSelect;
 export type InsertCommunity = typeof communities.$inferInsert;
 export type CommunityMember = typeof communityMembers.$inferSelect;

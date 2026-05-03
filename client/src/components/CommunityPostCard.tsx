@@ -27,6 +27,7 @@ interface CommunityPostCardProps {
     likesCount: number;
     liked: boolean;
     commentsCount: number;
+    imageUrl?: string | null;
   };
   communityName: string;
   communityEmoji: string;
@@ -152,6 +153,14 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
           </div>
         </div>
         <p className="text-sm leading-relaxed">{initialPost.content}</p>
+        {initialPost.imageUrl && (
+          <img
+            src={initialPost.imageUrl}
+            alt="Imagem da publicacao na comunidade"
+            className="w-full max-h-72 rounded-xl object-cover border border-border/40"
+            loading="lazy"
+          />
+        )}
       </div>
 
       {/* Actions bar */}

@@ -11,7 +11,8 @@ const API_URL = normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  // 30s: cobre latência de 5G, dados móveis e cold starts do servidor
+  timeout: 30000,
 });
 
 export interface ApiClientError extends Error {
@@ -34,6 +35,17 @@ api.interceptors.response.use(
   async (err) => {
     if (err.response?.status === 401) {
       await SecureStore.deleteItemAsync("bee_token");
+    }
+
+    // Erros de rede (sem resposta do servidor) — mensagem amigável
+    if (!err.response) {
+      const networkMsg =
+        err.code === "ECONNABORTED"
+          ? "A requisição demorou muito. Verifique sua conexão e tente novamente."
+          : "Sem conexão com o servidor. Verifique sua internet e tente novamente.";
+      const networkError = new Error(networkMsg) as ApiClientError;
+      networkError.code = err.code ?? "NETWORK_ERROR";
+      return Promise.reject(networkError);
     }
 
     const normalized = new Error(

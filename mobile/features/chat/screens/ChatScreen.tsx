@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Dimensions, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { FlashList } from "@shopify/flash-list";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@mobile/lib/api";
 import { useChatStore } from "@mobile/stores/chatStore";
@@ -21,14 +22,6 @@ import type { EyeExpression } from "@mobile/stores/uiStore";
 
 type AppRoute = "/feed" | "/missions" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
 
-const QUICK_ACTIONS = [
-  { label: "Quero evoluir", kind: "prompt", value: "Quero evoluir hoje. Me diga a acao mais importante agora." },
-  { label: "Me cobre hoje", kind: "prompt", value: "Ative modo cobranca. Quero disciplina hoje." },
-  { label: "Criar meta", kind: "prompt", value: "Quero transformar minha prioridade em uma meta clara para hoje." },
-  { label: "Ver missoes", kind: "route", value: "/missions" as AppRoute },
-  { label: "Buscar noticias", kind: "news", value: "news" },
-] as const;
-
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -38,6 +31,16 @@ function xpForLevel(level: number) {
 }
 
 export default function ChatScreen() {
+  const { t } = useTranslation();
+
+  const QUICK_ACTIONS = [
+    { label: t("chat_quick_evolve"), kind: "prompt", value: "Quero evoluir hoje. Me diga a acao mais importante agora." },
+    { label: t("chat_quick_hold_me"), kind: "prompt", value: "Ative modo cobranca. Quero disciplina hoje." },
+    { label: t("chat_quick_set_goal"), kind: "prompt", value: "Quero transformar minha prioridade em uma meta clara para hoje." },
+    { label: t("chat_quick_missions"), kind: "route", value: "/missions" as AppRoute },
+    { label: t("chat_quick_news"), kind: "news", value: "news" },
+  ] as const;
+
   const [inputValue, setInputValue] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showInsight, setShowInsight] = useState(false);
@@ -120,7 +123,7 @@ export default function ChatScreen() {
   const resolveConnection = useMutation({
     mutationFn: async ({ messageId, connectionId, decision }: { messageId: string; connectionId: string; decision: "accept" | "reject" }) => {
       await api.put(`/api/connections/${connectionId}/${decision === "accept" ? "accept" : "reject"}`);
-      const content = decision === "accept" ? "Solicitacao aceita. Agora voces podem conversar em Mensagens." : "Solicitacao recusada.";
+      const content = decision === "accept" ? t("chat_connection_accepted") : t("chat_connection_rejected");
       const metadata = JSON.stringify({ type: "connection_request_resolved", decision });
       await api.patch(`/api/messages/${messageId}`, { content, metadata });
       return { messageId, content, metadata, decision };
@@ -147,6 +150,27 @@ export default function ChatScreen() {
     };
     const interval = setInterval(poll, 180000);
     return () => clearInterval(interval);
+  }, [addMessage, pulseEyeExpression]);
+
+  // App usage tips — fires after 8 min on first load, then every 4 hours
+  useEffect(() => {
+    const fetchTip = async () => {
+      try {
+        const { data } = await api.get("/api/app-tip");
+        if (!data?.tip) return;
+        addMessage({
+          id: `tip-${Date.now()}`,
+          role: "assistant",
+          content: data.tip,
+          createdAt: new Date().toISOString(),
+          metadata: JSON.stringify({ appTip: true }),
+        });
+        pulseEyeExpression("happy", "neutral", 3000);
+      } catch {}
+    };
+    const delay = setTimeout(fetchTip, 8 * 60 * 1000);
+    const interval = setInterval(fetchTip, 4 * 60 * 60 * 1000);
+    return () => { clearTimeout(delay); clearInterval(interval); };
   }, [addMessage, pulseEyeExpression]);
 
   useEffect(() => {
@@ -228,11 +252,11 @@ export default function ChatScreen() {
   const insightText = score?.insight ?? fallbackInsightText;
 
   const presenceLabel = useMemo(() => {
-    if (eyeExpression === "sleepy") return "Modo cansado";
-    if (eyeExpression === "celebrating") return "Missao concluida";
-    if (eyeExpression === "excited") return "Alta atencao";
-    if (eyeExpression === "curious") return "Lendo voce";
-    return focusScore >= 70 ? "Engajada" : "Observando";
+    if (eyeExpression === "sleepy") return t("chat_mode_sleepy");
+    if (eyeExpression === "celebrating") return t("chat_mode_mission_done");
+    if (eyeExpression === "excited") return t("chat_mode_high_attention");
+    if (eyeExpression === "curious") return t("chat_mode_reading");
+    return focusScore >= 70 ? t("chat_mode_engaged") : t("chat_mode_observing");
   }, [eyeExpression, focusScore]);
 
   const eyeAttention = useMemo(() => ({
@@ -285,14 +309,14 @@ export default function ChatScreen() {
   }
 
   async function handleNewsCommand() {
-    addMessage({ id: `news-loading-${Date.now()}`, role: "assistant", content: "Buscando noticias para voce...", createdAt: new Date().toISOString(), metadata: null });
+    addMessage({ id: `news-loading-${Date.now()}`, role: "assistant", content: t("chat_fetching_news"), createdAt: new Date().toISOString(), metadata: null });
     try {
       const { data } = await api.get("/api/news");
       const items = Array.isArray(data?.items) ? data.items : [];
-      addMessage({ id: `news-${Date.now()}`, role: "assistant", content: items.length ? `Separei ${items.length} noticias sobre "${data.query}". Toque em uma para resumir.` : "Nao encontrei noticias no momento. Tente novamente mais tarde.", createdAt: new Date().toISOString(), metadata: items.length ? JSON.stringify({ type: "news_digest", query: data.query, items } satisfies NewsDigestMeta) : null });
+      addMessage({ id: `news-${Date.now()}`, role: "assistant", content: items.length ? t("chat_news_found", { count: items.length, query: data.query }) : t("chat_news_not_found"), createdAt: new Date().toISOString(), metadata: items.length ? JSON.stringify({ type: "news_digest", query: data.query, items } satisfies NewsDigestMeta) : null });
       pulseEyeExpression("excited", "happy", 2000);
     } catch {
-      addMessage({ id: `news-err-${Date.now()}`, role: "assistant", content: "Nao consegui buscar as noticias agora. Verifique sua conexao.", createdAt: new Date().toISOString(), metadata: null });
+      addMessage({ id: `news-err-${Date.now()}`, role: "assistant", content: t("chat_news_error"), createdAt: new Date().toISOString(), metadata: null });
     }
   }
 
@@ -313,22 +337,15 @@ export default function ChatScreen() {
                 </View>
               ) : null}
             </View>
-            <Text style={styles.headerIconLabel}>Alertas</Text>
+            <Text style={styles.headerIconLabel}>{t("chat_alerts")}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/friends")}><Feather name="users" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>Amigos</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/profile")}><Feather name="user" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>Perfil</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/friends")}><Feather name="users" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>{t("chat_friends")}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/profile")}><Feather name="user" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>{t("chat_profile")}</Text></TouchableOpacity>
         </View>
       </View>
       {/* Compact mascot bar */}
       <View style={styles.mascotBar}>
-        <BeeEyes expression={eyeExpression} size={52} attentionX={eyeAttention.x} attentionY={eyeAttention.y} />
-        <View style={styles.mascotBarCenter}>
-          <Text style={styles.presenceLabelCompact}>{presenceLabel}</Text>
-          <Text style={[styles.scoreToneCompact, { color: scoreColor }]}>{scoreTone} de foco · {focusScore}</Text>
-        </View>
-        <TouchableOpacity style={styles.insightBtn} onPress={() => setShowInsight(true)}>
-          <Text style={styles.insightBtnText}>Insight</Text>
-        </TouchableOpacity>
+        <BeeEyes expression={eyeExpression} size={62} attentionX={eyeAttention.x} attentionY={eyeAttention.y} />
       </View>
 
       {/* Insight modal */}
@@ -337,10 +354,10 @@ export default function ChatScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>Insight</Text>
+              <Text style={styles.modalTitle}>{t("chat_insight_modal")}</Text>
               <View style={styles.progressMetaRow}>
-                <View style={styles.metricBadge}><Text style={styles.metricLabel}>Streak</Text><Text style={styles.metricValue}>{streak}d</Text></View>
-                <View style={styles.metricBadge}><Text style={styles.metricLabel}>Missoes</Text><Text style={styles.metricValue}>{missionStats.completed}/{Math.max(missionStats.total, 1)}</Text></View>
+                <View style={styles.metricBadge}><Text style={styles.metricLabel}>{t("chat_streak")}</Text><Text style={styles.metricValue}>{streak}d</Text></View>
+                <View style={styles.metricBadge}><Text style={styles.metricLabel}>{t("chat_missions")}</Text><Text style={styles.metricValue}>{missionStats.completed}/{Math.max(missionStats.total, 1)}</Text></View>
                 <View style={styles.metricBadge}><Text style={styles.metricLabel}>XP</Text><Text style={styles.metricValue}>{xp}/{xpGoal}</Text></View>
               </View>
               <View style={[styles.scoreTrack, { marginTop: 12 }]}><View style={[styles.scoreFill, { width: `${focusScore}%`, backgroundColor: scoreColor }]} /></View>
@@ -377,7 +394,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView style={styles.chatArea} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         {allMessages.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Ola, {user?.displayName || user?.username}!{"\n"}Me diga o que voce quer evoluir ou toque em uma sugestao abaixo.</Text>
+            <Text style={styles.emptyText}>{t("chat_empty", { name: user?.displayName || user?.username })}</Text>
           </View>
         ) : (
           <FlashList
@@ -385,6 +402,11 @@ export default function ChatScreen() {
             data={allMessages}
             renderItem={({ item }) => {
               const meta = parseMessageMeta(item.metadata);
+              let rawMeta: Record<string, unknown> = {};
+              try { rawMeta = JSON.parse(item.metadata || "{}"); } catch { /* ignore */ }
+              if (rawMeta.appTip === true) {
+                return <AppTipCard content={item.content} createdAt={item.createdAt} styles={styles} />;
+              }
               return (
                 <View>
                   <ChatMessage role={item.role} content={item.content} createdAt={item.createdAt} />
@@ -405,7 +427,7 @@ export default function ChatScreen() {
             style={styles.input}
             value={inputValue}
             onChangeText={(value) => { setInputValue(value); markInteraction(); }}
-            placeholder="Me diga sua prioridade ou o que esta travando voce..."
+            placeholder={t("chat_placeholder")}
             placeholderTextColor={colors.muted}
             multiline
             maxLength={1000}
@@ -423,32 +445,49 @@ export default function ChatScreen() {
   );
 }
 
+function AppTipCard({ content, createdAt, styles }: { content: string; createdAt: string; styles: ReturnType<typeof makeStyles> }) {
+  const text = content.replace(/^💡\s*Dica:\s*/i, "");
+  return (
+    <View style={styles.tipCard}>
+      <View style={styles.tipHeader}>
+        <Text style={styles.tipBee}>🐝</Text>
+        <Text style={styles.tipLabel}>Dica da Bee</Text>
+        <Text style={styles.tipTime}>{new Date(createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</Text>
+      </View>
+      <Text style={styles.tipText}>{text}</Text>
+    </View>
+  );
+}
+
 function ConnectionRequestCard({ meta, pending, onAccept, onReject, styles }: { meta: ConnectionRequestMeta; pending: boolean; onAccept: () => void; onReject: () => void; styles: ReturnType<typeof makeStyles> }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.metaCard}>
-      <Text style={styles.metaTitle}>Pedido de conexao</Text>
-      <Text style={styles.metaText}>{meta.fromName || "Alguem"} quer se conectar com voce.</Text>
+      <Text style={styles.metaTitle}>{t("chat_connection_request")}</Text>
+      <Text style={styles.metaText}>{t("chat_wants_to_connect", { name: meta.fromName || "Alguem" })}</Text>
       <View style={styles.metaActions}>
-        <TouchableOpacity style={styles.metaSecondaryButton} onPress={onReject} disabled={pending}><Text style={styles.metaSecondaryText}>Recusar</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.metaPrimaryButton} onPress={onAccept} disabled={pending}><Text style={styles.metaPrimaryText}>{pending ? "..." : "Aceitar"}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.metaSecondaryButton} onPress={onReject} disabled={pending}><Text style={styles.metaSecondaryText}>{t("chat_reject")}</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.metaPrimaryButton} onPress={onAccept} disabled={pending}><Text style={styles.metaPrimaryText}>{pending ? "..." : t("chat_accept")}</Text></TouchableOpacity>
       </View>
     </View>
   );
 }
 
 function NetworkDigestCard({ meta, styles }: { meta: NetworkDigestMeta; styles: ReturnType<typeof makeStyles> }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.metaCard}>
-      <Text style={styles.metaTitle}>Resumo da rede</Text>
-      <Text style={styles.metaText}>Busca: {meta.query}</Text>
+      <Text style={styles.metaTitle}>{t("chat_network_summary")}</Text>
+      <Text style={styles.metaText}>{t("chat_search_label")} {meta.query}</Text>
       {meta.newsItems.slice(0, 2).map((item) => <Text key={item.link} style={styles.metaBullet}>- {item.title}</Text>)}
       {meta.feedPosts.slice(0, 2).map((post) => <Text key={post.id} style={styles.metaBullet}>- {post.author.displayName || post.author.username}: {post.content}</Text>)}
-      {meta.suggestions.slice(0, 2).map((suggestion) => <Text key={suggestion.id} style={styles.metaBullet}>- Conexao sugerida: {suggestion.displayName || suggestion.username}</Text>)}
+      {meta.suggestions.slice(0, 2).map((suggestion) => <Text key={suggestion.id} style={styles.metaBullet}>- {t("chat_connection_suggestion")} {suggestion.displayName || suggestion.username}</Text>)}
     </View>
   );
 }
 
 function NewsDigestCard({ meta, styles }: { meta: NewsDigestMeta; styles: ReturnType<typeof makeStyles> }) {
+  const { t } = useTranslation();
   const [summaries, setSummaries] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -458,15 +497,15 @@ function NewsDigestCard({ meta, styles }: { meta: NewsDigestMeta; styles: Return
       const { data } = await api.post("/api/news/summarize", { url: link, title });
       setSummaries((previous) => ({ ...previous, [link]: data.summary }));
     } catch {
-      setSummaries((previous) => ({ ...previous, [link]: "Nao foi possivel resumir este artigo." }));
+      setSummaries((previous) => ({ ...previous, [link]: t("chat_summary_error") }));
     } finally {
       setLoading(null);
     }
-  }, []);
+  }, [t]);
 
   return (
     <View style={styles.metaCard}>
-      <Text style={styles.metaTitle}>Noticias - {meta.query}</Text>
+      <Text style={styles.metaTitle}>{t("chat_news_title", { query: meta.query })}</Text>
       {meta.items.map((item) => (
         <View key={item.link} style={styles.newsItem}>
           <Text style={styles.newsTitle}>{item.title}</Text>
@@ -474,11 +513,11 @@ function NewsDigestCard({ meta, styles }: { meta: NewsDigestMeta; styles: Return
           {summaries[item.link] ? (
             <View style={styles.newsSummaryBlock}>
               <Text style={styles.newsSummary}>{summaries[item.link]}</Text>
-              <TouchableOpacity onPress={() => Linking.openURL(item.link)}><Text style={styles.newsReadMore}>Ler mais</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL(item.link)}><Text style={styles.newsReadMore}>{t("chat_read_more")}</Text></TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={styles.newsResumeBtn} onPress={() => summarize(item.link, item.title)} disabled={loading === item.link}>
-              <Text style={styles.newsResumeBtnText}>{loading === item.link ? "Resumindo..." : "Resumir"}</Text>
+              <Text style={styles.newsResumeBtnText}>{loading === item.link ? t("chat_summarizing") : t("chat_summarize")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -497,12 +536,10 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     headerIconLabel: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "600", color: colors.muted },
     headerBadge: { position: "absolute", top: -7, right: -10, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.destructive },
     headerBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "800", color: "#FFFFFF" },
-    mascotBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 },
+    mascotBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 16, paddingVertical: 10, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
     mascotBarCenter: { flex: 1, gap: 2 },
     presenceLabelCompact: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase" },
-    scoreToneCompact: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700" },
     insightBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.primary },
-    insightBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "800", color: "#1A1A1A" },
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
     modalSheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36, maxHeight: "75%" },
     modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 },
@@ -534,6 +571,12 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     input: { flex: 1, backgroundColor: colors.background, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 120, borderWidth: 1, borderColor: colors.border },
     sendButton: { minWidth: 48, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
     sendButtonDisabled: { opacity: 0.4 },
+    tipCard: { marginTop: 6, marginBottom: 8, marginLeft: 6, marginRight: 24, padding: 14, borderRadius: 18, backgroundColor: colors.primary + "18", borderWidth: 1.5, borderColor: colors.primary + "55", gap: 8 },
+    tipHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+    tipBee: { fontSize: 16 },
+    tipLabel: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.primaryDark, flex: 1 },
+    tipTime: { fontFamily: FONTS.mono, fontSize: 10, color: colors.muted },
+    tipText: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 20, color: colors.foreground },
     metaCard: { marginTop: 6, marginBottom: 8, marginLeft: 6, marginRight: 24, padding: 12, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6 },
     metaTitle: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: colors.foreground },
     metaText: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, lineHeight: 18 },

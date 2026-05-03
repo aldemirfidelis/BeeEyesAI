@@ -18,4 +18,8 @@ export async function ensureDatabaseCompatibility() {
     ALTER TABLE "users"
     ADD COLUMN IF NOT EXISTS "anonymous_profile_visits_enabled" boolean NOT NULL DEFAULT false;
   `);
+  await pool.query(`
+    ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "expo_push_token" text;
+  `);
 }

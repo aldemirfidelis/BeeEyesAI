@@ -16,6 +16,68 @@ import { requireAuth } from "../middleware/requireAuth";
 import { checkRateLimit } from "../rateLimit";
 import { storage } from "../storage";
 
+const APP_TIPS: { id: number; text: string }[] = [
+  // ── Chat & IA ──────────────────────────────────────────────────────────────
+  { id: 1,  text: "💡 Dica: para criar uma missão, diga claramente 'crie uma missão para...' ou 'quero uma meta de...'. Isso me avisa que é um compromisso de verdade, não só papo." },
+  { id: 2,  text: "💡 Dica: você pode usar comandos rápidos no chat. Digite /missoes para ver suas tarefas, /feed para o timeline, /comunidades para grupos, ou /noticias para manchetes personalizadas." },
+  { id: 3,  text: "💡 Dica: sente que está travado? Me manda uma frase sobre o que está bloqueando. Eu não deixo você ficar parado — te ajudo a encontrar o próximo passo agora." },
+  { id: 4,  text: "💡 Dica: o painel Insight mostra seu foco, constância e disciplina da semana. Toque no ícone de insight no chat para ver sua pontuação atual e o que ela significa." },
+  { id: 5,  text: "💡 Dica: me chame pelo que você precisa agora: 'Quero evoluir', 'Me cobre hoje' ou 'Criar meta'. Os botões de ação rápida no chat são atalhos para começar rápido." },
+  { id: 6,  text: "💡 Dica: eu lembro de tudo que você me conta. Quanto mais você compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestões para você." },
+  { id: 7,  text: "💡 Dica: se quiser notícias relevantes, toque em 'Buscar notícias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
+  { id: 8,  text: "💡 Dica: você pode conversar comigo sobre qualquer coisa — produtividade, reflexões, ideias, planos. Quanto mais natural a conversa, melhores minhas análises sobre você." },
+
+  // ── Missões & XP ──────────────────────────────────────────────────────────
+  { id: 9,  text: "💡 Dica: complete missões diárias para ganhar XP e subir de nível. Cada nível desbloqueia recursos novos — Mensagens Diretas no nível 2, navegação anônima no nível 3." },
+  { id: 10, text: "💡 Dica: os Desafios Bônus aparecem quando você completa todas as missões do dia. São aleatórios, valem XP extra e foram criados especialmente para manter seu ritmo." },
+  { id: 11, text: "💡 Dica: missões do sistema (Boas-vindas, Social, Conectado, Criador) são a base do seu crescimento no app. Complete todas de uma fase para desbloquear a próxima." },
+  { id: 12, text: "💡 Dica: o Resumo Semanal na tela de Missões traz um raio-x da sua semana — consistência, disciplina, ponto forte e onde melhorar. Aparece toda semana automaticamente." },
+  { id: 13, text: "💡 Dica: mantenha sua sequência (streak) ativa todos os dias. Sequências de 3, 7 e 30 dias te dão bônus de XP e mostram que você é constante de verdade." },
+
+  // ── Feed ───────────────────────────────────────────────────────────────────
+  { id: 14, text: "💡 Dica: o Feed não é só uma timeline — é onde sua rede vê seu progresso. Publicar pequenas vitórias aumenta sua conexão com a comunidade e motiva os outros." },
+  { id: 15, text: "💡 Dica: você pode postar texto + foto no Feed. Toque no ícone de câmera ou galeria no compositor de post para adicionar uma imagem ao que está pensando." },
+  { id: 16, text: "💡 Dica: a IA comenta automaticamente nos posts do Feed com uma análise do sentimento e tom. É um jeito de ver como sua mensagem está sendo percebida." },
+
+  // ── Comunidades ────────────────────────────────────────────────────────────
+  { id: 17, text: "💡 Dica: Comunidades são grupos temáticos. Entre em comunidades alinhadas com seus objetivos — você encontra pessoas com os mesmos focos e objetivos que você." },
+  { id: 18, text: "💡 Dica: postar numa Comunidade conta como interação social e pode desbloquear a conquista 'first_community_post'. Comunidades ativas aparecem para mais pessoas." },
+  { id: 19, text: "💡 Dica: ao entrar em uma comunidade, você ganha pontos de conquista. Toque no nome da comunidade para ver todos os membros ativos." },
+
+  // ── Amigos & Conexões ──────────────────────────────────────────────────────
+  { id: 20, text: "💡 Dica: use a busca em Amigos para encontrar pessoas pelo nome de usuário. Quando você conecta com alguém, você pode acompanhar o progresso dela no app." },
+  { id: 21, text: "💡 Dica: a aba Matches da Bee em Amigos mostra sugestões inteligentes baseadas nos seus interesses e comportamento. Pessoas que pensam parecido com você." },
+  { id: 22, text: "💡 Dica: escreva um depoimento para um amigo! Vá ao perfil dele e toque em 'Depoimento'. É uma forma autêntica de reconhecer o crescimento de alguém." },
+  { id: 23, text: "💡 Dica: ao aceitar uma conexão, vocês dois ganham a conquista de conexão. Com 5 amigos, você desbloqueia a medalha 'Abelha Social'." },
+
+  // ── Mensagens Diretas ──────────────────────────────────────────────────────
+  { id: 24, text: "💡 Dica: Mensagens Diretas desbloqueiam no nível 2. Complete missões para chegar lá e começar a conversar em privado com seus amigos." },
+  { id: 25, text: "💡 Dica: na sua inbox, você pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para você acompanhar facilmente." },
+
+  // ── Humor & Bem-estar ──────────────────────────────────────────────────────
+  { id: 26, text: "💡 Dica: registre seu humor todo dia no módulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e o tipo de missão que proponho para você." },
+  { id: 27, text: "💡 Dica: o calendário de humor mostra os últimos 30 dias em cores. Padrões de humor ruim repetido podem ser um sinal que vale levar ao insight da semana." },
+
+  // ── Alertas & Notificações ────────────────────────────────────────────────
+  { id: 28, text: "💡 Dica: os Alertas da Bee mostram sinais que precisam da sua atenção: riscos de streak, progresso social, novas conexões. Passe lá antes de fechar o app." },
+  { id: 29, text: "💡 Dica: alertas com borda vermelha são urgentes — risco real de perder progresso. Amarelo é atenção. Verde é celebração. Fique de olho nas cores." },
+
+  // ── Medalhas & Conquistas ──────────────────────────────────────────────────
+  { id: 30, text: "💡 Dica: as medalhas ficam no seu perfil e mostram sua trajetória no app. Cada uma tem critérios específicos — toque nela para ver como desbloquear." },
+  { id: 31, text: "💡 Dica: a primeira missão concluída, o primeiro post, o primeiro amigo — cada marco inicial te dá uma medalha. Veja as que ainda estão travadas para saber o que falta." },
+
+  // ── Configurações & Privacidade ────────────────────────────────────────────
+  { id: 32, text: "💡 Dica: a navegação anônima (nível 3) faz suas visitas a perfis não aparecerem para o dono. Ative nas Configurações quando não quiser ser identificado ao explorar perfis." },
+  { id: 33, text: "💡 Dica: você pode alterar nome de exibição e bio a qualquer momento nas Configurações. Manter seu perfil atualizado ajuda a IA a entender melhor quem você é hoje." },
+  { id: 34, text: "💡 Dica: o tema escuro está disponível nas Configurações em Aparência. O app detecta automaticamente o idioma do seu dispositivo — português, inglês ou espanhol." },
+
+  // ── Estratégia de uso ──────────────────────────────────────────────────────
+  { id: 35, text: "💡 Dica: o melhor jeito de usar o BeeEyes é abrir o chat uma vez por dia e me contar o que está na cabeça. Não precisa ser longo — uma frase já ativa o sistema." },
+  { id: 36, text: "💡 Dica: trate suas missões como compromissos reais, não sugestões. Completar todas do dia, mesmo as simples, muda sua relação com consistência ao longo do tempo." },
+  { id: 37, text: "💡 Dica: invista uns 5 minutos por semana lendo o Resumo Semanal. Ele mostra onde você está evoluindo e o que está travado antes que vire um problema maior." },
+  { id: 38, text: "💡 Dica: o BeeEyes foi feito para ser parte da sua rotina diária, não uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessões longas e raras." },
+];
+
 export function createMessagesRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
   const router = Router();
 
@@ -224,6 +286,20 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     return sendOk(res, deduped);
   }));
 
+  router.post("/api/notifications/push-token", requireAuth, asyncHandler(async (req, res) => {
+    const { token } = req.body ?? {};
+    if (typeof token !== "string" || !token.trim()) {
+      throw badRequest("token obrigatório");
+    }
+    await storage.updateUserPushToken(req.userId!, token.trim());
+    return sendOk(res, { registered: true });
+  }));
+
+  router.delete("/api/notifications/push-token", requireAuth, asyncHandler(async (req, res) => {
+    await storage.updateUserPushToken(req.userId!, null);
+    return sendOk(res, { unregistered: true });
+  }));
+
   router.post("/api/notifications/read", requireAuth, asyncHandler(async (req, res) => {
     const ids = Array.isArray(req.body?.ids)
       ? req.body.ids.filter((id: unknown): id is string => typeof id === "string" && id.trim().length > 0)
@@ -408,15 +484,8 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return sendOk(res, { message: null });
     }
 
-    const usageTips = [
-      "Dica da Bee: se quiser transformar uma conversa em meta, diga claramente 'crie uma missao para...'. Assim eu separo papo de compromisso.",
-      "Use comunidades para postar pequenos progressos. Uma foto simples tambem ajuda sua rede a entender o que voce esta construindo.",
-      "Quando estiver sem foco, me mande uma frase curta sobre o que esta travando. Eu te ajudo a escolher a proxima acao.",
-      "Passe nos Alertas da Bee quando quiser ver sinais importantes sem abrir todo o chat.",
-    ];
-
-    const content = Math.random() < 0.45
-      ? usageTips[Math.floor(Math.random() * usageTips.length)]
+    const content = Math.random() < 0.35
+      ? APP_TIPS[Math.floor(Math.random() * APP_TIPS.length)].text
       : await generateProactiveMessage(user, personality, missions);
     if (!content) {
       return sendOk(res, { message: null });
@@ -430,6 +499,42 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     });
 
     return sendOk(res, { message: content });
+  }));
+
+  router.get("/api/app-tip", requireAuth, asyncHandler(async (req, res) => {
+    const recentMessages = await storage.getMessagesByUser(req.userId!, 60);
+
+    // Check 4-hour cooldown since last tip
+    const lastTip = [...recentMessages].reverse().find((m) => {
+      try { return JSON.parse(m.metadata || "{}").appTip === true; } catch { return false; }
+    });
+    if (lastTip) {
+      const hoursSince = (Date.now() - new Date(lastTip.createdAt).getTime()) / 3600000;
+      if (hoursSince < 4) return sendOk(res, { tip: null });
+    }
+
+    // Collect tip IDs shown in the last 60 messages to avoid recent repetition
+    const recentTipIds = new Set<number>();
+    for (const m of recentMessages) {
+      try {
+        const meta = JSON.parse(m.metadata || "{}");
+        if (meta.appTip && typeof meta.tipId === "number") recentTipIds.add(meta.tipId);
+      } catch { /* ignore */ }
+    }
+
+    // Pick a tip not recently shown; fall back to any if all were shown
+    const available = APP_TIPS.filter((tip) => !recentTipIds.has(tip.id));
+    const pool = available.length > 0 ? available : APP_TIPS;
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+
+    await storage.createMessage({
+      userId: req.userId!,
+      role: "assistant",
+      content: chosen.text,
+      metadata: JSON.stringify({ appTip: true, tipId: chosen.id }),
+    });
+
+    return sendOk(res, { tip: chosen.text });
   }));
 
   router.patch("/api/messages/:id", requireAuth, asyncHandler(async (req, res) => {
