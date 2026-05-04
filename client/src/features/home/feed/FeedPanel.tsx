@@ -90,7 +90,7 @@ export function FeedPanel(props: FeedPanelProps) {
 
           {postImageUrl && (
             <div className="relative mx-4 mb-2 overflow-hidden rounded-xl border border-border">
-              <img src={postImageUrl} alt="Prévia da foto" className="h-48 w-full object-cover" />
+              <img src={postImageUrl} alt="Prévia da foto" className="w-full max-h-80 object-contain bg-black/5" />
               <button type="button" onClick={onRemovePostImage}
                 className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 transition-colors">
                 <X className="h-4 w-4" />
@@ -188,7 +188,7 @@ export function FeedPanel(props: FeedPanelProps) {
                 </div>
               </div>
               <p className="text-sm leading-relaxed">{post.content}</p>
-              {post.imageUrl && <img src={post.imageUrl} alt="Imagem da publicacao" className="w-full max-h-72 rounded-xl object-cover border border-border/40" loading="lazy" />}
+              {post.imageUrl && <img src={post.imageUrl} alt="Imagem da publicacao" className="w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/40" loading="lazy" />}
               {post.aiComment && (
                 <div className="border-l-2 border-primary/40 pl-3 py-1 bg-secondary/20 rounded-r-lg">
                   <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>

@@ -53,6 +53,14 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
     return sendOk(res, updated);
   }));
 
+  router.delete("/api/communities/:id", requireAuth, asyncHandler(async (req, res) => {
+    const community = await storage.getCommunityById(req.params.id, req.userId!);
+    if (!community) throw notFound("Comunidade não encontrada");
+    if (community.memberRole !== "owner") throw forbidden("Apenas o fundador pode apagar esta comunidade");
+    await storage.deleteCommunity(req.params.id);
+    return sendOk(res, { ok: true });
+  }));
+
   router.get("/api/communities/mine", requireAuth, asyncHandler(async (req, res) => {
     return sendOk(res, await storage.getUserCommunities(req.userId!));
   }));

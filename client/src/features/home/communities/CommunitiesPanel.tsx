@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ImagePlus, Pencil, Plus, Send, X } from "lucide-react";
+import { ImagePlus, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,7 @@ interface CommunitiesPanelProps {
   onEditCommunityChange: (value: EditingCommunity) => void;
   onSaveEditCommunity: () => void;
   onCancelEditCommunity: () => void;
+  onDeleteCommunity: (communityId: string, name: string) => void;
   authHeaders: () => Record<string, string>;
   timeAgo: (value: string | Date) => string;
 }
@@ -153,7 +154,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
     onCloseCommunity, onCommunityPostInputChange, onPickCommunityPostImage, onRemoveCommunityPostImage, onSendCommunityPost,
     onShowCreateCommunity, onNewCommunityChange, onCreateCommunity,
     onOpenEditCommunity, onEditCommunityChange, onSaveEditCommunity, onCancelEditCommunity,
-    authHeaders, timeAgo,
+    onDeleteCommunity, authHeaders, timeAgo,
   } = props;
 
   const visibleCommunities = communities.filter((community) => {
@@ -200,15 +201,24 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                   </button>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* Edit button — owner only */}
+                  {/* Owner-only actions */}
                   {isOwner && (
-                    <button
-                      onClick={onOpenEditCommunity}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                      title="Editar comunidade"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        onClick={onOpenEditCommunity}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                        title="Editar comunidade"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCommunity(selectedCommunity.id, selectedCommunity.name)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Apagar comunidade"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                   {selectedCommunity.memberRole === "owner" ? (
                     <span className="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary font-medium">Fundador</span>

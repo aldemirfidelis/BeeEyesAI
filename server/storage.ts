@@ -127,6 +127,7 @@ export interface IStorage {
   // Communities
   getCommunities(userId: string, search?: string): Promise<(Community & { isMember: boolean })[]>;
   createCommunity(data: InsertCommunity): Promise<Community>;
+  deleteCommunity(communityId: string): Promise<void>;
   updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null>;
   getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null>;
   getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]>;
@@ -933,6 +934,10 @@ export class DrizzleStorage implements IStorage {
     const [community] = await db.insert(communities).values(data).returning();
     await db.insert(communityMembers).values({ communityId: community.id, userId: data.ownerId, role: "owner" });
     return community;
+  }
+
+  async deleteCommunity(communityId: string): Promise<void> {
+    await db.delete(communities).where(eq(communities.id, communityId));
   }
 
   async updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null> {

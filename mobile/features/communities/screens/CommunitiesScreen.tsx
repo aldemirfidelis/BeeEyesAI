@@ -311,7 +311,38 @@ function CommunityDetail({
 
   function handleLeave() {
     if (isOwner) {
-      Alert.alert("Fundador", "Você é o fundador desta comunidade e não pode sair. Transfira a liderança antes de sair.");
+      Alert.alert(
+        "Opções do fundador",
+        "Você é o fundador desta comunidade.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Apagar comunidade",
+            style: "destructive",
+            onPress: () =>
+              Alert.alert(
+                "Apagar comunidade",
+                `Apagar "${detail.name}" permanentemente? Esta ação não pode ser desfeita.`,
+                [
+                  { text: "Cancelar", style: "cancel" },
+                  {
+                    text: "Apagar",
+                    style: "destructive",
+                    onPress: async () => {
+                      try {
+                        await api.delete(`/api/communities/${community.id}`);
+                        queryClient.invalidateQueries({ queryKey: ["communities"] });
+                        onBack();
+                      } catch {
+                        Alert.alert("Erro", "Não foi possível apagar a comunidade.");
+                      }
+                    },
+                  },
+                ]
+              ),
+          },
+        ]
+      );
       return;
     }
     Alert.alert(

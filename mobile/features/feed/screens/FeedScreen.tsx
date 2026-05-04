@@ -59,11 +59,22 @@ const SENTIMENT_EMOJI: Record<string, string> = {
   proud: "🏆",
 };
 
-async function processImage(uri: string, onChange: (imageUrl: string) => void) {
+const MAX_SIDE = 1080;
+
+async function processImage(
+  asset: { uri: string; width?: number; height?: number },
+  onChange: (imageUrl: string) => void,
+) {
+  const w = asset.width ?? MAX_SIDE;
+  const h = asset.height ?? MAX_SIDE;
+  const resizeOp = w > MAX_SIDE || h > MAX_SIDE
+    ? [{ resize: w >= h ? { width: MAX_SIDE } : { height: MAX_SIDE } }]
+    : [];
+
   const processed = await ImageManipulator.manipulateAsync(
-    uri,
-    [{ resize: { width: 1080 } }],
-    { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+    asset.uri,
+    resizeOp,
+    { compress: 0.80, format: ImageManipulator.SaveFormat.JPEG, base64: true },
   );
   if (processed.base64) onChange(`data:image/jpeg;base64,${processed.base64}`);
 }
@@ -76,12 +87,11 @@ async function pickFeedImage(onChange: (imageUrl: string) => void) {
   }
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: "images",
-    allowsEditing: true,
-    aspect: [4, 3],
-    quality: 0.8,
+    allowsEditing: false,
+    quality: 1,
   });
   if (result.canceled || !result.assets?.[0]?.uri) return;
-  await processImage(result.assets[0].uri, onChange);
+  await processImage(result.assets[0], onChange);
 }
 
 async function takeFeedPhoto(onChange: (imageUrl: string) => void) {
@@ -92,12 +102,11 @@ async function takeFeedPhoto(onChange: (imageUrl: string) => void) {
   }
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: "images",
-    allowsEditing: true,
-    aspect: [4, 3],
-    quality: 0.8,
+    allowsEditing: false,
+    quality: 1,
   });
   if (result.canceled || !result.assets?.[0]?.uri) return;
-  await processImage(result.assets[0].uri, onChange);
+  await processImage(result.assets[0], onChange);
 }
 
 export default function FeedScreen() {
@@ -239,7 +248,7 @@ export default function FeedScreen() {
               {/* Image preview */}
               {postImageUrl ? (
                 <View style={styles.composerImageWrap}>
-                  <Image source={{ uri: postImageUrl }} style={styles.composerImage} resizeMode="cover" />
+                  <Image source={{ uri: postImageUrl }} style={styles.composerImage} resizeMode="contain" />
                   <TouchableOpacity
                     onPress={() => setPostImageUrl("")}
                     style={styles.composerImageRemove}
@@ -841,7 +850,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderRadius: 14,
       overflow: "hidden",
     },
-    composerImage: { width: "100%", height: 180, backgroundColor: colors.secondary },
+    composerImage: { width: "100%", maxHeight: 320, backgroundColor: colors.secondary },
     composerImageRemove: {
       position: "absolute", top: 8, right: 8,
       backgroundColor: "rgba(0,0,0,0.6)",
@@ -951,7 +960,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     editSaveBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center" },
     editSaveText: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: "#1A1A1A" },
     postContent: { fontFamily: FONTS.sans, fontSize: 15, color: colors.foreground, lineHeight: 22 },
-    postImage: { width: "100%", height: 210, borderRadius: 16, backgroundColor: colors.background },
+    postImage: { width: "100%", maxHeight: 400, borderRadius: 16, backgroundColor: colors.background },
     aiCommentBox: {
       backgroundColor: colors.secondary + "88",
       borderRadius: 12,

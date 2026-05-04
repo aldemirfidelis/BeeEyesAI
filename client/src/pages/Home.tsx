@@ -26,7 +26,7 @@ import { SettingsScreen } from "@/features/home/settings/SettingsScreen";
 import { FriendProfileModal } from "@/features/home/friends/FriendProfileModal";
 import { ChatWorkspace } from "@/features/home/chat/ChatWorkspace";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
-import { fileToCompressedDataUrl } from "@/lib/image";
+import { fileToCompressedDataUrl, FEED_IMAGE_ACCEPT } from "@/lib/image";
 import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
@@ -1570,6 +1570,16 @@ export default function Home() {
             onEditCommunityChange={setEditingCommunity}
             onSaveEditCommunity={handleSaveEditCommunity}
             onCancelEditCommunity={() => setEditingCommunity(null)}
+            onDeleteCommunity={async (communityId, name) => {
+              if (!window.confirm(`Apagar a comunidade "${name}"? Esta ação não pode ser desfeita.`)) return;
+              try {
+                await apiFetch(`/api/communities/${communityId}`, { method: "DELETE", headers: authHeaders() });
+                setCommunities((prev) => prev.filter((c) => c.id !== communityId));
+                setSelectedCommunity(null);
+              } catch {
+                alert("Não foi possível apagar a comunidade.");
+              }
+            }}
             authHeaders={authHeaders}
             timeAgo={timeAgo}
           />
@@ -1771,14 +1781,14 @@ export default function Home() {
       <input
         ref={feedImageInputRef}
         type="file"
-        accept="image/*"
+        accept={FEED_IMAGE_ACCEPT}
         className="hidden"
         onChange={handleFeedImageChange}
       />
       <input
         ref={feedCameraInputRef}
         type="file"
-        accept="image/*"
+        accept={FEED_IMAGE_ACCEPT}
         capture="environment"
         className="hidden"
         onChange={handleFeedImageChange}
