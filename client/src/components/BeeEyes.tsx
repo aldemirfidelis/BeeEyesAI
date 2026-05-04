@@ -314,6 +314,21 @@ export default function BeeEyes({
           const pX = clamp(basePupilX + preset.pupilX * (side === "left" ? 1 : -1) * 0.3 + (side === "left" ? -0.5 : 0.5), -8, 8);
           const pY = clamp(basePupilY + (side === "left" ? -0.3 : 0.2), -6, 6);
 
+          // Eyebrow curve: lower curveY = more arch up; higher = flatter/droopy
+          const browCurves: Record<string, { left: number; right: number; ty: number }> = {
+            neutral:     { left: 5,  right: 5,  ty: 0  },
+            happy:       { left: 2,  right: 2,  ty: -2 },
+            curious:     { left: 1,  right: 5,  ty: -3 },
+            attentive:   { left: 3,  right: 3,  ty: -1 },
+            excited:     { left: 1,  right: 1,  ty: -4 },
+            thinking:    { left: 6,  right: 2,  ty: 0  },
+            tired:       { left: 8,  right: 8,  ty: 2  },
+            sleepy:      { left: 8,  right: 8,  ty: 2  },
+            celebrating: { left: 1,  right: 1,  ty: -5 },
+          };
+          const bc = browCurves[effectiveEmotion] ?? browCurves.neutral;
+          const browCurveY = side === "left" ? bc.left : bc.right;
+
           return (
             <motion.div
               key={side}
@@ -321,6 +336,22 @@ export default function BeeEyes({
               animate={shellAnimate}
               transition={shellTransition}
             >
+              {/* Eyebrow */}
+              <motion.svg
+                width="56" height="14" viewBox="0 0 56 14"
+                style={{ display: "block", marginBottom: -2 }}
+                animate={{ y: bc.ty }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
+                <path
+                  d={`M 10 10 Q 28 ${browCurveY} 46 10`}
+                  fill="none"
+                  stroke="#1a1a1a"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                />
+              </motion.svg>
+
               <motion.div
                 style={{ transformOrigin: "center center" }}
                 animate={{ scaleY: eyeScaleY }}

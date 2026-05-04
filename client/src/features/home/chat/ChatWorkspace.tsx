@@ -214,14 +214,16 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         <div className="flex items-center justify-center py-1 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative">
-          <BeeEyes
-            expression={eyeExpression}
-            event={eyeEvent}
-            inputFocused={eyeInputFocused}
-            isTyping={eyeIsTyping}
-            scrollProgress={eyeScrollProgress}
-            engagementLevel={eyeEngagementLevel}
-          />
+          <div className="scale-[0.65] origin-center">
+            <BeeEyes
+              expression={eyeExpression}
+              event={eyeEvent}
+              inputFocused={eyeInputFocused}
+              isTyping={eyeIsTyping}
+              scrollProgress={eyeScrollProgress}
+              engagementLevel={eyeEngagementLevel}
+            />
+          </div>
           <button type="button" onClick={onToggleSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-muted transition-colors" aria-label="Buscar mensagens">
             <Search size={18} className="text-muted-foreground" />
           </button>
@@ -257,27 +259,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             </div>
           )}
 
-          {/* Quick action chips */}
-          <div className="flex gap-2 max-w-4xl mx-auto mb-2 overflow-x-auto pb-1 scrollbar-none">
-            {(
-              [
-                { label: "🚀 Quero evoluir",   action: "missions"     },
-                { label: "📰 Ver feed",         action: "feed"         },
-                { label: "📬 Mensagens",        action: "inbox"        },
-                { label: "🌐 Comunidades",      action: "communities"  },
-                { label: "📡 Notícias",         action: "news"         },
-              ] as const
-            ).map(({ label, action }) => (
-              <button
-                key={action}
-                type="button"
-                onClick={() => onQuickAction(action)}
-                className="shrink-0 text-xs px-3 py-1.5 rounded-full border border-border bg-background hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
 
           <div className="flex gap-2 max-w-4xl mx-auto">
             <Input
