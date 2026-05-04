@@ -1729,41 +1729,22 @@ export default function Home() {
 
       {/* ── Bottom nav (mobile only) ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-card/95 backdrop-blur-sm z-20 flex">
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("chat"); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "chat" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <MessageCircle className="w-5 h-5" />
-          Chat
-        </button>
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "feed" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <LayoutGrid className="w-5 h-5" />
-          Feed
-        </button>
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("missions"); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "missions" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <TrendingUp className="w-5 h-5" />
-          Missões
-        </button>
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "inbox" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <MessageSquare className="w-5 h-5" />
-          Msg
-        </button>
-        <button
-          onClick={() => { setShowSettingsScreen(false); setMobileTab("communities"); loadCommunities(communitySearch); }}
-          className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors ${mobileTab === "communities" ? "text-primary" : "text-muted-foreground"}`}
-        >
-          <Users2 className="w-5 h-5" />
-          Grupos
-        </button>
+        {([
+          { tab: "chat",        label: "Chat",        icon: <MessageCircle className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("chat"); } },
+          { tab: "feed",        label: "Feed",        icon: <LayoutGrid    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); } },
+          { tab: "missions",    label: "Missões",     icon: <TrendingUp    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("missions"); } },
+          { tab: "inbox",       label: "Mensagens",   icon: <MessageSquare className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); } },
+          { tab: "communities", label: "Comunidades", icon: <Users2        className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("communities"); loadCommunities(communitySearch); } },
+        ] as const).map(({ tab, label, icon, onClick }) => (
+          <button
+            key={tab}
+            onClick={onClick}
+            className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-3 transition-colors ${mobileTab === tab ? "text-primary" : "text-muted-foreground"}`}
+          >
+            {icon}
+            <span className="text-[10px] leading-tight w-full text-center truncate px-0.5">{label}</span>
+          </button>
+        ))}
       </nav>
 
       {/* Spacer so content doesn't hide behind bottom nav on mobile */}

@@ -213,8 +213,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="flex items-center justify-center py-1 border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative">
-          <div className="scale-[0.65] origin-center">
+        <div className="flex items-center justify-center border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative overflow-hidden" style={{ height: 56 }}>
+          <div style={{ transform: "scale(0.6)", transformOrigin: "center center", marginTop: -8 }}>
             <BeeEyes
               expression={eyeExpression}
               event={eyeEvent}
