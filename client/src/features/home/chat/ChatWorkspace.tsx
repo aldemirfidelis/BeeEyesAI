@@ -162,7 +162,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           <div className="flex items-center gap-3">
             <img src="/bee-logo.svg" alt="bee-eyes" className="w-8 h-8 shrink-0" />
             <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
-            {user && <StreakDisplay streak={user.currentStreak} />}
           </div>
 
           <div className="flex items-center gap-3 relative">
