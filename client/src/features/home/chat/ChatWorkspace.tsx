@@ -1,4 +1,5 @@
 import type { ReactNode, RefObject } from "react";
+import { useState, useEffect, useRef } from "react";
 import BeeEyes, { type BeeEyesEvent, type BeeEyesExpression } from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import StreakDisplay from "@/components/StreakDisplay";
@@ -6,13 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AnimatePresence } from "framer-motion";
-import { ImagePlus, MessageCircle, Search, Send, Settings, X } from "lucide-react";
-import type { Message, User } from "@/features/home/types";
+import { Bell, ImagePlus, MessageCircle, Search, Send, Settings, User, Users, X } from "lucide-react";
+import type { Message, User as UserType } from "@/features/home/types";
 
 interface ChatWorkspaceProps {
   mobileTab: string;
   profilePhotoUrl: string;
-  user: User | null;
+  user: UserType | null;
+  authHeaders: () => Record<string, string>;
+  onGoToFriends: () => void;
   eyeExpression: BeeEyesExpression;
   eyeEvent: BeeEyesEvent | null;
   eyeInputFocused: boolean;
@@ -50,7 +53,62 @@ interface ChatWorkspaceProps {
   onQuickAction: (action: "feed" | "missions" | "news" | "inbox" | "communities") => void;
 }
 
+function NotificationsDropdown({ authHeaders, onClose }: { authHeaders: () => Record<string, string>; onClose: () => void }) {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/notifications/center", { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((data) => setItems(Array.isArray(data) ? data.slice(0, 10) : []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="absolute right-0 top-12 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <span className="font-bold text-sm">Alertas</span>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+      </div>
+      <div className="max-h-96 overflow-y-auto">
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
+        ) : items.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Nenhum alerta por enquanto.</div>
+        ) : items.map((item) => (
+          <div key={item.id} className={`px-4 py-3 border-b border-border/50 last:border-0 ${!item.read ? "bg-primary/5" : ""}`}>
+            <p className="text-sm font-semibold text-foreground">{item.title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ChatWorkspace(props: ChatWorkspaceProps) {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/notifications/center", { headers: props.authHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setUnreadCount(data.filter((n: any) => !n.read).length);
+      })
+      .catch(() => {});
+  }, []);
+
   const {
     mobileTab,
     profilePhotoUrl,
@@ -76,6 +134,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     showInlinePost,
     isPosting,
     messageActionsRenderer,
+    authHeaders,
+    onGoToFriends,
     onToggleSettings,
     onToggleSearch,
     onSearchQueryChange,
@@ -102,20 +162,52 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           <div className="flex items-center gap-3">
             <img src="/bee-logo.svg" alt="bee-eyes" className="w-8 h-8 shrink-0" />
             <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
-            <button type="button" onClick={onToggleSettings} className="w-9 h-9 rounded-full border border-border overflow-hidden bg-primary/20 flex items-center justify-center shrink-0" aria-label="Abrir configuracoes de perfil">
-              {profilePhotoUrl ? <img src={profilePhotoUrl} alt="Foto de perfil" className="w-full h-full object-cover" /> : <span className="text-xs font-bold">{(user?.username || "?")[0].toUpperCase()}</span>}
-            </button>
             {user && <StreakDisplay streak={user.currentStreak} />}
           </div>
-          <div className="flex items-center gap-1">
+
+          <div className="flex items-center gap-3 relative">
+            {/* Alertas */}
+            <button
+              type="button"
+              onClick={() => setShowNotifications((v) => !v)}
+              className="flex flex-col items-center gap-0.5 text-muted-foreground relative"
+            >
+              <div className="relative">
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+                    {Math.min(unreadCount, 9)}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-semibold leading-none">Alertas</span>
+            </button>
+            {showNotifications && (
+              <NotificationsDropdown authHeaders={authHeaders} onClose={() => setShowNotifications(false)} />
+            )}
+
+            {/* Amigos */}
+            <button
+              type="button"
+              onClick={onGoToFriends}
+              className="flex flex-col items-center gap-0.5 text-muted-foreground"
+            >
+              <Users className="w-5 h-5" />
+              <span className="text-[10px] font-semibold leading-none">Amigos</span>
+            </button>
+
+            {/* Perfil */}
             <button
               type="button"
               onClick={onToggleSettings}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              aria-label="Configurações"
-              title="Configurações"
+              className="flex flex-col items-center gap-0.5 text-muted-foreground"
             >
-              <Settings className="w-5 h-5" />
+              {profilePhotoUrl ? (
+                <img src={profilePhotoUrl} alt="Foto" className="w-5 h-5 rounded-full object-cover" />
+              ) : (
+                <User className="w-5 h-5" />
+              )}
+              <span className="text-[10px] font-semibold leading-none">Perfil</span>
             </button>
           </div>
         </div>

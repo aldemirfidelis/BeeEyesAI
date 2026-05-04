@@ -1580,6 +1580,8 @@ export default function Home() {
         mobileTab={mobileTab}
         profilePhotoUrl={profilePhotoUrl}
         user={user}
+        authHeaders={authHeaders}
+        onGoToFriends={() => setMobileTab("friends")}
         eyeExpression={eyeExpression}
         eyeEvent={eyeEvent}
         eyeInputFocused={eyeInputFocused}
