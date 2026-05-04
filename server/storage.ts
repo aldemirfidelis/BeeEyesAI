@@ -32,6 +32,7 @@ export interface IStorage {
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User>;
   updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean }): Promise<User>;
+  updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void>;
   updateUserPassword(userId: string, passwordHash: string): Promise<void>;
   updateUserPushToken(userId: string, token: string | null): Promise<void>;
   updateUserXP(userId: string, xpToAdd: number): Promise<User>;
@@ -191,6 +192,10 @@ export class DrizzleStorage implements IStorage {
     }
 
     return updated;
+  }
+
+  async updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void> {
+    await db.update(users).set({ avatarUrl }).where(eq(users.id, userId));
   }
 
   async updateUserPassword(userId: string, passwordHash: string): Promise<void> {

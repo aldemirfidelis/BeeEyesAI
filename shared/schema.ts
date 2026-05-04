@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   bio: text("bio"),
   language: varchar("language", { length: 10 }).notNull().default("pt-BR"),
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
+  avatarUrl: text("avatar_url"),
   googleId: text("google_id").unique(),
   level: integer("level").notNull().default(1),
   xp: integer("xp").notNull().default(0),

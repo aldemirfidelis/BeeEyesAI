@@ -36,7 +36,9 @@
       "PowerShell(head -30)",
       "Bash(xargs ls *)",
       "PowerShell(ssh -i \"$env:USERPROFILE\\\\.ssh\\\\beeeyes_digitalocean\" -v root@1.1.1.1 2>&1 | Select-String \"Offering|denied|passphrase|password|Permission|identity\" | Select-Object -First 15)",
-      "Bash(node --env-file=.env -e ' *)"
+      "Bash(node --env-file=.env -e ' *)",
+      "Bash(git commit -m ' *)",
+      "Bash(dir d:\\\\Projetos\\\\BeeEyesAI)"
     ]
   }
 }

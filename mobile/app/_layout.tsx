@@ -26,9 +26,18 @@ export default function RootLayout() {
   // Inicialização única: canais Android + listener de tap
   useEffect(() => {
     configureGoogleSignin();
-    initialize();
-    initializePreferences();
-
+    initialize().then(async () => {
+      const { token } = useAuthStore.getState();
+      let serverAvatarUrl: string | null = null;
+      if (token) {
+        try {
+          const { api } = await import("../lib/api");
+          const { data } = await api.get("/api/me");
+          serverAvatarUrl = data?.avatarUrl ?? null;
+        } catch { /* ignore */ }
+      }
+      initializePreferences(serverAvatarUrl);
+    });
     // Cria os canais Android antes de qualquer notificação
     setupNotificationChannels().catch(() => {});
 

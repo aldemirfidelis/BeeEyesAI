@@ -20,7 +20,7 @@ interface UIState {
   setEyeExpression: (expr: EyeExpression) => void;
   showAchievement: (achievement: Achievement) => void;
   clearAchievement: () => void;
-  initializePreferences: () => Promise<void>;
+  initializePreferences: (serverAvatarUrl?: string | null) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setProfileImageUri: (uri: string | null) => Promise<void>;
   clearProfileImage: () => Promise<void>;
@@ -37,7 +37,7 @@ export const useUIStore = create<UIState>((set) => ({
   showAchievement: (achievement) => set({ achievement }),
   clearAchievement: () => set({ achievement: null }),
 
-  initializePreferences: async () => {
+  initializePreferences: async (serverAvatarUrl?: string | null) => {
     try {
       const [savedThemeMode, savedProfileImageUri] = await Promise.all([
         SecureStore.getItemAsync("bee_theme_mode"),
@@ -45,10 +45,13 @@ export const useUIStore = create<UIState>((set) => ({
       ]);
 
       const themeMode: ThemeMode = savedThemeMode === "dark" ? "dark" : "light";
-      set({
-        themeMode,
-        profileImageUri: savedProfileImageUri || null,
-      });
+      const profileImageUri = savedProfileImageUri || serverAvatarUrl || null;
+
+      if (serverAvatarUrl && !savedProfileImageUri) {
+        await SecureStore.setItemAsync("bee_profile_image_uri", serverAvatarUrl);
+      }
+
+      set({ themeMode, profileImageUri });
     } finally {
       set({ isPreferencesReady: true });
     }

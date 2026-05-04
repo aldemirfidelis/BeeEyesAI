@@ -25,6 +25,7 @@ export async function ensureDatabaseCompatibility() {
   await pool.query(`
     ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "image_url" text;
     ALTER TABLE "community_posts" ADD COLUMN IF NOT EXISTS "image_url" text;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
   `);
   await pool.query(`
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text;

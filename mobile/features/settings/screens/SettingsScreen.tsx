@@ -114,9 +114,15 @@ export default function SettingsScreen() {
     const processed = await ImageManipulator.manipulateAsync(
       result.assets[0].uri,
       [{ resize: { width: 512, height: 512 } }],
-      { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
+      { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG, base64: true },
     );
-    await setProfileImageUri(processed.uri);
+    const base64Uri = `data:image/jpeg;base64,${processed.base64}`;
+    await setProfileImageUri(base64Uri);
+    try {
+      await api.patch("/api/me/avatar", { avatarUrl: base64Uri });
+    } catch {
+      // local cache saved even if server fails
+    }
     Alert.alert(t("settings_photo_updated"), t("settings_photo_updated_msg"));
   }
 
@@ -152,7 +158,7 @@ export default function SettingsScreen() {
             <TouchableOpacity style={styles.primaryButton} onPress={handlePickFromGallery}>
               <Text style={styles.primaryButtonText}>{t("settings_choose_photo")}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setProfileImageUri(null)}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={async () => { await setProfileImageUri(null); api.patch("/api/me/avatar", { avatarUrl: null }).catch(() => {}); }}>
               <Text style={styles.secondaryButtonText}>{t("settings_remove_photo")}</Text>
             </TouchableOpacity>
           </View>

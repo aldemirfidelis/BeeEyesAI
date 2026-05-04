@@ -222,7 +222,16 @@ export default function Home() {
   useEffect(() => {
     if (!token) return;
     apiFetch<User>("/api/me", { headers: authHeaders() })
-      .then(setUser)
+      .then((u) => {
+        setUser(u);
+        if ((u as any).avatarUrl) {
+          setProfilePhotoUrl((u as any).avatarUrl);
+          setProfilePhoto((u as any).avatarUrl);
+        } else {
+          const local = getProfilePhoto();
+          if (local) setProfilePhotoUrl(local);
+        }
+      })
       .catch(() => { clearToken(); setTokenState(null); });
 
     apiFetch<any[]>("/api/messages?limit=50", { headers: authHeaders() })
@@ -1075,6 +1084,7 @@ export default function Home() {
 
         setProfilePhoto(compressedDataUrl);
         setProfilePhotoUrl(compressedDataUrl);
+        apiFetch("/api/me/avatar", { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ avatarUrl: compressedDataUrl }) }).catch(() => {});
         setSettingsMessage("Foto atualizada com recorte e compressao.");
       };
       image.onerror = () => {
@@ -1092,6 +1102,7 @@ export default function Home() {
   const handleRemoveProfilePhoto = () => {
     clearProfilePhoto();
     setProfilePhotoUrl("");
+    apiFetch("/api/me/avatar", { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ avatarUrl: null }) }).catch(() => {});
     setSettingsMessage("Foto de perfil removida.");
   };
 

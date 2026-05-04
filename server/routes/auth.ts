@@ -166,6 +166,15 @@ export function createAuthRouter() {
     return sendOk(res, sanitizeUser(user));
   }));
 
+  router.patch("/api/me/avatar", requireAuth, asyncHandler(async (req, res) => {
+    const { avatarUrl } = req.body ?? {};
+    const value = typeof avatarUrl === "string" && avatarUrl.startsWith("data:image/") ? avatarUrl : null;
+    const user = await storage.getUser(req.userId!);
+    if (!user) throw notFound("Usuário não encontrado");
+    await storage.updateUserAvatar(req.userId!, value);
+    return sendOk(res, { avatarUrl: value });
+  }));
+
   router.patch("/api/me/preferences", requireAuth, asyncHandler(async (req, res) => {
     const { anonymousProfileVisitsEnabled, displayName, bio, language, onboardingCompleted } = req.body ?? {};
 
