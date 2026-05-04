@@ -151,6 +151,7 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
   const feedImageInputRef = useRef<HTMLInputElement>(null);
+  const feedCameraInputRef = useRef<HTMLInputElement>(null);
   const communityPostImageInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<Message[]>([]);
   const eyeEventTimeoutRef = useRef<number | null>(null);
@@ -1474,7 +1475,7 @@ export default function Home() {
             onLoadFeed={loadFeed}
             onTogglePostInput={() => setShowPostInput((value) => !value)}
             onPostTextChange={setPostText}
-            onPickPostImage={() => feedImageInputRef.current?.click()}
+            onPickPostImage={(capture) => capture ? feedCameraInputRef.current?.click() : feedImageInputRef.current?.click()}
             onRemovePostImage={() => setPostImageUrl("")}
             onCancelPost={() => { setShowPostInput(false); setPostText(""); setPostImageUrl(""); }}
             onCreatePost={handleCreatePost}
@@ -1521,6 +1522,16 @@ export default function Home() {
             onInputChange={setDmInput}
             onSend={sendDMMessage}
             onOpenThread={openDMThread}
+            onDeleteConversation={async (userId, name) => {
+              if (!window.confirm(`Apagar toda a conversa com ${name}?`)) return;
+              try {
+                await apiFetch(`/api/dm/${userId}`, { method: "DELETE", headers: authHeaders() });
+                setDmConversations((prev) => prev.filter((c) => c.user.id !== userId));
+                if (selectedDMUser?.id === userId) setSelectedDMUser(null);
+              } catch {
+                alert("Não foi possível apagar a conversa.");
+              }
+            }}
             timeAgo={timeAgo}
           />
         </TabsContent>
@@ -1761,6 +1772,14 @@ export default function Home() {
         ref={feedImageInputRef}
         type="file"
         accept="image/*"
+        className="hidden"
+        onChange={handleFeedImageChange}
+      />
+      <input
+        ref={feedCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handleFeedImageChange}
       />

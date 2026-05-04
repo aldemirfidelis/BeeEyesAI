@@ -1,4 +1,4 @@
-import { Heart, ImagePlus, MessageCircle, Plus, RefreshCw, UserPlus, X } from "lucide-react";
+import { Camera, Heart, Image, MessageCircle, Plus, RefreshCw, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +27,7 @@ interface FeedPanelProps {
   onLoadFeed: () => void;
   onTogglePostInput: () => void;
   onPostTextChange: (value: string) => void;
-  onPickPostImage: () => void;
+  onPickPostImage: (capture?: boolean) => void;
   onRemovePostImage: () => void;
   onCancelPost: () => void;
   onCreatePost: () => void;
@@ -78,32 +78,51 @@ export function FeedPanel(props: FeedPanelProps) {
       </div>
 
       {showPostInput && (
-        <div className="p-4 border-b space-y-2 bg-secondary/10">
+        <div className="border-b bg-card">
           <Textarea
             value={postText}
             onChange={(event) => onPostTextChange(event.target.value)}
-            placeholder="O que voce esta pensando?"
-            className="resize-none text-sm min-h-[80px]"
+            placeholder="O que você está pensando?"
+            className="resize-none text-sm min-h-[90px] border-0 rounded-none focus-visible:ring-0 px-4 pt-4 pb-2"
             maxLength={500}
             data-testid="feed-post-input"
           />
+
           {postImageUrl && (
-            <div className="relative overflow-hidden rounded-xl border border-border">
-              <img src={postImageUrl} alt="Previa da foto" className="h-44 w-full object-cover" />
-              <button type="button" onClick={onRemovePostImage} className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white" aria-label="Remover foto">
+            <div className="relative mx-4 mb-2 overflow-hidden rounded-xl border border-border">
+              <img src={postImageUrl} alt="Prévia da foto" className="h-48 w-full object-cover" />
+              <button type="button" onClick={onRemovePostImage}
+                className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 transition-colors">
                 <X className="h-4 w-4" />
               </button>
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1">
+                <Image className="w-3 h-3 text-white" />
+                <span className="text-white text-[10px] font-semibold">Foto anexada</span>
+              </div>
             </div>
           )}
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-muted-foreground">{postText.length}/500</span>
+
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => onPickPostImage(true)} disabled={pickingPostImage}
+                className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40">
+                <Camera className="w-5 h-5" />
+                <span className="text-[10px] font-semibold">Câmera</span>
+              </button>
+              <button type="button" onClick={() => onPickPostImage(false)} disabled={pickingPostImage}
+                className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40">
+                <Image className="w-5 h-5" />
+                <span className="text-[10px] font-semibold">{postImageUrl ? "Trocar" : "Galeria"}</span>
+              </button>
+              <span className="text-xs text-muted-foreground ml-1">{postText.length}/500</span>
+            </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={onPickPostImage} disabled={pickingPostImage}>
-                <ImagePlus className="w-4 h-4 mr-1" />
-                {postImageUrl ? "Trocar foto" : "Foto"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={onCancelPost}>Cancelar</Button>
-              <Button size="sm" disabled={(!postText.trim() && !postImageUrl) || isPosting} onClick={onCreatePost} data-testid="feed-submit-post">
+              <Button size="sm" variant="ghost" onClick={onCancelPost} className="text-muted-foreground">Cancelar</Button>
+              <Button size="sm"
+                disabled={(!postText.trim() && !postImageUrl) || isPosting}
+                onClick={onCreatePost}
+                className="bg-amber-400 hover:bg-amber-500 text-gray-900 font-bold"
+                data-testid="feed-submit-post">
                 {isPosting ? "Publicando..." : "Publicar"}
               </Button>
             </div>

@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
-import { Send } from "lucide-react";
+import { useState } from "react";
+import { Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { ConnectionSuggestion, DMConversation, DMMessage, User } from "@/features/home/types";
@@ -18,11 +19,13 @@ interface InboxPanelProps {
   onInputChange: (value: string) => void;
   onSend: () => void;
   onOpenThread: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
+  onDeleteConversation: (userId: string, name: string) => void;
   timeAgo: (value: string | Date) => string;
 }
 
 export function InboxPanel(props: InboxPanelProps) {
-  const { user, selectedDMUser, dmMessages, dmInput, dmSending, dmLoading, dmConversations, suggestions, dmEndRef, onBack, onInputChange, onSend, onOpenThread, timeAgo } = props;
+  const { user, selectedDMUser, dmMessages, dmInput, dmSending, dmLoading, dmConversations, suggestions, dmEndRef, onBack, onInputChange, onSend, onOpenThread, onDeleteConversation, timeAgo } = props;
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   if (selectedDMUser) {
     return (
@@ -117,32 +120,47 @@ export function InboxPanel(props: InboxPanelProps) {
         )}
         {dmConversations.map((conversation) => {
           const name = conversation.user.displayName || conversation.user.username;
+          const isHovered = hoveredId === conversation.user.id;
           return (
-            <button
+            <div
               key={conversation.user.id}
-              onClick={() => onOpenThread(conversation.user)}
-              className="w-full text-left px-3 py-3 hover:bg-secondary/50 transition-colors border-b border-border/40 flex items-center gap-3"
+              className="border-b border-border/40 flex items-center hover:bg-secondary/50 transition-colors group"
+              onMouseEnter={() => setHoveredId(conversation.user.id)}
+              onMouseLeave={() => setHoveredId(null)}
             >
-              <div className="relative shrink-0">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-black text-primary-foreground">
-                  {name[0].toUpperCase()}
+              <button
+                onClick={() => onOpenThread(conversation.user)}
+                className="flex-1 min-w-0 text-left px-3 py-3 flex items-center gap-3"
+              >
+                <div className="relative shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-black text-primary-foreground">
+                    {name[0].toUpperCase()}
+                  </div>
+                  {conversation.unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+                      {conversation.unreadCount}
+                    </span>
+                  )}
                 </div>
-                {conversation.unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
-                    {conversation.unreadCount}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <p className={`text-sm truncate ${conversation.unreadCount > 0 ? "font-bold" : "font-semibold"}`}>{name}</p>
-                  <p className="text-[10px] text-muted-foreground shrink-0">{timeAgo(conversation.lastMessageAt)}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className={`text-sm truncate ${conversation.unreadCount > 0 ? "font-bold" : "font-semibold"}`}>{name}</p>
+                    <p className="text-[10px] text-muted-foreground shrink-0">{timeAgo(conversation.lastMessageAt)}</p>
+                  </div>
+                  <p className={`text-xs truncate ${conversation.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    {conversation.lastMessageFromMe ? "Você: " : ""}{conversation.lastMessage}
+                  </p>
                 </div>
-                <p className={`text-xs truncate ${conversation.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                  {conversation.lastMessageFromMe ? "Você: " : ""}{conversation.lastMessage}
-                </p>
-              </div>
-            </button>
+              </button>
+
+              <button
+                onClick={() => onDeleteConversation(conversation.user.id, name)}
+                className={`shrink-0 p-2 mr-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all ${isHovered ? "opacity-100" : "opacity-0"}`}
+                title="Apagar conversa"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           );
         })}
       </div>
