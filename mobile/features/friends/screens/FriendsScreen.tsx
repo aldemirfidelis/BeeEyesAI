@@ -86,10 +86,24 @@ export default function FriendsScreen() {
   const [connecting, setConnecting] = useState<Set<string>>(new Set());
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  type PendingConnection = { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } };
+
   const { data: friends = [], isLoading } = useQuery<Friend[]>({
     queryKey: ["friends"],
     queryFn: () => api.get("/api/friends").then((r) => r.data),
     staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: incoming = [], refetch: refetchIncoming } = useQuery<PendingConnection[]>({
+    queryKey: ["connections-incoming"],
+    queryFn: () => api.get("/api/connections/incoming").then((r) => r.data),
+    staleTime: 30 * 1000,
+  });
+
+  const { data: sent = [], refetch: refetchSent } = useQuery<PendingConnection[]>({
+    queryKey: ["connections-sent"],
+    queryFn: () => api.get("/api/connections/sent").then((r) => r.data),
+    staleTime: 30 * 1000,
   });
 
   const { data: suggestions = [] } = useQuery<ConnectionSuggestion[]>({
@@ -98,9 +112,34 @@ export default function FriendsScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+
+  async function handleAccept(connectionId: string) {
+    setProcessingIds((prev) => new Set(prev).add(connectionId));
+    try {
+      await api.put(`/api/connections/${connectionId}/accept`);
+      refetchIncoming();
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+    } catch { Alert.alert("Erro", "Não foi possível aceitar a solicitação."); }
+    finally { setProcessingIds((prev) => { const s = new Set(prev); s.delete(connectionId); return s; }); }
+  }
+
+  async function handleReject(connectionId: string) {
+    setProcessingIds((prev) => new Set(prev).add(connectionId));
+    try {
+      await api.put(`/api/connections/${connectionId}/reject`);
+      refetchIncoming();
+    } catch { /* ignore */ }
+    finally { setProcessingIds((prev) => { const s = new Set(prev); s.delete(connectionId); return s; }); }
+  }
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["friends"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["friends"] }),
+      queryClient.invalidateQueries({ queryKey: ["connections-incoming"] }),
+      queryClient.invalidateQueries({ queryKey: ["connections-sent"] }),
+    ]);
     setRefreshing(false);
   }, [queryClient]);
 
@@ -161,6 +200,7 @@ export default function FriendsScreen() {
       setSearchResults((prev) =>
         prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "none" as const } : u)
       );
+      refetchSent();
     } catch { /* ignore */ }
     finally { setConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
@@ -282,6 +322,62 @@ export default function FriendsScreen() {
         {/* Friends list — only when not searching */}
         {!searchQuery.trim() && (
           <>
+            {/* Solicitações recebidas */}
+            {incoming.length > 0 && (
+              <View style={styles.requestsSection}>
+                <Text style={styles.requestsSectionTitle}>🔔 Solicitações recebidas ({incoming.length})</Text>
+                {incoming.map(({ connectionId, user }) => {
+                  const name = user.displayName || user.username;
+                  const busy = processingIds.has(connectionId);
+                  return (
+                    <View key={connectionId} style={styles.requestCard}>
+                      <View style={styles.friendAvatar}>
+                        <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.friendName}>{name}</Text>
+                        <Text style={styles.friendInterests}>@{user.username}</Text>
+                      </View>
+                      <TouchableOpacity style={styles.acceptBtn} onPress={() => handleAccept(connectionId)} disabled={busy}>
+                        <Text style={styles.acceptBtnText}>{busy ? "..." : "✓"}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(connectionId)} disabled={busy}>
+                        <Text style={styles.rejectBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Solicitações enviadas */}
+            {sent.length > 0 && (
+              <View style={styles.requestsSection}>
+                <Text style={styles.requestsSectionTitle}>⏳ Solicitações enviadas ({sent.length})</Text>
+                {sent.map(({ connectionId, user }) => {
+                  const name = user.displayName || user.username;
+                  return (
+                    <View key={connectionId} style={styles.requestCard}>
+                      <View style={styles.friendAvatar}>
+                        <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.friendName}>{name}</Text>
+                        <Text style={styles.friendInterests}>@{user.username}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.cancelBtn}
+                        onPress={() => handleCancelRequest(user.id)}
+                        disabled={connecting.has(user.id)}
+                      >
+                        <Text style={styles.cancelBtnText}>{connecting.has(user.id) ? "..." : "Cancelar"}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {suggestions.length > 0 && (
               <View style={styles.matchSection}>
                 <Text style={styles.sectionHeader}>{t("friends_matches")}</Text>
@@ -594,6 +690,38 @@ const styles = StyleSheet.create({
   friendCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   friendTag: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "600", color: "#16a34a" },
   pendingTag: { fontFamily: FONTS.sans, fontSize: 12, color: COLORS.muted },
+  requestsSection: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "44",
+  },
+  requestsSectionTitle: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 13, color: COLORS.foreground, marginBottom: 2 },
+  requestCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  acceptBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#D1FAE5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  acceptBtnText: { fontSize: 16, color: "#059669", fontWeight: "700" },
+  rejectBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rejectBtnText: { fontSize: 14, color: "#EF4444", fontWeight: "700" },
   cancelBtn: {
     backgroundColor: "#FEE2E2",
     borderRadius: 12,

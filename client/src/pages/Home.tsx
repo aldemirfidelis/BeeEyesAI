@@ -100,6 +100,9 @@ export default function Home() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<FriendProfile | null>(null);
   const [friendProfileLoading, setFriendProfileLoading] = useState(false);
+  const [incomingRequests, setIncomingRequests] = useState<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>([]);
+  const [sentRequests, setSentRequests] = useState<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>([]);
+  const [processingRequestIds, setProcessingRequestIds] = useState<Set<string>>(new Set());
 
   // Communities state
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -113,7 +116,8 @@ export default function Home() {
   const [pickingCommunityPostImage, setPickingCommunityPostImage] = useState(false);
   const [communityPostSending, setCommunityPostSending] = useState(false);
   const [showCreateCommunity, setShowCreateCommunity] = useState(false);
-  const [newCommunity, setNewCommunity] = useState({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" });
+  const [newCommunity, setNewCommunity] = useState({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "", isPrivate: false });
+  const [pendingRequests, setPendingRequests] = useState<{ id: string; username: string; displayName: string | null; requestedAt: string }[]>([]);
   const [creatingCommunity, setCreatingCommunity] = useState(false);
   const [communityJoining, setCommunityJoining] = useState<string | null>(null);
   const [friendSearch, setFriendSearch] = useState("");
@@ -278,7 +282,14 @@ export default function Home() {
     if (!token) return;
     setFriendsLoading(true);
     try {
-      setFriends(await apiFetch<Friend[]>("/api/friends", { headers: authHeaders() }));
+      const [friendsList, incoming, sent] = await Promise.all([
+        apiFetch<Friend[]>("/api/friends", { headers: authHeaders() }),
+        apiFetch<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>("/api/connections/incoming", { headers: authHeaders() }).catch(() => []),
+        apiFetch<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>("/api/connections/sent", { headers: authHeaders() }).catch(() => []),
+      ]);
+      setFriends(friendsList);
+      setIncomingRequests(incoming);
+      setSentRequests(sent);
     } catch { /* ignore */ }
     finally { setFriendsLoading(false); }
   }, [token]);
@@ -426,6 +437,25 @@ export default function Home() {
     finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
 
+  const handleAcceptRequest = async (connectionId: string) => {
+    setProcessingRequestIds((prev) => new Set(prev).add(connectionId));
+    try {
+      await fetch(`/api/connections/${connectionId}/accept`, { method: "PUT", headers: authHeaders() });
+      setIncomingRequests((prev) => prev.filter((r) => r.connectionId !== connectionId));
+      loadFriends();
+    } catch { /* ignore */ }
+    finally { setProcessingRequestIds((prev) => { const s = new Set(prev); s.delete(connectionId); return s; }); }
+  };
+
+  const handleRejectFriendRequest = async (connectionId: string) => {
+    setProcessingRequestIds((prev) => new Set(prev).add(connectionId));
+    try {
+      await fetch(`/api/connections/${connectionId}/reject`, { method: "PUT", headers: authHeaders() });
+      setIncomingRequests((prev) => prev.filter((r) => r.connectionId !== connectionId));
+    } catch { /* ignore */ }
+    finally { setProcessingRequestIds((prev) => { const s = new Set(prev); s.delete(connectionId); return s; }); }
+  };
+
   const [removingFriendIds, setRemovingFriendIds] = useState<Set<string>>(new Set());
 
   const handleRemoveFriend = async (friendId: string) => {
@@ -452,6 +482,7 @@ export default function Home() {
       setSearchResults((prev) =>
         prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "none" as const } : u)
       );
+      setSentRequests((prev) => prev.filter((r) => r.user.id !== targetUserId));
     } catch { /* ignore */ }
     finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
@@ -575,7 +606,15 @@ export default function Home() {
         fetch(`/api/communities/${id}`, { headers: authHeaders() }),
         fetch(`/api/communities/${id}/posts`, { headers: authHeaders() }),
       ]);
-      if (cRes.ok) setSelectedCommunity(await cRes.json());
+      if (cRes.ok) {
+        const community = await cRes.json();
+        setSelectedCommunity(community);
+        if (community.isPrivate && community.memberRole === "owner") {
+          loadPendingRequests(id);
+        } else {
+          setPendingRequests([]);
+        }
+      }
       if (pRes.ok) setCommunityPosts(await pRes.json());
     } finally {
       setCommunityPostsLoading(false);
@@ -587,13 +626,37 @@ export default function Home() {
     try {
       const res = await fetch(`/api/communities/${communityId}/join`, { method: "POST", headers: authHeaders() });
       if (res.ok) {
-        setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isMember: true, membersCount: c.membersCount + 1 } : c));
-        if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, isMember: true, memberRole: "member" } : prev);
-        setTimeout(loadMissions, 1000);
+        const data = await res.json();
+        if (data.status === "pending") {
+          setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, memberStatus: "pending" } : c));
+          if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, memberStatus: "pending" } : prev);
+        } else {
+          setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isMember: true, membersCount: c.membersCount + 1 } : c));
+          if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, isMember: true, memberRole: "member" } : prev);
+          setTimeout(loadMissions, 1000);
+        }
       }
     } finally {
       setCommunityJoining(null);
     }
+  };
+
+  const loadPendingRequests = async (communityId: string) => {
+    try {
+      const res = await fetch(`/api/communities/${communityId}/requests`, { headers: authHeaders() });
+      if (res.ok) setPendingRequests(await res.json());
+    } catch { /* ignore */ }
+  };
+
+  const handleApproveRequest = async (communityId: string, userId: string) => {
+    await fetch(`/api/communities/${communityId}/requests/${userId}/approve`, { method: "POST", headers: authHeaders() });
+    setPendingRequests((prev) => prev.filter((r) => r.id !== userId));
+    if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, membersCount: prev.membersCount + 1 } : prev);
+  };
+
+  const handleRejectRequest = async (communityId: string, userId: string) => {
+    await fetch(`/api/communities/${communityId}/requests/${userId}`, { method: "DELETE", headers: authHeaders() });
+    setPendingRequests((prev) => prev.filter((r) => r.id !== userId));
   };
 
   const handleLeaveCommunity = async (communityId: string) => {
@@ -643,7 +706,7 @@ export default function Home() {
         const community = await res.json();
         setCommunities((prev) => [{ ...community, isMember: true }, ...prev]);
         setShowCreateCommunity(false);
-        setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" });
+        setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "", isPrivate: false });
         setTimeout(loadMissions, 1000);
       }
     } finally {
@@ -1589,6 +1652,11 @@ export default function Home() {
             onCancelRequest={handleCancelRequest}
             onRemoveFriend={handleRemoveFriend}
             removingFriendIds={removingFriendIds}
+            incomingRequests={incomingRequests}
+            sentRequests={sentRequests}
+            onAcceptRequest={handleAcceptRequest}
+            onRejectRequest={handleRejectFriendRequest}
+            processingRequestIds={processingRequestIds}
             onOpenDMWithUser={openDMWithUser}
             timeAgo={timeAgo}
           />
@@ -1668,6 +1736,9 @@ export default function Home() {
                 alert("Não foi possível apagar a comunidade.");
               }
             }}
+            pendingRequests={pendingRequests}
+            onApproveRequest={handleApproveRequest}
+            onRejectRequest={handleRejectRequest}
             authHeaders={authHeaders}
             timeAgo={timeAgo}
           />

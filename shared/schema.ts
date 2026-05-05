@@ -193,6 +193,7 @@ export const communities = pgTable("communities", {
   category: varchar("category", { length: 60 }).notNull().default("geral"),
   emoji: varchar("emoji", { length: 10 }).notNull().default("🐝"),
   imageUrl: text("image_url"),
+  isPrivate: boolean("is_private").notNull().default(false),
   ownerId: varchar("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   membersCount: integer("members_count").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -206,6 +207,7 @@ export const communityMembers = pgTable("community_members", {
   communityId: varchar("community_id").notNull().references(() => communities.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("member"),
+  status: text("status").notNull().default("active"), // "active" | "pending"
   joinedAt: timestamp("joined_at").notNull().defaultNow(),
 }, (table) => [
   index("community_members_user_idx").on(table.userId),

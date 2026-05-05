@@ -21,7 +21,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
   }));
 
   router.post("/api/communities", requireAuth, asyncHandler(async (req, res) => {
-    const { name, description, category, emoji, imageUrl } = req.body ?? {};
+    const { name, description, category, emoji, imageUrl, isPrivate } = req.body ?? {};
     if (!name?.trim()) {
       throw badRequest("Nome obrigatório");
     }
@@ -32,6 +32,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
       category: category || "geral",
       emoji: emoji || "🐝",
       imageUrl: imageUrl || null,
+      isPrivate: !!isPrivate,
       ownerId: req.userId!,
     });
 
@@ -82,13 +83,34 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
   }));
 
   router.post("/api/communities/:id/join", requireAuth, asyncHandler(async (req, res) => {
-    await storage.joinCommunity(req.params.id, req.userId!);
-    triggerMissionAction(req.userId!, "join_community").catch(() => {});
-    storage.ensureAchievement(req.userId!, {
-      type: "community_joined",
-      title: "Cidadão do App",
-      description: "Entrou na sua primeira comunidade. Bem-vindo ao coletivo.",
-    }).catch(() => {});
+    const result = await storage.joinCommunity(req.params.id, req.userId!);
+    if (result === "joined") {
+      triggerMissionAction(req.userId!, "join_community").catch(() => {});
+      storage.ensureAchievement(req.userId!, {
+        type: "community_joined",
+        title: "Cidadão do App",
+        description: "Entrou na sua primeira comunidade. Bem-vindo ao coletivo.",
+      }).catch(() => {});
+    }
+    return sendOk(res, { status: result });
+  }));
+
+  router.get("/api/communities/:id/requests", requireAuth, asyncHandler(async (req, res) => {
+    const community = await storage.getCommunityById(req.params.id, req.userId!);
+    if (!community) throw notFound("Comunidade não encontrada");
+    if (community.memberRole !== "owner") throw forbidden("Apenas o fundador pode ver solicitações");
+    return sendOk(res, await storage.getPendingJoinRequests(req.params.id));
+  }));
+
+  router.post("/api/communities/:id/requests/:userId/approve", requireAuth, asyncHandler(async (req, res) => {
+    const approved = await storage.approveJoinRequest(req.params.id, req.params.userId, req.userId!);
+    if (!approved) throw notFound("Solicitação não encontrada ou sem permissão");
+    return sendOk(res, { ok: true });
+  }));
+
+  router.delete("/api/communities/:id/requests/:userId", requireAuth, asyncHandler(async (req, res) => {
+    const rejected = await storage.rejectJoinRequest(req.params.id, req.params.userId, req.userId!);
+    if (!rejected) throw notFound("Solicitação não encontrada ou sem permissão");
     return sendOk(res, { ok: true });
   }));
 

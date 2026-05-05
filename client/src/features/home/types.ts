@@ -96,11 +96,13 @@ export interface Community {
   category: string;
   emoji: string;
   imageUrl?: string | null;
+  isPrivate: boolean;
   ownerId: string;
   membersCount: number;
   createdAt: string;
   isMember?: boolean;
   memberRole?: string;
+  memberStatus?: string; // "active" | "pending"
 }
 
 export interface CommunityPost {

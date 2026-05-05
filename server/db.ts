@@ -43,6 +43,10 @@ export async function ensureDatabaseCompatibility() {
     CREATE INDEX IF NOT EXISTS "notification_reads_user_idx" ON "notification_reads" ("user_id");
   `);
   await pool.query(`
+    ALTER TABLE "communities" ADD COLUMN IF NOT EXISTS "is_private" boolean NOT NULL DEFAULT false;
+    ALTER TABLE "community_members" ADD COLUMN IF NOT EXISTS "status" text NOT NULL DEFAULT 'active';
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS "testimonials" (
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       "profile_user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,

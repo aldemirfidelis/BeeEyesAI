@@ -257,6 +257,14 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     return sendOk(res, await storage.getConnectionsByUser(req.userId!));
   }));
 
+  router.get("/api/connections/incoming", requireAuth, asyncHandler(async (req, res) => {
+    return sendOk(res, await storage.getIncomingPendingConnections(req.userId!));
+  }));
+
+  router.get("/api/connections/sent", requireAuth, asyncHandler(async (req, res) => {
+    return sendOk(res, await storage.getSentPendingConnections(req.userId!));
+  }));
+
   router.post("/api/connections", requireAuth, asyncHandler(async (req, res) => {
     const { targetUserId } = req.body ?? {};
     if (!targetUserId || targetUserId === req.userId) {

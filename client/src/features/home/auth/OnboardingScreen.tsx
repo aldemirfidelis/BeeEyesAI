@@ -140,7 +140,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
   }
 
   return (
-    <div className="min-h-screen bg-amber-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-xl p-6 space-y-5 shadow-lg">
 
         {/* Progress bar */}
@@ -149,7 +149,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
             {[1, 2, 3].map((s) => (
               <div
                 key={s}
-                className={`flex-1 h-1.5 rounded-full transition-colors ${step >= s ? "bg-amber-400" : "bg-gray-200"}`}
+                className={`flex-1 h-1.5 rounded-full transition-colors ${step >= s ? "bg-amber-400" : "bg-secondary"}`}
               />
             ))}
           </div>
@@ -164,7 +164,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
         {step === 0 && (
           <div className="space-y-3">
             <h1 className="text-2xl font-black">Olá! 🐝</h1>
-            <p className="text-base font-bold text-gray-800">Vamos ajustar a Bee para você</p>
+            <p className="text-base font-bold text-foreground">Vamos ajustar a Bee para você</p>
             <p className="text-sm text-muted-foreground">Em 3 passos rápidos eu aprendo o que importa para você — seus objetivos, sua rotina e seus interesses.</p>
             <div className="space-y-2 pt-1">
               {[
@@ -174,7 +174,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3">
                   <span className="text-xl">{item.emoji}</span>
-                  <span className="text-sm text-gray-700">{item.text}</span>
+                  <span className="text-sm text-foreground">{item.text}</span>
                 </div>
               ))}
             </div>
@@ -197,7 +197,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
                     onClick={() => toggleObjective(item.label)}
                     disabled={disabled}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-bold transition-all
-                      ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-gray-200 bg-white text-gray-700"}
+                      ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-border bg-card text-foreground"}
                       ${disabled ? "opacity-40 cursor-not-allowed" : "hover:border-amber-300 cursor-pointer"}`}
                   >
                     <span>{item.emoji}</span>
@@ -220,7 +220,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
             <h2 className="text-xl font-black">Como é a sua rotina?</h2>
 
             <div className="space-y-2">
-              <p className="text-sm font-bold text-gray-800">Seu perfil</p>
+              <p className="text-sm font-bold text-foreground">Seu perfil</p>
               <div className="flex flex-wrap gap-2">
                 {WORK_PROFILES.map((item) => {
                   const active = workProfile === item.label;
@@ -229,7 +229,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
                       key={item.label}
                       onClick={() => setWorkProfile(active ? "" : item.label)}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-full border-2 text-sm font-bold transition-all
-                        ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-gray-200 bg-white text-gray-700 hover:border-amber-300"}`}
+                        ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-border bg-card text-foreground hover:border-amber-300"}`}
                     >
                       <span>{item.emoji}</span>
                       <span>{item.label}</span>
@@ -240,7 +240,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-bold text-gray-800">Quando você é mais ativo(a)?</p>
+              <p className="text-sm font-bold text-foreground">Quando você é mais ativo(a)?</p>
               <div className="flex flex-wrap gap-2">
                 {ACTIVE_PERIODS.map((item) => {
                   const active = activePeriods.includes(item.label);
@@ -249,7 +249,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
                       key={item.label}
                       onClick={() => togglePeriod(item.label)}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-full border-2 text-sm font-bold transition-all
-                        ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-gray-200 bg-white text-gray-700 hover:border-amber-300"}`}
+                        ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-border bg-card text-foreground hover:border-amber-300"}`}
                     >
                       <span>{item.emoji}</span>
                       <span>{item.label}</span>
@@ -260,7 +260,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-sm font-bold text-gray-800">Descreva seu dia a dia</p>
+              <p className="text-sm font-bold text-foreground">Descreva seu dia a dia</p>
               <Textarea
                 value={routine}
                 onChange={(e) => setRoutine(e.target.value)}
@@ -289,7 +289,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
                     onClick={() => toggleInterest(item.label)}
                     disabled={disabled}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-full border-2 text-sm font-bold transition-all
-                      ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-gray-200 bg-white text-gray-700"}
+                      ${active ? "border-amber-500 bg-amber-50 text-amber-800" : "border-border bg-card text-foreground"}
                       ${disabled ? "opacity-40 cursor-not-allowed" : "hover:border-amber-300 cursor-pointer"}`}
                   >
                     <span>{item.emoji}</span>

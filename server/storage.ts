@@ -90,6 +90,8 @@ export interface IStorage {
   cancelConnectionRequest(userId: string, targetUserId: string): Promise<boolean>;
   removeConnection(userId: string, targetUserId: string): Promise<boolean>;
   getConnectionsByUser(userId: string): Promise<UserConnection[]>;
+  getIncomingPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>;
+  getSentPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>;
   getAcceptedConnectionIds(userId: string): Promise<string[]>;
   getSuggestedConnections(userId: string, limit?: number): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]>;
 
@@ -133,8 +135,11 @@ export interface IStorage {
   updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null>;
   getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null>;
   getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]>;
-  joinCommunity(communityId: string, userId: string): Promise<void>;
+  joinCommunity(communityId: string, userId: string): Promise<"joined" | "pending">;
   leaveCommunity(communityId: string, userId: string): Promise<void>;
+  getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; requestedAt: Date }[]>;
+  approveJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
+  rejectJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
   getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
   createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost>;
   getUserCommunities(userId: string): Promise<Community[]>;
@@ -619,6 +624,38 @@ export class DrizzleStorage implements IStorage {
     return deleted.length > 0;
   }
 
+  async getIncomingPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]> {
+    const rows = await db
+      .select({
+        connectionId: userConnections.id,
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        level: users.level,
+      })
+      .from(userConnections)
+      .innerJoin(users, eq(userConnections.userId, users.id))
+      .where(and(eq(userConnections.targetUserId, userId), eq(userConnections.status, "pending")))
+      .orderBy(desc(userConnections.createdAt));
+    return rows.map((r) => ({ connectionId: r.connectionId, user: { id: r.id, username: r.username, displayName: r.displayName, level: r.level } }));
+  }
+
+  async getSentPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]> {
+    const rows = await db
+      .select({
+        connectionId: userConnections.id,
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        level: users.level,
+      })
+      .from(userConnections)
+      .innerJoin(users, eq(userConnections.targetUserId, users.id))
+      .where(and(eq(userConnections.userId, userId), eq(userConnections.status, "pending")))
+      .orderBy(desc(userConnections.createdAt));
+    return rows.map((r) => ({ connectionId: r.connectionId, user: { id: r.id, username: r.username, displayName: r.displayName, level: r.level } }));
+  }
+
   async cancelConnectionRequest(userId: string, targetUserId: string): Promise<boolean> {
     const deleted = await db
       .delete(userConnections)
@@ -978,11 +1015,11 @@ export class DrizzleStorage implements IStorage {
     return updated ?? null;
   }
 
-  async getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null> {
+  async getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null> {
     const [community] = await db.select().from(communities).where(eq(communities.id, id));
     if (!community) return null;
     const [membership] = await db.select().from(communityMembers).where(and(eq(communityMembers.communityId, id), eq(communityMembers.userId, userId)));
-    return { ...community, isMember: !!membership, memberRole: membership?.role };
+    return { ...community, isMember: membership?.status === "active", memberRole: membership?.role, memberStatus: membership?.status };
   }
 
   async getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]> {
@@ -996,15 +1033,62 @@ export class DrizzleStorage implements IStorage {
       })
       .from(communityMembers)
       .innerJoin(users, eq(communityMembers.userId, users.id))
-      .where(eq(communityMembers.communityId, communityId))
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.status, "active")))
       .orderBy(communityMembers.joinedAt);
   }
 
-  async joinCommunity(communityId: string, userId: string): Promise<void> {
+  async joinCommunity(communityId: string, userId: string): Promise<"joined" | "pending"> {
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return "joined";
     const [existing] = await db.select().from(communityMembers).where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, userId)));
-    if (existing) return;
-    await db.insert(communityMembers).values({ communityId, userId, role: "member" });
+    if (existing) return existing.status === "pending" ? "pending" : "joined";
+
+    if (community.isPrivate) {
+      await db.insert(communityMembers).values({ communityId, userId, role: "member", status: "pending" });
+      return "pending";
+    }
+
+    await db.insert(communityMembers).values({ communityId, userId, role: "member", status: "active" });
     await db.update(communities).set({ membersCount: sql`${communities.membersCount} + 1` }).where(eq(communities.id, communityId));
+    return "joined";
+  }
+
+  async getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; requestedAt: Date }[]> {
+    return db
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        requestedAt: communityMembers.joinedAt,
+      })
+      .from(communityMembers)
+      .innerJoin(users, eq(communityMembers.userId, users.id))
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.status, "pending")))
+      .orderBy(communityMembers.joinedAt);
+  }
+
+  async approveJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean> {
+    const [community] = await db.select().from(communities).where(and(eq(communities.id, communityId), eq(communities.ownerId, ownerId)));
+    if (!community) return false;
+    const updated = await db
+      .update(communityMembers)
+      .set({ status: "active" })
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, userId), eq(communityMembers.status, "pending")))
+      .returning({ id: communityMembers.id });
+    if (updated.length > 0) {
+      await db.update(communities).set({ membersCount: sql`${communities.membersCount} + 1` }).where(eq(communities.id, communityId));
+    }
+    return updated.length > 0;
+  }
+
+  async rejectJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean> {
+    const [community] = await db.select().from(communities).where(and(eq(communities.id, communityId), eq(communities.ownerId, ownerId)));
+    if (!community) return false;
+    const deleted = await db
+      .delete(communityMembers)
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, userId), eq(communityMembers.status, "pending")))
+      .returning({ id: communityMembers.id });
+    return deleted.length > 0;
   }
 
   async leaveCommunity(communityId: string, userId: string): Promise<void> {

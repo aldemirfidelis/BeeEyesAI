@@ -1,4 +1,4 @@
-import { ChevronRight, Flame, UserMinus, UserPlus, X } from "lucide-react";
+import { Check, ChevronRight, Flame, UserMinus, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Friend, SearchUser, User } from "@/features/home/types";
@@ -17,6 +17,11 @@ interface FriendsPanelProps {
   onCancelRequest: (targetUserId: string) => void;
   onRemoveFriend: (friendId: string) => void;
   removingFriendIds: Set<string>;
+  incomingRequests: { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[];
+  sentRequests: { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[];
+  onAcceptRequest: (connectionId: string) => void;
+  onRejectRequest: (connectionId: string) => void;
+  processingRequestIds: Set<string>;
   onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
   timeAgo: (value: string | Date) => string;
 }
@@ -36,6 +41,11 @@ export function FriendsPanel(props: FriendsPanelProps) {
     onCancelRequest,
     onRemoveFriend,
     removingFriendIds,
+    incomingRequests,
+    sentRequests,
+    onAcceptRequest,
+    onRejectRequest,
+    processingRequestIds,
     onOpenDMWithUser,
     timeAgo,
   } = props;
@@ -115,6 +125,55 @@ export function FriendsPanel(props: FriendsPanelProps) {
 
       {!friendSearch.trim() && (
         <>
+          {/* Solicitações recebidas */}
+          {incomingRequests.length > 0 && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-xs font-semibold text-primary">🔔 SOLICITAÇÕES RECEBIDAS ({incomingRequests.length})</p>
+              {incomingRequests.map(({ connectionId, user }) => {
+                const name = user.displayName || user.username;
+                const busy = processingRequestIds.has(connectionId);
+                return (
+                  <div key={connectionId} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">{name[0].toUpperCase()}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{name}</p>
+                      <p className="text-xs text-muted-foreground">@{user.username}</p>
+                    </div>
+                    <Button size="sm" className="h-8 px-2 bg-green-500 hover:bg-green-600 text-white shrink-0" disabled={busy} onClick={() => onAcceptRequest(connectionId)}>
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      Aceitar
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 px-2 shrink-0 border-red-300 text-red-600 hover:bg-red-50" disabled={busy} onClick={() => onRejectRequest(connectionId)}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Solicitações enviadas */}
+          {sentRequests.length > 0 && (
+            <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">⏳ SOLICITAÇÕES ENVIADAS ({sentRequests.length})</p>
+              {sentRequests.map(({ connectionId: _, user }) => {
+                const name = user.displayName || user.username;
+                return (
+                  <div key={user.id} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-sm font-bold shrink-0">{name[0].toUpperCase()}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{name}</p>
+                      <p className="text-xs text-muted-foreground">@{user.username}</p>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8 px-2 shrink-0 border-red-300 text-red-600 hover:bg-red-50 text-xs" disabled={searchConnecting.has(user.id)} onClick={() => onCancelRequest(user.id)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {friendsLoading && <p className="text-sm text-muted-foreground text-center py-6">Carregando...</p>}
           {!friendsLoading && friends.length === 0 && (
             <div className="text-center py-8 space-y-2">

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { Switch } from "react-native";
 import {
   ActivityIndicator,
   Alert,
@@ -36,7 +37,7 @@ interface CommunityComment {
   liked: boolean;
 }
 
-const DEFAULT_COMMUNITY = { name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "" };
+const DEFAULT_COMMUNITY = { name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "", isPrivate: false };
 
 async function pickCommunityImage(onChange: (imageUrl: string) => void) {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -300,9 +301,40 @@ function CommunityDetail({
 
   const joinCommunity = useMutation({
     mutationFn: () => api.post(`/api/communities/${community.id}/join`).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["communities"] });
       queryClient.invalidateQueries({ queryKey: ["community", community.id] });
+      if (data?.status === "pending") {
+        Alert.alert("Solicitação enviada", "O fundador da comunidade receberá sua solicitação de entrada.");
+      }
+    },
+  });
+
+  const pendingRequestsQuery = useQuery<{ id: string; username: string; displayName: string | null; requestedAt: string }[]>({
+    queryKey: ["community-requests", community.id],
+    queryFn: () => api.get(`/api/communities/${community.id}/requests`).then((r) => r.data),
+    enabled: isOwner && !!detail.isPrivate,
+    staleTime: 30000,
+  });
+
+  const approveRequest = useMutation({
+    mutationFn: (userId: string) => api.post(`/api/communities/${community.id}/requests/${userId}/approve`).then((r) => r.data),
+    onSuccess: (_, userId) => {
+      queryClient.setQueryData<{ id: string; username: string; displayName: string | null; requestedAt: string }[]>(
+        ["community-requests", community.id],
+        (prev = []) => prev.filter((r) => r.id !== userId)
+      );
+      queryClient.invalidateQueries({ queryKey: ["community", community.id] });
+    },
+  });
+
+  const rejectRequest = useMutation({
+    mutationFn: (userId: string) => api.delete(`/api/communities/${community.id}/requests/${userId}`).then((r) => r.data),
+    onSuccess: (_, userId) => {
+      queryClient.setQueryData<{ id: string; username: string; displayName: string | null; requestedAt: string }[]>(
+        ["community-requests", community.id],
+        (prev = []) => prev.filter((r) => r.id !== userId)
+      );
     },
   });
 
@@ -547,12 +579,22 @@ function CommunityDetail({
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[styles.joinBtn, detail.isMember && styles.leaveBtn]}
-          onPress={() => detail.isMember ? handleLeave() : joinCommunity.mutate()}
+          style={[
+            styles.joinBtn,
+            detail.isMember && styles.leaveBtn,
+            detail.memberStatus === "pending" && styles.pendingBtn,
+          ]}
+          onPress={() => {
+            if (detail.memberStatus === "pending") {
+              Alert.alert("Solicitação pendente", "Sua solicitação está aguardando aprovação do fundador.");
+              return;
+            }
+            detail.isMember ? handleLeave() : joinCommunity.mutate();
+          }}
           disabled={joinCommunity.isPending || leaveCommunity.isPending}
         >
-          <Text style={[styles.joinBtnText, detail.isMember && styles.leaveBtnText]}>
-            {detail.isMember ? "Sair" : "Entrar"}
+          <Text style={[styles.joinBtnText, detail.isMember && styles.leaveBtnText, detail.memberStatus === "pending" && styles.pendingBtnText]}>
+            {detail.memberStatus === "pending" ? "⏳ Pendente" : detail.isMember ? "Sair" : detail.isPrivate ? "🔒 Solicitar" : "Entrar"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -562,6 +604,29 @@ function CommunityDetail({
           {detail.description ? (
             <Text style={styles.detailDesc}>{detail.description}</Text>
           ) : null}
+
+          {isOwner && detail.isPrivate && (pendingRequestsQuery.data?.length ?? 0) > 0 && (
+            <View style={styles.requestsSection}>
+              <Text style={styles.requestsTitle}>🔔 Solicitações ({pendingRequestsQuery.data!.length})</Text>
+              {pendingRequestsQuery.data!.map((req) => {
+                const name = req.displayName || req.username;
+                return (
+                  <View key={req.id} style={styles.requestRow}>
+                    <View style={styles.requestAvatar}>
+                      <Text style={styles.requestAvatarText}>{name[0].toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.requestName} numberOfLines={1}>{name}</Text>
+                    <TouchableOpacity style={styles.approveBtn} onPress={() => approveRequest.mutate(req.id)} disabled={approveRequest.isPending}>
+                      <Text style={styles.approveBtnText}>✓</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.rejectBtn} onPress={() => rejectRequest.mutate(req.id)} disabled={rejectRequest.isPending}>
+                      <Text style={styles.rejectBtnText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {postsQuery.isLoading ? (
             <ActivityIndicator color={colors.primaryDark} style={{ marginTop: 24 }} />
@@ -806,6 +871,18 @@ export default function CommunitiesScreen() {
                 multiline
                 returnKeyType="done"
               />
+              <View style={styles.privacyRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.privacyLabel}>🔒 Comunidade privada</Text>
+                  <Text style={styles.privacySub}>Novos membros precisam de aprovação</Text>
+                </View>
+                <Switch
+                  value={communityForm.isPrivate}
+                  onValueChange={(v) => setCommunityForm((p) => ({ ...p, isPrivate: v }))}
+                  trackColor={{ false: "#E5E7EB", true: "#F59E0B" }}
+                  thumbColor="#fff"
+                />
+              </View>
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.modalSecondary} onPress={() => setShowCreateModal(false)}>
                   <Text style={styles.modalSecondaryText}>Cancelar</Text>
@@ -1119,6 +1196,38 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     joinBtnText: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 13, color: "#1A1A1A" },
     leaveBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.destructive + "66" },
+    leaveBtnText: { color: colors.destructive },
+    pendingBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.muted },
+    pendingBtnText: { color: colors.muted },
+    requestsSection: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 12,
+      gap: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: "#F59E0B44",
+    },
+    requestsTitle: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 13, color: colors.foreground, marginBottom: 4 },
+    requestRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    requestAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+    requestAvatarText: { fontFamily: FONTS.display, fontSize: 14, fontWeight: "700", color: "#1A1A1A" },
+    requestName: { flex: 1, fontFamily: FONTS.sans, fontSize: 13, fontWeight: "600", color: colors.foreground },
+    approveBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#D1FAE5", alignItems: "center", justifyContent: "center" },
+    approveBtnText: { fontSize: 15, color: "#059669", fontWeight: "700" },
+    rejectBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
+    rejectBtnText: { fontSize: 15, color: "#EF4444", fontWeight: "700" },
+    privacyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginTop: 4,
+    },
+    privacyLabel: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 14, color: colors.foreground },
+    privacySub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
     leaveBtnText: { color: colors.destructive },
 
     // Posts
