@@ -129,8 +129,8 @@ export default function FeedScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [postText, setPostText] = useState("");
-  const [postImagePreview, setPostImagePreview] = useState(""); // URI local para exibição
-  const [postImageUrl, setPostImageUrl] = useState("");         // base64 para upload
+  const [postImagePreview, setPostImagePreview] = useState(""); // data URI usada na prévia
+  const [postImageUrl, setPostImageUrl] = useState("");         // data URI enviada ao servidor
   const [pickingImage, setPickingImage] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -294,9 +294,11 @@ export default function FeedScreen() {
                     try {
                       const image = await takeFeedPhoto();
                       if (image) {
-                        setPostImagePreview(image.uri);
                         const uploadUrl = await processImage(image);
-                        if (uploadUrl) setPostImageUrl(uploadUrl);
+                        if (uploadUrl) {
+                          setPostImagePreview(uploadUrl);
+                          setPostImageUrl(uploadUrl);
+                        }
                         else {
                           clearImage();
                           Alert.alert("Erro", "Não foi possível preparar a foto para publicação.");
@@ -318,9 +320,11 @@ export default function FeedScreen() {
                     try {
                       const image = await pickFeedImage();
                       if (image) {
-                        setPostImagePreview(image.uri);
                         const uploadUrl = await processImage(image);
-                        if (uploadUrl) setPostImageUrl(uploadUrl);
+                        if (uploadUrl) {
+                          setPostImagePreview(uploadUrl);
+                          setPostImageUrl(uploadUrl);
+                        }
                         else {
                           clearImage();
                           Alert.alert("Erro", "Não foi possível preparar a foto para publicação.");
@@ -344,13 +348,13 @@ export default function FeedScreen() {
                 <TouchableOpacity
                   style={[
                     styles.composerPublishBtn,
-                    ((!postText.trim() && !postImageUrl) || createPost.isPending) && styles.composerPublishDisabled,
+                    ((!postText.trim() && !postImageUrl) || createPost.isPending || pickingImage) && styles.composerPublishDisabled,
                   ]}
                   onPress={handlePost}
-                  disabled={(!postText.trim() && !postImageUrl) || createPost.isPending}
+                  disabled={(!postText.trim() && !postImageUrl) || createPost.isPending || pickingImage}
                 >
                   <Text style={styles.composerPublishText}>
-                    {createPost.isPending ? "Publicando..." : "Publicar"}
+                    {createPost.isPending ? "Publicando..." : pickingImage ? "Preparando..." : "Publicar"}
                   </Text>
                 </TouchableOpacity>
               </View>
