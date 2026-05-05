@@ -87,6 +87,7 @@ export default function Home() {
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [postText, setPostText] = useState("");
+  const [postImagePreviewUrl, setPostImagePreviewUrl] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
   const [pickingPostImage, setPickingPostImage] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
@@ -160,6 +161,17 @@ export default function Home() {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (postImagePreviewUrl.startsWith("blob:")) URL.revokeObjectURL(postImagePreviewUrl);
+    };
+  }, [postImagePreviewUrl]);
+
+  const clearPostImage = useCallback(() => {
+    setPostImagePreviewUrl("");
+    setPostImageUrl("");
+  }, []);
 
   const pulseEyeEvent = useCallback((event: BeeEyesEvent, duration = 1400) => {
     setEyeEvent(event);
@@ -1147,10 +1159,14 @@ export default function Home() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setPostImagePreviewUrl(previewUrl);
+    setPostImageUrl("");
     setPickingPostImage(true);
     try {
       setPostImageUrl(await fileToCompressedDataUrl(file, 1080, 0.75));
     } catch (error) {
+      clearPostImage();
       setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a foto."));
     } finally {
       setPickingPostImage(false);
@@ -1275,7 +1291,7 @@ export default function Home() {
         liked: false,
       }, ...prev]);
       setPostText("");
-      setPostImageUrl("");
+      clearPostImage();
       setShowPostInput(false);
       // Reload in background to get AI comment + mission progress
       setTimeout(loadFeed, 3000);
@@ -1521,6 +1537,7 @@ export default function Home() {
             feed={feed}
             feedLoading={feedLoading}
             postText={postText}
+            postImagePreviewUrl={postImagePreviewUrl}
             postImageUrl={postImageUrl}
             pickingPostImage={pickingPostImage}
             isPosting={isPosting}
@@ -1531,8 +1548,8 @@ export default function Home() {
             onTogglePostInput={() => setShowPostInput((value) => !value)}
             onPostTextChange={setPostText}
             onPickPostImage={(capture) => capture ? feedCameraInputRef.current?.click() : feedImageInputRef.current?.click()}
-            onRemovePostImage={() => setPostImageUrl("")}
-            onCancelPost={() => { setShowPostInput(false); setPostText(""); setPostImageUrl(""); }}
+            onRemovePostImage={clearPostImage}
+            onCancelPost={() => { setShowPostInput(false); setPostText(""); clearPostImage(); }}
             onCreatePost={handleCreatePost}
             onConnect={handleConnect}
             onLikePost={handleLikePost}
@@ -1786,7 +1803,7 @@ export default function Home() {
         onInlinePostClose={() => setShowInlinePost(false)}
         onPostTextChange={setPostText}
         onPickPostImage={() => feedImageInputRef.current?.click()}
-        onRemovePostImage={() => setPostImageUrl("")}
+        onRemovePostImage={clearPostImage}
         onCreatePost={handleCreatePost}
         onInputChange={handleEyeInputChange}
         onInputFocusChange={handleEyeInputFocusChange}

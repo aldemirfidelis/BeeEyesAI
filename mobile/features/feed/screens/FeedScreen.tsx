@@ -61,10 +61,14 @@ const SENTIMENT_EMOJI: Record<string, string> = {
 
 const MAX_SIDE = 1080;
 
+interface ImageResult {
+  previewUri: string; // local file path — para exibir no Image (RN precisa de URI, não base64)
+  uploadUrl: string;  // data:image/jpeg;base64,... — para enviar ao servidor
+}
+
 async function processImage(
   asset: { uri: string; width?: number; height?: number },
-  onChange: (imageUrl: string) => void,
-) {
+): Promise<ImageResult | null> {
   const w = asset.width ?? MAX_SIDE;
   const h = asset.height ?? MAX_SIDE;
   const resizeOp = w > MAX_SIDE || h > MAX_SIDE
@@ -76,37 +80,41 @@ async function processImage(
     resizeOp,
     { compress: 0.80, format: ImageManipulator.SaveFormat.JPEG, base64: true },
   );
-  if (processed.base64) onChange(`data:image/jpeg;base64,${processed.base64}`);
+  if (!processed.base64) return null;
+  return {
+    previewUri: processed.uri,
+    uploadUrl: `data:image/jpeg;base64,${processed.base64}`,
+  };
 }
 
-async function pickFeedImage(onChange: (imageUrl: string) => void) {
+async function pickFeedImage(): Promise<ImageResult | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     Alert.alert("Permissão necessária", "Permita acesso à galeria para publicar uma foto.");
-    return;
+    return null;
   }
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: "images",
     allowsEditing: false,
     quality: 1,
   });
-  if (result.canceled || !result.assets?.[0]?.uri) return;
-  await processImage(result.assets[0], onChange);
+  if (result.canceled || !result.assets?.[0]?.uri) return null;
+  return processImage(result.assets[0]);
 }
 
-async function takeFeedPhoto(onChange: (imageUrl: string) => void) {
+async function takeFeedPhoto(): Promise<ImageResult | null> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) {
     Alert.alert("Permissão necessária", "Permita acesso à câmera para tirar uma foto.");
-    return;
+    return null;
   }
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: "images",
     allowsEditing: false,
     quality: 1,
   });
-  if (result.canceled || !result.assets?.[0]?.uri) return;
-  await processImage(result.assets[0], onChange);
+  if (result.canceled || !result.assets?.[0]?.uri) return null;
+  return processImage(result.assets[0]);
 }
 
 export default function FeedScreen() {
@@ -117,7 +125,8 @@ export default function FeedScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [postText, setPostText] = useState("");
-  const [postImageUrl, setPostImageUrl] = useState("");
+  const [postImagePreview, setPostImagePreview] = useState(""); // URI local para exibição
+  const [postImageUrl, setPostImageUrl] = useState("");         // base64 para upload
   const [pickingImage, setPickingImage] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -128,10 +137,15 @@ export default function FeedScreen() {
     setTimeout(() => inputRef.current?.focus(), 300);
   }
 
+  function clearImage() {
+    setPostImagePreview("");
+    setPostImageUrl("");
+  }
+
   function closeComposer() {
     setShowComposer(false);
     setPostText("");
-    setPostImageUrl("");
+    clearImage();
   }
 
   const { data: feed = [], isLoading } = useQuery<FeedPost[]>({
@@ -160,7 +174,7 @@ export default function FeedScreen() {
         ...prev,
       ]);
       setPostText("");
-      setPostImageUrl("");
+      clearImage();
       closeComposer();
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["feed"] });
@@ -249,11 +263,11 @@ export default function FeedScreen() {
               />
 
               {/* Image preview */}
-              {postImageUrl ? (
+              {postImagePreview ? (
                 <View style={styles.composerImageWrap}>
-                  <Image source={{ uri: postImageUrl }} style={styles.composerImage} resizeMode="contain" />
+                  <Image source={{ uri: postImagePreview }} style={styles.composerImage} resizeMode="contain" />
                   <TouchableOpacity
-                    onPress={() => setPostImageUrl("")}
+                    onPress={clearImage}
                     style={styles.composerImageRemove}
                   >
                     <Feather name="x" size={16} color="#fff" />
@@ -273,7 +287,13 @@ export default function FeedScreen() {
                   disabled={pickingImage}
                   onPress={async () => {
                     setPickingImage(true);
-                    try { await takeFeedPhoto(setPostImageUrl); } finally { setPickingImage(false); }
+                    try {
+                      const image = await takeFeedPhoto();
+                      if (image) {
+                        setPostImagePreview(image.previewUri);
+                        setPostImageUrl(image.uploadUrl);
+                      }
+                    } finally { setPickingImage(false); }
                   }}
                 >
                   <Feather name="camera" size={20} color={colors.primaryDark} />
@@ -286,7 +306,13 @@ export default function FeedScreen() {
                   disabled={pickingImage}
                   onPress={async () => {
                     setPickingImage(true);
-                    try { await pickFeedImage(setPostImageUrl); } finally { setPickingImage(false); }
+                    try {
+                      const image = await pickFeedImage();
+                      if (image) {
+                        setPostImagePreview(image.previewUri);
+                        setPostImageUrl(image.uploadUrl);
+                      }
+                    } finally { setPickingImage(false); }
                   }}
                 >
                   <Feather name={postImageUrl ? "refresh-cw" : "image"} size={20} color={colors.primaryDark} />
@@ -853,7 +879,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderRadius: 14,
       overflow: "hidden",
     },
-    composerImage: { width: "100%", maxHeight: 320, backgroundColor: colors.secondary },
+    composerImage: { width: "100%", height: 260, maxHeight: 320, backgroundColor: colors.secondary },
     composerImageRemove: {
       position: "absolute", top: 8, right: 8,
       backgroundColor: "rgba(0,0,0,0.6)",
@@ -963,7 +989,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     editSaveBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center" },
     editSaveText: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: "#1A1A1A" },
     postContent: { fontFamily: FONTS.sans, fontSize: 15, color: colors.foreground, lineHeight: 22 },
-    postImage: { width: "100%", maxHeight: 400, borderRadius: 16, backgroundColor: colors.background },
+    postImage: { width: "100%", height: 260, maxHeight: 400, borderRadius: 16, backgroundColor: colors.background },
     aiCommentBox: {
       backgroundColor: colors.secondary + "88",
       borderRadius: 12,

@@ -19,6 +19,7 @@ interface FeedPanelProps {
   feed: FeedPost[];
   feedLoading: boolean;
   postText: string;
+  postImagePreviewUrl: string;
   postImageUrl: string;
   pickingPostImage: boolean;
   isPosting: boolean;
@@ -140,6 +141,7 @@ export function FeedPanel(props: FeedPanelProps) {
     feed,
     feedLoading,
     postText,
+    postImagePreviewUrl,
     postImageUrl,
     pickingPostImage,
     isPosting,
@@ -190,9 +192,9 @@ export function FeedPanel(props: FeedPanelProps) {
             data-testid="feed-post-input"
           />
 
-          {postImageUrl && (
+          {(postImagePreviewUrl || postImageUrl) && (
             <div className="relative mx-4 mb-2 overflow-hidden rounded-xl border border-border">
-              <img src={postImageUrl} alt="Prévia da foto" className="w-full max-h-80 object-contain bg-black/5" />
+              <img src={postImagePreviewUrl || postImageUrl} alt="Prévia da foto" className="w-full max-h-80 object-contain bg-black/5" />
               <button type="button" onClick={onRemovePostImage}
                 className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 transition-colors">
                 <X className="h-4 w-4" />
