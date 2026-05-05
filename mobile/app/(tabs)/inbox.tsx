@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -34,6 +35,70 @@ function Avatar({ name, size = 46, colors }: { name: string; size?: number; colo
   );
 }
 
+interface ContactUser { id: string; username: string; displayName: string | null; level: number; }
+
+function NewMessageModal({ visible, onClose, onSelect, colors, styles }: {
+  visible: boolean; onClose: () => void;
+  onSelect: (c: DMConversation) => void;
+  colors: any; styles: any;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [contacts, setContacts] = useState<ContactUser[]>([]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setLoading(true);
+    api.get("/api/connections/accepted")
+      .then((r) => setContacts(r.data))
+      .catch(() => setContacts([]))
+      .finally(() => setLoading(false));
+  }, [visible]);
+
+  function handleSelect(u: ContactUser) {
+    onClose();
+    onSelect({
+      user: { id: u.id, username: u.username, displayName: u.displayName, level: u.level },
+      lastMessage: "",
+      lastMessageAt: new Date().toISOString(),
+      lastMessageFromMe: false,
+      unreadCount: 0,
+    });
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.newMsgOverlay}>
+        <View style={styles.newMsgSheet}>
+          <View style={styles.newMsgHeader}>
+            <Text style={styles.newMsgTitle}>Nova mensagem</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          {loading ? (
+            <ActivityIndicator color={colors.primaryDark} style={{ marginTop: 32 }} />
+          ) : contacts.length === 0 ? (
+            <Text style={styles.newMsgEmpty}>Nenhuma conexão encontrada. Adicione amigos para enviar mensagens.</Text>
+          ) : (
+            <FlatList
+              data={contacts}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.newMsgRow} onPress={() => handleSelect(item)} activeOpacity={0.7}>
+                  <View style={styles.newMsgAvatar}>
+                    <Text style={styles.newMsgAvatarText}>{(item.displayName || item.username)[0].toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.newMsgName}>{item.displayName || item.username}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function ConversationList({
   onSelect, colors, styles, insets,
 }: {
@@ -41,6 +106,7 @@ function ConversationList({
   colors: any; styles: any; insets: any;
 }) {
   const { user } = useAuthStore();
+  const [showNewMsg, setShowNewMsg] = useState(false);
   const conversationsQuery = useQuery<DMConversation[]>({
     queryKey: ["dm-conversations"],
     queryFn: () => api.get("/api/dm/conversations").then((r) => r.data),
@@ -49,9 +115,18 @@ function ConversationList({
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <NewMessageModal
+        visible={showNewMsg}
+        onClose={() => setShowNewMsg(false)}
+        onSelect={onSelect}
+        colors={colors}
+        styles={styles}
+      />
       <View style={styles.listHeader}>
         <Text style={styles.listHeaderTitle}>{user?.displayName || user?.username}</Text>
-        <Feather name="edit" size={22} color={colors.foreground} />
+        <TouchableOpacity onPress={() => setShowNewMsg(true)}>
+          <Feather name="edit" size={22} color={colors.foreground} />
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.listSection}>Mensagens</Text>
@@ -108,7 +183,31 @@ function ChatScreen({
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
+  const [menuVisible, setMenuVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  function handleDeleteConversation() {
+    setMenuVisible(false);
+    Alert.alert(
+      "Apagar conversa",
+      `Apagar toda a conversa com ${conversation.user.displayName || conversation.user.username}? Esta ação não pode ser desfeita.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Apagar", style: "destructive",
+          onPress: async () => {
+            try {
+              await api.delete(`/api/dm/${conversation.user.id}`);
+              queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+              onBack();
+            } catch {
+              Alert.alert("Erro", "Não foi possível apagar a conversa.");
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const messagesQuery = useQuery<DMMessage[]>({
     queryKey: ["dm-messages", conversation.user.id],
@@ -146,8 +245,21 @@ function ChatScreen({
           <Text style={styles.chatHeaderName}>{displayNameOf(conversation.user)}</Text>
           <Text style={styles.chatHeaderHandle}>@{conversation.user.username}</Text>
         </View>
-        <Feather name="more-horizontal" size={22} color={colors.muted} />
+        <TouchableOpacity onPress={() => setMenuVisible(true)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Feather name="more-horizontal" size={22} color={colors.muted} />
+        </TouchableOpacity>
       </View>
+
+      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
+          <View style={styles.menuSheet}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleDeleteConversation}>
+              <Feather name="trash-2" size={18} color={colors.destructive} />
+              <Text style={[styles.menuItemText, { color: colors.destructive }]}>Apagar conversa</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -429,5 +541,18 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       textAlign: "center",
       lineHeight: 20,
     },
+    menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "flex-end", justifyContent: "flex-start", paddingTop: 60, paddingRight: 16 },
+    menuSheet: { backgroundColor: colors.card, borderRadius: 14, paddingVertical: 4, minWidth: 200, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+    menuItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
+    menuItemText: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "600" },
+    newMsgOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+    newMsgSheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 36, maxHeight: "70%" },
+    newMsgHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 16 },
+    newMsgTitle: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "800", color: colors.foreground },
+    newMsgEmpty: { fontFamily: FONTS.sans, fontSize: 14, color: colors.muted, textAlign: "center", marginTop: 32, lineHeight: 22 },
+    newMsgRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, gap: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+    newMsgAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center" },
+    newMsgAvatarText: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "700", color: colors.foreground },
+    newMsgName: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "600", color: colors.foreground },
   });
 }

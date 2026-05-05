@@ -73,6 +73,8 @@ export interface IStorage {
   getPostsByUser(userId: string, limit?: number): Promise<Post[]>;
   getPostById(id: string): Promise<Post | undefined>;
   updatePostAIComment(postId: string, aiComment: string, sentiment: string, sentimentLabel: string): Promise<void>;
+  updatePost(postId: string, userId: string, content: string): Promise<Post | null>;
+  deletePost(postId: string, userId: string): Promise<boolean>;
   getFeedForUser(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level"> })[]>;
   likePost(postId: string, userId: string): Promise<void>;
   unlikePost(postId: string, userId: string): Promise<void>;
@@ -102,6 +104,7 @@ export interface IStorage {
   sendDirectMessage(data: InsertDirectMessage): Promise<DirectMessage>;
   getDirectMessagesBetweenUsers(userId: string, otherUserId: string, limit?: number): Promise<DirectMessage[]>;
   markDirectMessagesAsRead(userId: string, fromUserId: string): Promise<void>;
+  deleteConversation(userId: string, otherUserId: string): Promise<void>;
   getDirectConversations(userId: string): Promise<Array<{
     user: Pick<User, "id" | "username" | "displayName" | "level">;
     lastMessage: string;
@@ -484,6 +487,23 @@ export class DrizzleStorage implements IStorage {
       .where(eq(posts.id, postId));
   }
 
+  async updatePost(postId: string, userId: string, content: string): Promise<Post | null> {
+    const [updated] = await db
+      .update(posts)
+      .set({ content })
+      .where(and(eq(posts.id, postId), eq(posts.userId, userId)))
+      .returning();
+    return updated ?? null;
+  }
+
+  async deletePost(postId: string, userId: string): Promise<boolean> {
+    const [deleted] = await db
+      .delete(posts)
+      .where(and(eq(posts.id, postId), eq(posts.userId, userId)))
+      .returning({ id: posts.id });
+    return !!deleted;
+  }
+
   async getFeedForUser(userId: string, limit = 30): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level"> })[]> {
     const connectedIds = await this.getAcceptedConnectionIds(userId);
     const feedUserIds = [userId, ...connectedIds];
@@ -775,6 +795,17 @@ export class DrizzleStorage implements IStorage {
           eq(directMessages.recipientId, userId),
           eq(directMessages.senderId, fromUserId),
           isNull(directMessages.readAt),
+        ),
+      );
+  }
+
+  async deleteConversation(userId: string, otherUserId: string): Promise<void> {
+    await db
+      .delete(directMessages)
+      .where(
+        or(
+          and(eq(directMessages.senderId, userId), eq(directMessages.recipientId, otherUserId)),
+          and(eq(directMessages.senderId, otherUserId), eq(directMessages.recipientId, userId)),
         ),
       );
   }

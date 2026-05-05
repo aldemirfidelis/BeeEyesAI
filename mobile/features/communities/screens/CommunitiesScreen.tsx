@@ -161,8 +161,10 @@ function CommunityList({
                 <Feather name="x" size={22} color={colors.muted} />
               </TouchableOpacity>
             </View>
-            {listMembersQuery.isLoading ? (
+            {(listMembersQuery.isPending || listMembersQuery.isFetching) ? (
               <ActivityIndicator color={colors.primaryDark} style={{ marginVertical: 32 }} />
+            ) : listMembersQuery.isError ? (
+              <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Erro ao carregar membros.</Text>
             ) : (listMembersQuery.data ?? []).length === 0 ? (
               <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Nenhum membro encontrado.</Text>
             ) : (
@@ -281,6 +283,7 @@ function CommunityDetail({
     queryKey: ["community-members", community.id],
     queryFn: () => api.get(`/api/communities/${community.id}/members`).then((r) => r.data),
     enabled: showMembers,
+    staleTime: 0,
   });
 
   const detail = detailQuery.data || community;
@@ -299,8 +302,27 @@ function CommunityDetail({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["communities"] });
       queryClient.invalidateQueries({ queryKey: ["community", community.id] });
+      onBack();
+    },
+    onError: () => {
+      Alert.alert("Erro", "Não foi possível sair da comunidade.");
     },
   });
+
+  function handleLeave() {
+    if (isOwner) {
+      Alert.alert("Fundador", "Você é o fundador desta comunidade e não pode sair. Transfira a liderança antes de sair.");
+      return;
+    }
+    Alert.alert(
+      "Sair da comunidade",
+      `Tem certeza que deseja sair de "${detail.name}"?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", style: "destructive", onPress: () => leaveCommunity.mutate() },
+      ]
+    );
+  }
 
   const createPost = useMutation({
     mutationFn: ({ content, imageUrl }: { content: string; imageUrl?: string }) =>
@@ -422,8 +444,10 @@ function CommunityDetail({
                 <Feather name="x" size={22} color={colors.muted} />
               </TouchableOpacity>
             </View>
-            {membersQuery.isLoading ? (
+            {(membersQuery.isPending || membersQuery.isFetching) ? (
               <ActivityIndicator color={colors.primaryDark} style={{ marginVertical: 32 }} />
+            ) : membersQuery.isError ? (
+              <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Erro ao carregar membros.</Text>
             ) : (membersQuery.data ?? []).length === 0 ? (
               <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Nenhum membro encontrado.</Text>
             ) : (
@@ -474,7 +498,7 @@ function CommunityDetail({
         )}
         <TouchableOpacity
           style={[styles.joinBtn, detail.isMember && styles.leaveBtn]}
-          onPress={() => detail.isMember ? leaveCommunity.mutate() : joinCommunity.mutate()}
+          onPress={() => detail.isMember ? handleLeave() : joinCommunity.mutate()}
           disabled={joinCommunity.isPending || leaveCommunity.isPending}
         >
           <Text style={[styles.joinBtnText, detail.isMember && styles.leaveBtnText]}>

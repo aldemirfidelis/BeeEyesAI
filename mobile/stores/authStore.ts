@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
+import { useUIStore } from "./uiStore";
 
 interface UserBasic {
   id: string;
@@ -36,6 +37,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       await SecureStore.deleteItemAsync("bee_token");
+      await useUIStore.getState().clearProfileImage();
     } finally {
       set({ token: null, user: null });
     }

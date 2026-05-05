@@ -51,6 +51,7 @@ export default function ChatScreen() {
   const attentionResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hydratedRef = useRef(false);
   const previousMessageCountRef = useRef(0);
+  const isAtBottomRef = useRef(true);
   const { messages, isTyping, streamingContent, setMessages, addMessage } = useChatStore();
   const { eyeExpression, themeMode, setEyeExpression } = useUIStore();
   const { user } = useAuthStore();
@@ -270,6 +271,8 @@ export default function ChatScreen() {
     setInputValue("");
     markInteraction();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    isAtBottomRef.current = true;
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
     const commandHandled = await handleSlashCommand(message);
     if (!commandHandled) await sendMessage(message);
   }
@@ -323,7 +326,7 @@ export default function ChatScreen() {
   const allMessages = [...chatMessages, ...(isTyping && streamingContent ? [{ id: "streaming", role: "assistant" as const, content: `${streamingContent}...`, createdAt: new Date().toISOString(), metadata: null }] : [])];
 
   return (
-    <SafeAreaView style={styles.container} onTouchStart={handleScreenTouch} onTouchMove={handleScreenTouch}>
+    <SafeAreaView style={styles.container} edges={["left", "right"]} onTouchStart={handleScreenTouch} onTouchMove={handleScreenTouch}>
       <AchievementToast />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.logo}>bee-eyes</Text>
@@ -418,7 +421,14 @@ export default function ChatScreen() {
             }}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messageList}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            onScroll={(e) => {
+              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+              isAtBottomRef.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
+            }}
+            scrollEventThrottle={100}
+            onContentSizeChange={() => {
+              if (isAtBottomRef.current) listRef.current?.scrollToEnd({ animated: true });
+            }}
           />
         )}
 
@@ -531,7 +541,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     container: { flex: 1, backgroundColor: colors.background },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card },
     logo: { fontFamily: FONTS.display, fontSize: 24, color: colors.primaryDark, fontWeight: "700" },
-    headerActions: { flexDirection: "row", gap: 12 },
+    headerActions: { flexDirection: "row", gap: 4 },
     headerIconBtn: { alignItems: "center", justifyContent: "center", gap: 3 },
     headerIconLabel: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "600", color: colors.muted },
     headerBadge: { position: "absolute", top: -7, right: -10, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.destructive },

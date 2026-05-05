@@ -21,7 +21,22 @@
       "PowerShell(node \"D:\\\\Projetos\\\\BeeEyesAI\\\\server\\\\scripts\\\\cleanup-communities.mjs\" 2>&1)",
       "Bash(git commit -m 'fix: missions only created on explicit user request *)",
       "Bash(git push *)",
-      "Bash(git commit -m 'feat: random bonus missions after completing all missions *)"
+      "Bash(git commit -m 'feat: random bonus missions after completing all missions *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)",
+      "Bash(dir \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\")",
+      "Bash(dir \"D:\\\\Projetos\\\\BeeEyesAI\\\\server\\\\routes\")",
+      "Bash(keytool -keystore \"C:\\\\Users\\\\aldem\\\\.android\\\\debug.keystore\" -list -v -storepass android)",
+      "Bash(keytool -keystore \"d:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\android\\\\app\\\\debug.keystore\" -list -v -storepass android)",
+      "Read(//d/d/Projetos/BeeEyesAI/**)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projetos\\\\BeeEyesAI\\\\mobile\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Projetos\\\\BeeEyesAI\\\\mobile\" -Recurse -Filter \"*.tsx\" -o Name)",
+      "PowerShell(head -30)",
+      "Bash(xargs ls *)",
+      "PowerShell(ssh -i \"$env:USERPROFILE\\\\.ssh\\\\beeeyes_digitalocean\" -v root@1.1.1.1 2>&1 | Select-String \"Offering|denied|passphrase|password|Permission|identity\" | Select-Object -First 15)",
+      "Bash(node --env-file=.env -e ' *)"
     ]
   }
 }

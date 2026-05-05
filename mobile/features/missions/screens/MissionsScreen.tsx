@@ -98,26 +98,6 @@ export default function MissionsScreen() {
         </Text>
       </View>
 
-      {/* Contexto adaptativo da Bee */}
-      {dailyContext && (
-        <View style={styles.contextCard}>
-          <View style={styles.contextHeader}>
-            <Text style={styles.contextBee}>🐝</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.contextLabel}>{dailyContext.label}</Text>
-              <Text style={styles.contextReason}>{dailyContext.reason}</Text>
-            </View>
-            {typeof dailyContext.moodAvg === "number" && Number.isFinite(dailyContext.moodAvg) && (
-              <View style={styles.moodBadge}>
-                <Text style={styles.moodBadgeText}>{dailyContext.moodAvg.toFixed(1)}</Text>
-                <Text style={styles.moodBadgeSub}>humor</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.contextTip}>💡 {dailyContext.tip}</Text>
-        </View>
-      )}
-
       {/* XP / Level card */}
       {me && (
         <View style={styles.levelCard}>

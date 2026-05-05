@@ -391,6 +391,7 @@ export default function FeedScreen() {
               onLike={() => likePost.mutate(post.id)}
               isLiking={likePost.isPending}
               colors={colors}
+              currentUserId={user?.id}
             />
           ))}
         </ScrollView>
@@ -404,12 +405,15 @@ function PostCard({
   onLike,
   isLiking,
   colors,
+  currentUserId,
 }: {
   post: FeedPost & { commentsCount: number };
   onLike: () => void;
   isLiking: boolean;
   colors: ReturnType<typeof getThemeColors>;
+  currentUserId?: string;
 }) {
+  const queryClient = useQueryClient();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const sentimentEmoji = post.sentiment ? SENTIMENT_EMOJI[post.sentiment] ?? "💭" : null;
   const [expanded, setExpanded] = useState(false);
@@ -422,6 +426,11 @@ function PostCard({
   const [likesCount, setLikesCount] = useState(post.likesCount);
   const [commentsCount, setCommentsCount] = useState(post.commentsCount);
   const [bookmarked, setBookmarked] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [editVisible, setEditVisible] = useState(false);
+  const [editText, setEditText] = useState(post.content);
+  const [currentContent, setCurrentContent] = useState(post.content);
+  const isOwner = currentUserId === post.author.id;
 
   async function handleLikePress() {
     const next = !liked;
@@ -505,10 +514,87 @@ function PostCard({
     }
   }
 
+  async function handleEdit() {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === currentContent) { setEditVisible(false); return; }
+    try {
+      await api.patch(`/api/posts/${post.id}`, { content: trimmed });
+      setCurrentContent(trimmed);
+      setEditVisible(false);
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    } catch {
+      Alert.alert("Erro", "Não foi possível editar o post.");
+    }
+  }
+
+  function handleDelete() {
+    Alert.alert("Apagar post", "Tem certeza que deseja apagar este post?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Apagar", style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(`/api/posts/${post.id}`);
+            queryClient.setQueryData<FeedPost[]>(["feed"], (prev = []) => prev.filter((p) => p.id !== post.id));
+          } catch {
+            Alert.alert("Erro", "Não foi possível apagar o post.");
+          }
+        },
+      },
+    ]);
+  }
+
   const authorName = displayNameOf(post.author);
 
   return (
     <View style={styles.postCard}>
+      {/* Menu de opções do dono */}
+      {isOwner && (
+        <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+          <TouchableOpacity style={styles.postMenuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
+            <View style={styles.postMenuSheet}>
+              <TouchableOpacity style={styles.postMenuItem} onPress={() => { setMenuVisible(false); setEditText(currentContent); setEditVisible(true); }}>
+                <Feather name="edit-2" size={16} color={colors.foreground} />
+                <Text style={styles.postMenuItemText}>Editar post</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.postMenuItem} onPress={() => { setMenuVisible(false); handleDelete(); }}>
+                <Feather name="trash-2" size={16} color={colors.destructive} />
+                <Text style={[styles.postMenuItemText, { color: colors.destructive }]}>Apagar post</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Modal de edição */}
+      {isOwner && (
+        <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
+          <TouchableOpacity style={styles.postMenuOverlay} activeOpacity={1} onPress={() => setEditVisible(false)}>
+            <TouchableOpacity activeOpacity={1} style={styles.editSheet}>
+              <Text style={styles.editSheetTitle}>Editar post</Text>
+              <TextInput
+                style={styles.editInput}
+                value={editText}
+                onChangeText={setEditText}
+                multiline
+                maxLength={500}
+                autoFocus
+                placeholderTextColor={colors.muted}
+              />
+              <Text style={styles.editCharCount}>{editText.length}/500</Text>
+              <View style={styles.editActions}>
+                <TouchableOpacity style={styles.editCancelBtn} onPress={() => setEditVisible(false)}>
+                  <Text style={styles.editCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editSaveBtn} onPress={handleEdit}>
+                  <Text style={styles.editSaveText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
       <View style={styles.postHeader}>
         <View style={styles.postAvatar}>
           <Text style={styles.postAvatarText}>{authorName[0].toUpperCase()}</Text>
@@ -528,10 +614,15 @@ function PostCard({
             {post.sentimentLabel ? <Text style={styles.sentimentLabel}>{post.sentimentLabel}</Text> : null}
           </View>
         ) : null}
+        {isOwner && (
+          <TouchableOpacity onPress={() => setMenuVisible(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="more-horizontal" size={20} color={colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      <Text style={styles.postContent}>{post.content}</Text>
-      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} /> : null}
+      <Text style={styles.postContent}>{currentContent}</Text>
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" /> : null}
 
       {post.aiComment ? (
         <View style={styles.aiCommentBox}>
@@ -846,6 +937,19 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     sentimentBadge: { alignItems: "center", gap: 2 },
     sentimentEmoji: { fontSize: 20 },
     sentimentLabel: { fontFamily: FONTS.sans, fontSize: 10, color: colors.muted },
+    postMenuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+    postMenuSheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingVertical: 8, paddingBottom: 32 },
+    postMenuItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 16 },
+    postMenuItemText: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "600", color: colors.foreground },
+    editSheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36, gap: 12 },
+    editSheetTitle: { fontFamily: FONTS.display, fontSize: 17, fontWeight: "800", color: colors.foreground },
+    editInput: { backgroundColor: colors.background, borderRadius: 14, padding: 14, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, minHeight: 100, textAlignVertical: "top", borderWidth: 1, borderColor: colors.border },
+    editCharCount: { fontFamily: FONTS.mono, fontSize: 11, color: colors.muted, textAlign: "right" },
+    editActions: { flexDirection: "row", gap: 10 },
+    editCancelBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.secondary, alignItems: "center" },
+    editCancelText: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: colors.foreground },
+    editSaveBtn: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center" },
+    editSaveText: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: "#1A1A1A" },
     postContent: { fontFamily: FONTS.sans, fontSize: 15, color: colors.foreground, lineHeight: 22 },
     postImage: { width: "100%", height: 210, borderRadius: 16, backgroundColor: colors.background },
     aiCommentBox: {

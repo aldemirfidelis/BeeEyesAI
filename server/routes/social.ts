@@ -127,6 +127,21 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     return sendCreated(res, post);
   }));
 
+  router.patch("/api/posts/:id", requireAuth, asyncHandler(async (req, res) => {
+    const content = String(req.body?.content || "").trim();
+    if (!content) throw badRequest("Conteúdo não pode ser vazio");
+    if (content.length > 500) throw badRequest("Post muito longo (máximo 500 caracteres)");
+    const updated = await storage.updatePost(req.params.id, req.userId!, content);
+    if (!updated) throw notFound("Post não encontrado ou sem permissão");
+    return sendOk(res, updated);
+  }));
+
+  router.delete("/api/posts/:id", requireAuth, asyncHandler(async (req, res) => {
+    const deleted = await storage.deletePost(req.params.id, req.userId!);
+    if (!deleted) throw notFound("Post não encontrado ou sem permissão");
+    return sendOk(res, { ok: true });
+  }));
+
   router.post("/api/posts/:id/like", requireAuth, asyncHandler(async (req, res) => {
     const post = await storage.getPostById(req.params.id);
     if (!post) {
@@ -357,6 +372,17 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     }
   }));
 
+  router.get("/api/connections/accepted", requireAuth, asyncHandler(async (req, res) => {
+    const ids = await storage.getAcceptedConnectionIds(req.userId!);
+    const users = (await Promise.all(ids.map((id) => storage.getUser(id)))).filter(Boolean);
+    return sendOk(res, users.map((u) => ({
+      id: u!.id,
+      username: u!.username,
+      displayName: u!.displayName,
+      level: u!.level,
+    })));
+  }));
+
   router.get("/api/dm/conversations", requireAuth, asyncHandler(async (req, res) => {
     try {
       return sendOk(res, await storage.getDirectConversations(req.userId!));
@@ -405,6 +431,11 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     const created = await storage.sendDirectMessage({ senderId: req.userId!, recipientId, content });
     triggerMissionAction(req.userId!, "send_dm").catch(() => {});
     return sendCreated(res, created);
+  }));
+
+  router.delete("/api/dm/:userId", requireAuth, asyncHandler(async (req, res) => {
+    await storage.deleteConversation(req.userId!, req.params.userId);
+    return sendOk(res, { ok: true });
   }));
 
   router.get("/api/users/search", requireAuth, asyncHandler(async (req, res) => {

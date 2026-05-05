@@ -9,6 +9,8 @@ import {
   Modal,
   TextInput,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -156,7 +158,6 @@ export default function ProfileScreen() {
           <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
           {profile?.displayName ? <Text style={styles.usernameHandle}>@{profile?.username}</Text> : null}
           {profile?.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
-          {profile?.gender ? <Text style={styles.profileMeta}>Genero: {profile.gender}</Text> : null}
           <View style={styles.levelBadge}>
             <Text style={styles.levelText}>Nivel {profile?.level ?? 1}</Text>
           </View>
@@ -304,11 +305,15 @@ export default function ProfileScreen() {
           presentationStyle="overFullScreen"
           onRequestClose={() => { setShowTestimonialModal(false); setSelectedFriend(null); setTestimonialText(""); }}
         >
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}
-            activeOpacity={1}
-            onPress={() => { setShowTestimonialModal(false); setSelectedFriend(null); setTestimonialText(""); }}
+          <KeyboardAvoidingView
+            style={{ flex: 1, justifyContent: "flex-end" }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
+            <TouchableOpacity
+              style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" }}
+              activeOpacity={1}
+              onPress={() => { setShowTestimonialModal(false); setSelectedFriend(null); setTestimonialText(""); }}
+            />
             <TouchableOpacity activeOpacity={1} style={styles.testimonialModal}>
               <View style={styles.testimonialModalHandle} />
 
@@ -394,7 +399,7 @@ export default function ProfileScreen() {
                 </>
               )}
             </TouchableOpacity>
-          </TouchableOpacity>
+          </KeyboardAvoidingView>
         </Modal>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>

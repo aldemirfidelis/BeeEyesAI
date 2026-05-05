@@ -22,4 +22,24 @@ export async function ensureDatabaseCompatibility() {
     ALTER TABLE "users"
     ADD COLUMN IF NOT EXISTS "expo_push_token" text;
   `);
+  await pool.query(`
+    ALTER TABLE "posts" ADD COLUMN IF NOT EXISTS "image_url" text;
+    ALTER TABLE "community_posts" ADD COLUMN IF NOT EXISTS "image_url" text;
+  `);
+  await pool.query(`
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "language" varchar(10) NOT NULL DEFAULT 'pt-BR';
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed" boolean NOT NULL DEFAULT false;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "testimonials" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "profile_user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "author_user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "content" text NOT NULL,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "testimonials_profile_created_idx" ON "testimonials" ("profile_user_id", "created_at");
+    CREATE UNIQUE INDEX IF NOT EXISTS "testimonials_profile_author_uidx" ON "testimonials" ("profile_user_id", "author_user_id");
+  `);
 }

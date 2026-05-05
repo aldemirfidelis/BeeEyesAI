@@ -78,9 +78,13 @@ function GoogleLoginButton({
 
   async function handlePress() {
     if (Platform.OS === "android") {
-      const accessToken = await signInWithGoogleNative();
-      if (accessToken) {
-        onSuccess(accessToken);
+      try {
+        const accessToken = await signInWithGoogleNative();
+        if (accessToken) {
+          onSuccess(accessToken);
+        }
+      } catch (err: any) {
+        Alert.alert("Erro Google Sign-In", err?.message || err?.code || JSON.stringify(err));
       }
       return;
     }
@@ -171,7 +175,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       {/* Hero gradient */}
       <LinearGradient colors={["#FFF8E7", "#FFE566", "#F5C842"]} style={styles.hero}>
         {/* Decorative hexagons */}

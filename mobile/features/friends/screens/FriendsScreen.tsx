@@ -1,7 +1,7 @@
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, RefreshControl, Modal, ActivityIndicator, Alert,
-  TextInput,
+  TextInput, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { useState, useCallback, useRef } from "react";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -351,7 +351,8 @@ export default function FriendsScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {profileLoading && (
               <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
             )}
@@ -465,6 +466,7 @@ export default function FriendsScreen() {
               );
             })()}
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
     </View>

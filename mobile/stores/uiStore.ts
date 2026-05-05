@@ -23,6 +23,7 @@ interface UIState {
   initializePreferences: () => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setProfileImageUri: (uri: string | null) => Promise<void>;
+  clearProfileImage: () => Promise<void>;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -65,5 +66,10 @@ export const useUIStore = create<UIState>((set) => ({
       await SecureStore.deleteItemAsync("bee_profile_image_uri");
     }
     set({ profileImageUri: uri });
+  },
+
+  clearProfileImage: async () => {
+    await SecureStore.deleteItemAsync("bee_profile_image_uri");
+    set({ profileImageUri: null });
   },
 }));
