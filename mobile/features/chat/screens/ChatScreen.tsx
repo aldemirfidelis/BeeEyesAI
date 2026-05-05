@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { FlashList } from "@shopify/flash-list";
 import * as Haptics from "expo-haptics";
@@ -16,7 +16,7 @@ import BeeEyes from "@mobile/components/BeeEyes";
 import ChatMessage from "@mobile/components/ChatMessage";
 import AchievementToast from "@mobile/components/AchievementToast";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
-import { type ConnectionRequestMeta, type NetworkDigestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNetworkDigestMeta, isNewsDigestMeta, parseMessageMeta } from "@mobile/lib/social";
+import { type ChatFeedSummaryPost, type ConnectionRequestMeta, type NetworkDigestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNetworkDigestMeta, isNewsDigestMeta, parseMessageMeta, timeAgo } from "@mobile/lib/social";
 import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
 
@@ -485,14 +485,89 @@ function ConnectionRequestCard({ meta, pending, onAccept, onReject, styles }: { 
 
 function NetworkDigestCard({ meta, styles }: { meta: NetworkDigestMeta; styles: ReturnType<typeof makeStyles> }) {
   const { t } = useTranslation();
+  const feedPosts = Array.isArray(meta.feedPosts) ? meta.feedPosts.slice(0, 3) : [];
+  const newsItems = Array.isArray(meta.newsItems) ? meta.newsItems.slice(0, 2) : [];
+  const suggestions = Array.isArray(meta.suggestions) ? meta.suggestions.slice(0, 2) : [];
+
   return (
-    <View style={styles.metaCard}>
-      <Text style={styles.metaTitle}>{t("chat_network_summary")}</Text>
-      <Text style={styles.metaText}>{t("chat_search_label")} {meta.query}</Text>
-      {meta.newsItems.slice(0, 2).map((item) => <Text key={item.link} style={styles.metaBullet}>- {item.title}</Text>)}
-      {meta.feedPosts.slice(0, 2).map((post) => <Text key={post.id} style={styles.metaBullet}>- {post.author.displayName || post.author.username}: {post.content}</Text>)}
-      {meta.suggestions.slice(0, 2).map((suggestion) => <Text key={suggestion.id} style={styles.metaBullet}>- {t("chat_connection_suggestion")} {suggestion.displayName || suggestion.username}</Text>)}
+    <View style={styles.digestCard}>
+      <View style={styles.digestHeader}>
+        <Text style={styles.metaTitle}>{t("chat_network_summary")}</Text>
+        <TouchableOpacity style={styles.digestOpenButton} onPress={() => router.push("/feed")}>
+          <Feather name="arrow-right" size={14} color="#1A1A1A" />
+          <Text style={styles.digestOpenButtonText}>Feed</Text>
+        </TouchableOpacity>
+      </View>
+
+      {feedPosts.length > 0 ? (
+        <View style={styles.digestSection}>
+          <Text style={styles.digestSectionLabel}>Feed</Text>
+          {feedPosts.map((post) => <FeedDigestPostCard key={post.id} post={post} styles={styles} />)}
+        </View>
+      ) : null}
+
+      {newsItems.length > 0 ? (
+        <View style={styles.digestSection}>
+          <Text style={styles.digestSectionLabel}>Noticias</Text>
+          {newsItems.map((item) => <Text key={item.link} style={styles.metaBullet}>- {item.title}</Text>)}
+        </View>
+      ) : null}
+
+      {suggestions.length > 0 ? (
+        <View style={styles.digestSection}>
+          <Text style={styles.digestSectionLabel}>Rede</Text>
+          {suggestions.map((suggestion) => <Text key={suggestion.id} style={styles.metaBullet}>- {t("chat_connection_suggestion")} {suggestion.displayName || suggestion.username}</Text>)}
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+function FeedDigestPostCard({ post, styles }: { post: ChatFeedSummaryPost; styles: ReturnType<typeof makeStyles> }) {
+  const authorName = post.author.displayName || post.author.username;
+  return (
+    <TouchableOpacity style={styles.feedDigestPost} activeOpacity={0.85} onPress={() => router.push("/feed")}>
+      <View style={styles.feedDigestHeader}>
+        <View style={styles.feedDigestAvatar}>
+          <Text style={styles.feedDigestAvatarText}>{authorName[0]?.toUpperCase() || "?"}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.feedDigestAuthorRow}>
+            <Text style={styles.feedDigestAuthor} numberOfLines={1}>{authorName}</Text>
+            <View style={styles.feedDigestLevel}>
+              <Text style={styles.feedDigestLevelText}>Nv {post.author.level}</Text>
+            </View>
+          </View>
+          <Text style={styles.feedDigestTime}>{timeAgo(post.createdAt)}</Text>
+        </View>
+        {post.sentimentLabel ? (
+          <View style={styles.feedDigestMood}>
+            <Text style={styles.feedDigestMoodText}>{post.sentimentLabel}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Text style={styles.feedDigestContent} numberOfLines={4}>{post.content}</Text>
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.feedDigestImage} resizeMode="cover" /> : null}
+
+      {post.aiComment ? (
+        <View style={styles.feedDigestAi}>
+          <Text style={styles.feedDigestAiLabel}>BeeEyes</Text>
+          <Text style={styles.feedDigestAiText} numberOfLines={3}>{post.aiComment}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.feedDigestActions}>
+        <View style={styles.feedDigestAction}>
+          <Feather name="heart" size={14} color={post.liked ? "#EF4444" : "#6B7280"} />
+          <Text style={styles.feedDigestActionText}>{post.likesCount || ""}</Text>
+        </View>
+        <View style={styles.feedDigestAction}>
+          <Feather name="message-circle" size={14} color="#6B7280" />
+          <Text style={styles.feedDigestActionText}>{post.commentsCount || ""}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -591,6 +666,31 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     metaTitle: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: colors.foreground },
     metaText: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, lineHeight: 18 },
     metaBullet: { fontFamily: FONTS.sans, fontSize: 12, color: colors.foreground, lineHeight: 18 },
+    digestCard: { marginTop: 6, marginBottom: 8, marginLeft: 6, marginRight: 18, padding: 12, borderRadius: 18, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 12 },
+    digestHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+    digestOpenButton: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.primary },
+    digestOpenButtonText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "800", color: "#1A1A1A" },
+    digestSection: { gap: 8 },
+    digestSectionLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "800", color: colors.muted, textTransform: "uppercase" },
+    feedDigestPost: { borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, overflow: "hidden" },
+    feedDigestHeader: { flexDirection: "row", alignItems: "center", gap: 9, padding: 10, paddingBottom: 8 },
+    feedDigestAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+    feedDigestAvatarText: { fontFamily: FONTS.display, fontSize: 13, fontWeight: "800", color: "#1A1A1A" },
+    feedDigestAuthorRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    feedDigestAuthor: { flex: 1, fontFamily: FONTS.sans, fontSize: 13, fontWeight: "800", color: colors.foreground },
+    feedDigestLevel: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 7, backgroundColor: colors.secondary },
+    feedDigestLevelText: { fontFamily: FONTS.mono, fontSize: 9, fontWeight: "800", color: colors.foreground },
+    feedDigestTime: { fontFamily: FONTS.sans, fontSize: 10, color: colors.muted, marginTop: 1 },
+    feedDigestMood: { maxWidth: 86, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.primary + "18", borderWidth: 1, borderColor: colors.primary + "44" },
+    feedDigestMoodText: { fontFamily: FONTS.sans, fontSize: 9, fontWeight: "700", color: colors.primaryDark },
+    feedDigestContent: { paddingHorizontal: 10, paddingBottom: 9, fontFamily: FONTS.sans, fontSize: 13, lineHeight: 18, color: colors.foreground },
+    feedDigestImage: { width: "100%", height: 190, backgroundColor: colors.secondary },
+    feedDigestAi: { margin: 10, marginTop: 9, padding: 9, borderRadius: 12, backgroundColor: colors.card, borderLeftWidth: 3, borderLeftColor: colors.primary, gap: 3 },
+    feedDigestAiLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "800", color: colors.primaryDark },
+    feedDigestAiText: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 17, color: colors.foreground },
+    feedDigestActions: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: colors.border },
+    feedDigestAction: { flexDirection: "row", alignItems: "center", gap: 4 },
+    feedDigestActionText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted },
     metaActions: { flexDirection: "row", gap: 10, marginTop: 4 },
     metaSecondaryButton: { flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.secondary, alignItems: "center" },
     metaSecondaryText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.foreground },

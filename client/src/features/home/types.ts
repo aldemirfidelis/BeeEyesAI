@@ -170,6 +170,7 @@ export interface NewsItem {
 export interface ChatFeedSummaryPost {
   id: string;
   content: string;
+  imageUrl?: string | null;
   createdAt: string;
   likesCount: number;
   liked: boolean;
