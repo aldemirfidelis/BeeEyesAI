@@ -162,12 +162,6 @@ export default function Home() {
     messagesRef.current = messages;
   }, [messages]);
 
-  useEffect(() => {
-    return () => {
-      if (postImagePreviewUrl.startsWith("blob:")) URL.revokeObjectURL(postImagePreviewUrl);
-    };
-  }, [postImagePreviewUrl]);
-
   const clearPostImage = useCallback(() => {
     setPostImagePreviewUrl("");
     setPostImageUrl("");
@@ -1163,16 +1157,18 @@ export default function Home() {
       setSettingsMessage("Formato não suportado. Use JPEG, PNG, WebP, BMP ou GIF.");
       return;
     }
-    const previewUrl = URL.createObjectURL(file);
-    setPostImagePreviewUrl(previewUrl);
+    setPostImagePreviewUrl("");
     setPostImageUrl("");
     setPickingPostImage(true);
     try {
+      let imageUrl: string;
       try {
-        setPostImageUrl(await fileToCompressedDataUrl(file, 1080, 0.75));
+        imageUrl = await fileToCompressedDataUrl(file, 1080, 0.75);
       } catch {
-        setPostImageUrl(await fileToDataUrl(file));
+        imageUrl = await fileToDataUrl(file);
       }
+      setPostImageUrl(imageUrl);
+      setPostImagePreviewUrl(imageUrl);
     } catch (error) {
       clearPostImage();
       setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a foto."));
