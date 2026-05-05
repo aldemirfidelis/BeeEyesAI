@@ -232,9 +232,13 @@ export default function FeedScreen() {
       >
         <View style={{ flex: 1 }}>
           {/* Dimmer */}
-          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }} activeOpacity={1} onPress={closeComposer} />
+          <TouchableOpacity style={styles.composerBackdrop} activeOpacity={1} onPress={closeComposer} />
           {/* Sheet */}
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <KeyboardAvoidingView
+            style={styles.composerKeyboard}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+          >
             <View style={styles.composerSheet}>
               {/* Handle */}
               <View style={styles.composerHandle} />
@@ -253,6 +257,13 @@ export default function FeedScreen() {
                 </TouchableOpacity>
               </View>
 
+              <ScrollView
+                style={styles.composerScroll}
+                contentContainerStyle={styles.composerScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
               {/* Text input */}
               <TextInput
                 ref={inputRef}
@@ -282,6 +293,7 @@ export default function FeedScreen() {
                   </View>
                 </View>
               ) : null}
+              </ScrollView>
 
               {/* Action bar */}
               <View style={[styles.composerActions, { paddingBottom: insets.bottom + 8 }]}>
@@ -864,7 +876,10 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingTop: 10,
+      maxHeight: "88%",
     },
+    composerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+    composerKeyboard: { flex: 1, justifyContent: "flex-end" },
     composerHandle: {
       width: 40, height: 4, borderRadius: 2,
       backgroundColor: colors.border,
@@ -890,6 +905,8 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       paddingHorizontal: 18, paddingVertical: 14,
       textAlignVertical: "top",
     },
+    composerScroll: { maxHeight: 520 },
+    composerScrollContent: { paddingBottom: 2 },
     composerImageWrap: {
       position: "relative",
       marginHorizontal: 18,

@@ -403,8 +403,18 @@ function CommunityDetail({
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       {/* Edit community modal */}
       <Modal visible={showEditModal} animationType="slide" transparent presentationStyle="overFullScreen">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            style={styles.modalSheetScroll}
+            contentContainerStyle={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}
+          >
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <Text style={styles.modalTitle}>Editar comunidade</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
@@ -459,8 +469,8 @@ function CommunityDetail({
                 <Text style={styles.modalPrimaryText}>{saveCommunity.isPending ? "Salvando..." : "Salvar"}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Members bottom sheet */}
@@ -710,19 +720,21 @@ export default function CommunitiesScreen() {
         <View style={{ flex: 1 }}>
           {/* Dimmer — toque fora fecha o modal */}
           <TouchableOpacity
-            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
+            style={styles.modalBackdrop}
             activeOpacity={1}
             onPress={() => setShowCreateModal(false)}
           />
           {/* KAV só envolve o sheet — empurra o conteúdo acima do teclado */}
           <KeyboardAvoidingView
+            style={styles.modalKeyboardSheet}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
               bounces={false}
               showsVerticalScrollIndicator={false}
-              style={{ maxHeight: "85%" }}
+              style={styles.modalSheetScroll}
               contentContainerStyle={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}
             >
               <View style={styles.sheetHandle} />
@@ -1232,6 +1244,9 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+    modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+    modalKeyboardSheet: { flex: 1, justifyContent: "flex-end" },
+    modalSheetScroll: { maxHeight: "88%" },
     modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
     membersSheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, gap: 12 },
     sheetHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
