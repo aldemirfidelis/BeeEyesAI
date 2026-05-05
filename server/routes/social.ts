@@ -314,6 +314,12 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     return sendCreated(res, connection);
   }));
 
+  router.delete("/api/connections/to/:targetUserId", requireAuth, asyncHandler(async (req, res) => {
+    const cancelled = await storage.cancelConnectionRequest(req.userId!, req.params.targetUserId);
+    if (!cancelled) throw notFound("Solicitação não encontrada");
+    return sendOk(res, { ok: true });
+  }));
+
   router.put("/api/connections/:id/accept", requireAuth, asyncHandler(async (req, res) => {
     const connection = await storage.acceptConnection(req.params.id, req.userId!);
     if (!connection) {

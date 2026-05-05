@@ -130,6 +130,18 @@ export default function FriendsScreen() {
     finally { setConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
 
+  const handleCancelRequest = async (targetUserId: string) => {
+    if (connecting.has(targetUserId)) return;
+    setConnecting((prev) => new Set(prev).add(targetUserId));
+    try {
+      await api.delete(`/api/connections/to/${targetUserId}`);
+      setSearchResults((prev) =>
+        prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "none" as const } : u)
+      );
+    } catch { /* ignore */ }
+    finally { setConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
+  };
+
   const openProfile = async (friendId: string) => {
     setSelectedFriendId(friendId);
     setProfile(null);
@@ -222,7 +234,13 @@ export default function FriendsScreen() {
                   {u.connectionStatus === "accepted" ? (
                     <Text style={styles.friendTag}>{t("friends_connected")}</Text>
                   ) : u.connectionStatus === "pending" ? (
-                    <Text style={styles.pendingTag}>{t("friends_pending")}</Text>
+                    <TouchableOpacity
+                      style={styles.cancelBtn}
+                      onPress={() => handleCancelRequest(u.id)}
+                      disabled={connecting.has(u.id)}
+                    >
+                      <Text style={styles.cancelBtnText}>{connecting.has(u.id) ? "..." : "Cancelar"}</Text>
+                    </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
                       style={styles.connectBtn}
@@ -551,6 +569,15 @@ const styles = StyleSheet.create({
   friendCardLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   friendTag: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "600", color: "#16a34a" },
   pendingTag: { fontFamily: FONTS.sans, fontSize: 12, color: COLORS.muted },
+  cancelBtn: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#EF4444",
+  },
+  cancelBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: "#EF4444" },
   connectBtn: {
     backgroundColor: COLORS.primary + "22",
     borderRadius: 12,

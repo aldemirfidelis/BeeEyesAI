@@ -420,6 +420,21 @@ export default function Home() {
     finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
 
+  const handleCancelRequest = async (targetUserId: string) => {
+    if (searchConnecting.has(targetUserId)) return;
+    setSearchConnecting((prev) => new Set(prev).add(targetUserId));
+    try {
+      await fetch(`/api/connections/to/${targetUserId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      setSearchResults((prev) =>
+        prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "none" as const } : u)
+      );
+    } catch { /* ignore */ }
+    finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
+  };
+
   const getConnectionRequestMeta = (metadata?: string | null) => {
     if (!metadata) return null;
     try {
@@ -1231,7 +1246,11 @@ export default function Home() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ content: postText.trim() || "Imagem compartilhada", imageUrl: postImageUrl || null }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setSettingsMessage(body?.message || body?.error?.message || `Erro ${res.status}: falha ao publicar`);
+        return;
+      }
       const newPost = await res.json();
       // Optimistic update: prepend immediately, AI comment arrives on next refresh
       setFeed((prev) => [{
@@ -1246,8 +1265,29 @@ export default function Home() {
       // Reload in background to get AI comment + mission progress
       setTimeout(loadFeed, 3000);
       setTimeout(loadMissions, 1000);
-    } catch { /* ignore */ }
+    } catch (err) {
+      setSettingsMessage(err instanceof Error ? err.message : "Erro ao publicar. Tente novamente.");
+    }
     finally { setIsPosting(false); }
+  };
+
+  const handleEditPost = async (postId: string, content: string) => {
+    const res = await fetch(`/api/posts/${postId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) throw new Error("Não foi possível editar o post.");
+    setFeed((prev) => prev.map((p) => p.id === postId ? { ...p, content } : p));
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    const res = await fetch(`/api/posts/${postId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("Não foi possível apagar o post.");
+    setFeed((prev) => prev.filter((p) => p.id !== postId));
   };
 
   const handleLikePost = async (postId: string) => {
@@ -1481,6 +1521,9 @@ export default function Home() {
             onCreatePost={handleCreatePost}
             onConnect={handleConnect}
             onLikePost={handleLikePost}
+            onEditPost={handleEditPost}
+            onDeletePost={handleDeletePost}
+            currentUser={user}
             timeAgo={timeAgo}
           />
         </TabsContent>
@@ -1501,6 +1544,7 @@ export default function Home() {
             onFriendSearchChange={handleFriendSearch}
             onOpenFriendProfile={openFriendProfile}
             onSearchConnect={handleSearchConnect}
+            onCancelRequest={handleCancelRequest}
             onOpenDMWithUser={openDMWithUser}
             timeAgo={timeAgo}
           />

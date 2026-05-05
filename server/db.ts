@@ -33,6 +33,16 @@ export async function ensureDatabaseCompatibility() {
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed" boolean NOT NULL DEFAULT false;
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS "notification_reads" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "notification_id" varchar NOT NULL,
+      "read_at" timestamp NOT NULL DEFAULT now(),
+      UNIQUE("user_id", "notification_id")
+    );
+    CREATE INDEX IF NOT EXISTS "notification_reads_user_idx" ON "notification_reads" ("user_id");
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS "testimonials" (
       "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
       "profile_user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,

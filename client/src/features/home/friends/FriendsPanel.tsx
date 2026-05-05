@@ -1,4 +1,4 @@
-import { ChevronRight, Flame, UserPlus } from "lucide-react";
+import { ChevronRight, Flame, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Friend, SearchUser, User } from "@/features/home/types";
@@ -14,6 +14,7 @@ interface FriendsPanelProps {
   onFriendSearchChange: (value: string) => void;
   onOpenFriendProfile: (friendId: string) => void;
   onSearchConnect: (targetUserId: string) => void;
+  onCancelRequest: (targetUserId: string) => void;
   onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
   timeAgo: (value: string | Date) => string;
 }
@@ -30,6 +31,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
     onFriendSearchChange,
     onOpenFriendProfile,
     onSearchConnect,
+    onCancelRequest,
     onOpenDMWithUser,
     timeAgo,
   } = props;
@@ -90,7 +92,10 @@ export function FriendsPanel(props: FriendsPanelProps) {
                       </Button>
                     </div>
                   ) : result.connectionStatus === "pending" ? (
-                    <span className="text-xs text-muted-foreground shrink-0">Pendente</span>
+                    <Button size="sm" variant="outline" className="text-xs h-7 px-2 shrink-0 border-red-300 text-red-600 hover:bg-red-50" onClick={() => onCancelRequest(result.id)} disabled={searchConnecting.has(result.id)}>
+                      <X className="w-3 h-3 mr-1" />
+                      Cancelar
+                    </Button>
                   ) : (
                     <Button size="sm" variant="outline" className="text-xs h-7 px-2 shrink-0" onClick={() => onSearchConnect(result.id)} disabled={searchConnecting.has(result.id)}>
                       <UserPlus className="w-3 h-3 mr-1" />

@@ -167,7 +167,10 @@ export default function FeedScreen() {
         queryClient.invalidateQueries({ queryKey: ["me"] });
       }, 3000);
     },
-    onError: () => Alert.alert("Erro", "Nao foi possivel publicar. Tente novamente."),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Não foi possível publicar. Tente novamente.";
+      Alert.alert("Erro ao publicar", msg);
+    },
   });
 
   const likePost = useMutation({

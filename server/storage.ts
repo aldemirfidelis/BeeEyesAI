@@ -87,6 +87,7 @@ export interface IStorage {
   createConnection(data: InsertConnection): Promise<UserConnection>;
   acceptConnection(id: string, userId: string): Promise<UserConnection | undefined>;
   rejectConnection(id: string, userId: string): Promise<boolean>;
+  cancelConnectionRequest(userId: string, targetUserId: string): Promise<boolean>;
   getConnectionsByUser(userId: string): Promise<UserConnection[]>;
   getAcceptedConnectionIds(userId: string): Promise<string[]>;
   getSuggestedConnections(userId: string, limit?: number): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]>;
@@ -613,6 +614,14 @@ export class DrizzleStorage implements IStorage {
     const deleted = await db
       .delete(userConnections)
       .where(and(eq(userConnections.id, id), eq(userConnections.targetUserId, userId), eq(userConnections.status, "pending")))
+      .returning({ id: userConnections.id });
+    return deleted.length > 0;
+  }
+
+  async cancelConnectionRequest(userId: string, targetUserId: string): Promise<boolean> {
+    const deleted = await db
+      .delete(userConnections)
+      .where(and(eq(userConnections.userId, userId), eq(userConnections.targetUserId, targetUserId), eq(userConnections.status, "pending")))
       .returning({ id: userConnections.id });
     return deleted.length > 0;
   }

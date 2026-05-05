@@ -7,6 +7,7 @@ import { personalityCache, memoryCache } from "./cache";
 
 // ── Clients ──────────────────────────────────────────────────────────────────
 
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const geminiAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 const cerebras = new OpenAI({
@@ -280,6 +281,19 @@ export async function analyzePersonality(
   if (cached) return cached;
 
   try {
+    const r = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 256,
+      messages: [{ role: "user", content: PERSONALITY_PROMPT(userMessage, currentPersonality.communicationStyle) }],
+    });
+    const result = JSON.parse(r.choices[0]?.message?.content ?? "{}");
+    personalityCache.set(cacheKey, result);
+    return result;
+  } catch (error) {
+    if (!isRateLimitError(error)) return {};
+    console.warn("[AI] OpenAI rate limited (analyzePersonality) → usando Groq");
+  }
+  try {
     const result = await analyzePersonalityGroq(userMessage, currentPersonality);
     personalityCache.set(cacheKey, result);
     return result;
@@ -373,6 +387,21 @@ export async function extractMemories(
   if (cached) return cached;
 
   try {
+    const r = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 300,
+      messages: [{ role: "user", content: MEMORY_PROMPT(userMessage, assistantResponse, existingFacts) }],
+    });
+    const text = r.choices[0]?.message?.content ?? '{"newFacts": []}';
+    const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+    const result = Array.isArray(parsed.newFacts) ? parsed.newFacts : [];
+    memoryCache.set(cacheKey, result);
+    return result;
+  } catch (error) {
+    if (!isRateLimitError(error)) return [];
+    console.warn("[AI] OpenAI rate limited (extractMemories) → usando Groq");
+  }
+  try {
     const result = await extractMemoriesGroq(userMessage, assistantResponse, existingFacts);
     memoryCache.set(cacheKey, result);
     return result;
@@ -444,6 +473,38 @@ export async function updatePersonalityFromMessage(
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+async function streamChatOpenAI(
+  user: User,
+  personality: UserPersonality,
+  history: ChatMessage[],
+  userMessage: string,
+  onChunk: (chunk: string) => void
+): Promise<string> {
+  const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
+  let fullResponse = "";
+
+  const stream = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    max_tokens: 1024,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...allMessages,
+    ],
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content ?? "";
+    if (text) {
+      fullResponse += text;
+      onChunk(text);
+    }
+  }
+
+  return fullResponse;
 }
 
 async function streamChatGroq(
@@ -551,6 +612,12 @@ export async function streamChat(
   onChunk: (chunk: string) => void
 ): Promise<string> {
   try {
+    return await streamChatOpenAI(user, personality, history, userMessage, onChunk);
+  } catch (error) {
+    if (!isRateLimitError(error)) throw error;
+    console.warn("[AI] OpenAI rate limited (streamChat) → usando Groq");
+  }
+  try {
     return await streamChatGroq(user, personality, history, userMessage, onChunk);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
@@ -589,6 +656,17 @@ export async function analyzePost(
 
   return callWithFallback(
     [
+      async () => {
+        const r = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = r.choices[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
+        if (!parsed.sentiment || !parsed.comment) throw new Error("invalid");
+        return parsed;
+      },
       async () => {
         const r = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
@@ -832,6 +910,17 @@ export async function generateProactiveMessage(
   return callWithFallback(
     [
       async () => {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 150,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+        return response.choices[0]?.message?.content?.trim() ?? null;
+      },
+      async () => {
         const response = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
           max_tokens: 150,
@@ -882,6 +971,17 @@ Gere uma mensagem de comemoração genuína e empolgante, como uma amiga que fic
 
   return callWithFallback(
     [
+      async () => {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 200,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
+        });
+        return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
+      },
       async () => {
         const response = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
@@ -1548,6 +1648,14 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
   return callWithFallback(
     [
       async () => {
+        const r = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 120,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
+      },
+      async () => {
         const r = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
           max_tokens: 120,
@@ -1589,6 +1697,16 @@ Responda APENAS com um array JSON de strings. Exemplo: ["Tecnologia", "Música",
 
   return callWithFallback<string[]>(
     [
+      async () => {
+        const r = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 100,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = r.choices[0]?.message?.content?.trim() ?? "[]";
+        const match = text.match(/\[.*\]/s);
+        return match ? JSON.parse(match[0]) : [];
+      },
       async () => {
         const r = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
@@ -1652,6 +1770,14 @@ Faça um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principais
 
   return callWithFallback<string | null>(
     [
+      async () => {
+        const r = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 250,
+          messages: [{ role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? null;
+      },
       async () => {
         const r = await groq.chat.completions.create({
           model: "llama-3.3-70b-versatile",
