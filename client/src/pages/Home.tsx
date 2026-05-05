@@ -26,7 +26,7 @@ import { SettingsScreen } from "@/features/home/settings/SettingsScreen";
 import { FriendProfileModal } from "@/features/home/friends/FriendProfileModal";
 import { ChatWorkspace } from "@/features/home/chat/ChatWorkspace";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
-import { fileToCompressedDataUrl, FEED_IMAGE_ACCEPT } from "@/lib/image";
+import { fileToCompressedDataUrl, fileToDataUrl, FEED_IMAGE_ACCEPT, isAcceptedFeedImage } from "@/lib/image";
 import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
@@ -1159,12 +1159,20 @@ export default function Home() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!isAcceptedFeedImage(file)) {
+      setSettingsMessage("Formato não suportado. Use JPEG, PNG, WebP, BMP ou GIF.");
+      return;
+    }
     const previewUrl = URL.createObjectURL(file);
     setPostImagePreviewUrl(previewUrl);
     setPostImageUrl("");
     setPickingPostImage(true);
     try {
-      setPostImageUrl(await fileToCompressedDataUrl(file, 1080, 0.75));
+      try {
+        setPostImageUrl(await fileToCompressedDataUrl(file, 1080, 0.75));
+      } catch {
+        setPostImageUrl(await fileToDataUrl(file));
+      }
     } catch (error) {
       clearPostImage();
       setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a foto."));

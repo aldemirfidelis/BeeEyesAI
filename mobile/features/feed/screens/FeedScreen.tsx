@@ -61,33 +61,35 @@ const SENTIMENT_EMOJI: Record<string, string> = {
 
 const MAX_SIDE = 1080;
 
-interface ImageResult {
-  previewUri: string; // local file path — para exibir no Image (RN precisa de URI, não base64)
-  uploadUrl: string;  // data:image/jpeg;base64,... — para enviar ao servidor
-}
+type PickedImage = {
+  uri: string;
+  width?: number;
+  height?: number;
+  base64?: string | null;
+};
 
 async function processImage(
-  asset: { uri: string; width?: number; height?: number },
-): Promise<ImageResult | null> {
+  asset: PickedImage,
+): Promise<string | null> {
   const w = asset.width ?? MAX_SIDE;
   const h = asset.height ?? MAX_SIDE;
   const resizeOp = w > MAX_SIDE || h > MAX_SIDE
     ? [{ resize: w >= h ? { width: MAX_SIDE } : { height: MAX_SIDE } }]
     : [];
 
-  const processed = await ImageManipulator.manipulateAsync(
-    asset.uri,
-    resizeOp,
-    { compress: 0.80, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-  );
-  if (!processed.base64) return null;
-  return {
-    previewUri: processed.uri,
-    uploadUrl: `data:image/jpeg;base64,${processed.base64}`,
-  };
+  try {
+    const processed = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      resizeOp,
+      { compress: 0.80, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+    );
+    return processed.base64 ? `data:image/jpeg;base64,${processed.base64}` : null;
+  } catch {
+    return asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : null;
+  }
 }
 
-async function pickFeedImage(): Promise<ImageResult | null> {
+async function pickFeedImage(): Promise<PickedImage | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     Alert.alert("Permissão necessária", "Permita acesso à galeria para publicar uma foto.");
@@ -96,13 +98,14 @@ async function pickFeedImage(): Promise<ImageResult | null> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: "images",
     allowsEditing: false,
+    base64: true,
     quality: 1,
   });
   if (result.canceled || !result.assets?.[0]?.uri) return null;
-  return processImage(result.assets[0]);
+  return result.assets[0];
 }
 
-async function takeFeedPhoto(): Promise<ImageResult | null> {
+async function takeFeedPhoto(): Promise<PickedImage | null> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) {
     Alert.alert("Permissão necessária", "Permita acesso à câmera para tirar uma foto.");
@@ -111,10 +114,11 @@ async function takeFeedPhoto(): Promise<ImageResult | null> {
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: "images",
     allowsEditing: false,
+    base64: true,
     quality: 1,
   });
   if (result.canceled || !result.assets?.[0]?.uri) return null;
-  return processImage(result.assets[0]);
+  return result.assets[0];
 }
 
 export default function FeedScreen() {
@@ -290,8 +294,13 @@ export default function FeedScreen() {
                     try {
                       const image = await takeFeedPhoto();
                       if (image) {
-                        setPostImagePreview(image.previewUri);
-                        setPostImageUrl(image.uploadUrl);
+                        setPostImagePreview(image.uri);
+                        const uploadUrl = await processImage(image);
+                        if (uploadUrl) setPostImageUrl(uploadUrl);
+                        else {
+                          clearImage();
+                          Alert.alert("Erro", "Não foi possível preparar a foto para publicação.");
+                        }
                       }
                     } finally { setPickingImage(false); }
                   }}
@@ -309,8 +318,13 @@ export default function FeedScreen() {
                     try {
                       const image = await pickFeedImage();
                       if (image) {
-                        setPostImagePreview(image.previewUri);
-                        setPostImageUrl(image.uploadUrl);
+                        setPostImagePreview(image.uri);
+                        const uploadUrl = await processImage(image);
+                        if (uploadUrl) setPostImageUrl(uploadUrl);
+                        else {
+                          clearImage();
+                          Alert.alert("Erro", "Não foi possível preparar a foto para publicação.");
+                        }
                       }
                     } finally { setPickingImage(false); }
                   }}

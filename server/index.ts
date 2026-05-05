@@ -23,9 +23,9 @@ app.use((_req, res, next) => {
 
 app.use(applySecurityHeaders);
 app.use(requestContextMiddleware);
-// 10mb para suportar imagens base64 de perfil, feed e comunidades
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+// Suporta imagens base64 de perfil, feed e comunidades, incluindo fallback sem compressão.
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: false, limit: "25mb" }));
 
 (async () => {
   await ensureDatabaseCompatibility();

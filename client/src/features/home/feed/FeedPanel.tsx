@@ -223,11 +223,11 @@ export function FeedPanel(props: FeedPanelProps) {
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={onCancelPost} className="text-muted-foreground">Cancelar</Button>
               <Button size="sm"
-                disabled={(!postText.trim() && !postImageUrl) || isPosting}
+                disabled={(!postText.trim() && !postImageUrl) || isPosting || pickingPostImage}
                 onClick={onCreatePost}
                 className="bg-amber-400 hover:bg-amber-500 text-gray-900 font-bold"
                 data-testid="feed-submit-post">
-                {isPosting ? "Publicando..." : "Publicar"}
+                {isPosting ? "Publicando..." : pickingPostImage ? "Preparando..." : "Publicar"}
               </Button>
             </div>
           </div>
