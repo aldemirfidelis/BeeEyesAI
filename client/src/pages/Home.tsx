@@ -1183,7 +1183,13 @@ export default function Home() {
     if (!file) return;
     setPickingCommunityPostImage(true);
     try {
-      setCommunityPostImageUrl(await fileToCompressedDataUrl(file, 720, 0.52));
+      let imageUrl: string;
+      try {
+        imageUrl = await fileToCompressedDataUrl(file, 1080, 0.80);
+      } catch {
+        imageUrl = await fileToDataUrl(file);
+      }
+      setCommunityPostImageUrl(imageUrl);
     } catch (error) {
       setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a imagem."));
     } finally {
@@ -1878,7 +1884,7 @@ export default function Home() {
       <input
         ref={communityPostImageInputRef}
         type="file"
-        accept="image/*"
+        accept={FEED_IMAGE_ACCEPT}
         className="hidden"
         onChange={handleCommunityPostImageChange}
       />

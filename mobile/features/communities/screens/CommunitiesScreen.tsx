@@ -68,56 +68,59 @@ async function pickCommunityImage(onChange: (imageUrl: string) => void) {
   onChange(`data:image/jpeg;base64,${processed.base64}`);
 }
 
-// Compressão agressiva para uso recreativo no feed (legível mas leve)
-async function compressPostImage(uri: string): Promise<string | null> {
-  const processed = await ImageManipulator.manipulateAsync(
-    uri,
-    [{ resize: { width: 720 } }],
-    { compress: 0.52, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-  );
-  return processed.base64 ? `data:image/jpeg;base64,${processed.base64}` : null;
+const MAX_POST_SIDE = 1080;
+
+interface PostImageResult {
+  previewUri: string; // URI local para exibição no Image component do RN
+  uploadUrl: string;  // data:image/jpeg;base64,... para envio ao servidor
 }
 
-async function pickPostImage(onChange: (imageUrl: string) => void) {
+async function processPostImage(asset: { uri: string; width?: number; height?: number }): Promise<PostImageResult | null> {
+  const w = asset.width ?? MAX_POST_SIDE;
+  const h = asset.height ?? MAX_POST_SIDE;
+  const resizeOp = w > MAX_POST_SIDE || h > MAX_POST_SIDE
+    ? [{ resize: w >= h ? { width: MAX_POST_SIDE } : { height: MAX_POST_SIDE } }]
+    : [];
+  try {
+    const processed = await ImageManipulator.manipulateAsync(
+      asset.uri, resizeOp,
+      { compress: 0.80, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+    );
+    if (!processed.base64) return null;
+    return { previewUri: processed.uri, uploadUrl: `data:image/jpeg;base64,${processed.base64}` };
+  } catch {
+    return null;
+  }
+}
+
+async function pickPostImage(): Promise<PostImageResult | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     Alert.alert("Permissão necessária", "Permita acesso à galeria para anexar uma imagem.");
-    return;
+    return null;
   }
-
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: "images",
-    allowsEditing: true,
-    aspect: [4, 3],
+    allowsEditing: false,
     quality: 1,
   });
-
-  if (result.canceled || !result.assets?.[0]?.uri) return;
-
-  const url = await compressPostImage(result.assets[0].uri);
-  if (!url) { Alert.alert("Erro", "Não foi possível preparar a imagem."); return; }
-  onChange(url);
+  if (result.canceled || !result.assets?.[0]?.uri) return null;
+  return processPostImage(result.assets[0]);
 }
 
-async function takePostPhoto(onChange: (imageUrl: string) => void) {
+async function takePostPhoto(): Promise<PostImageResult | null> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) {
     Alert.alert("Permissão necessária", "Permita acesso à câmera para tirar uma foto.");
-    return;
+    return null;
   }
-
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: "images",
-    allowsEditing: true,
-    aspect: [4, 3],
+    allowsEditing: false,
     quality: 1,
   });
-
-  if (result.canceled || !result.assets?.[0]?.uri) return;
-
-  const url = await compressPostImage(result.assets[0].uri);
-  if (!url) { Alert.alert("Erro", "Não foi possível preparar a foto."); return; }
-  onChange(url);
+  if (result.canceled || !result.assets?.[0]?.uri) return null;
+  return processPostImage(result.assets[0]);
 }
 
 // ── Community List ────────────────────────────────────────────────────────────
@@ -266,8 +269,14 @@ function CommunityDetail({
   const [showMembers, setShowMembers] = useState(false);
   const [editForm, setEditForm] = useState({ name: community.name, description: community.description || "", imageUrl: community.imageUrl || "" });
   const [pickingImage, setPickingImage] = useState(false);
-  const [postImageUrl, setPostImageUrl] = useState("");
+  const [postImagePreview, setPostImagePreview] = useState(""); // URI local para exibição
+  const [postImageUrl, setPostImageUrl] = useState("");         // base64 para upload
   const [processingImage, setProcessingImage] = useState(false);
+
+  function clearPostImage() {
+    setPostImagePreview("");
+    setPostImageUrl("");
+  }
 
   const detailQuery = useQuery<Community>({
     queryKey: ["community", community.id],
@@ -360,7 +369,7 @@ function CommunityDetail({
       api.post(`/api/communities/${community.id}/posts`, { content, imageUrl: imageUrl || null }).then((r) => r.data),
     onSuccess: () => {
       setNewPost("");
-      setPostImageUrl("");
+      clearPostImage();
       queryClient.invalidateQueries({ queryKey: ["community-posts", community.id] });
     },
     onError: (error: any) => {
@@ -576,19 +585,15 @@ function CommunityDetail({
         {detail.isMember && (
           <View style={[styles.composeWrapper, { paddingBottom: insets.bottom + 6 }]}>
             {/* Image preview with remove button */}
-            {postImageUrl ? (
+            {postImagePreview ? (
               <View style={styles.imagePreviewRow}>
-                <Image source={{ uri: postImageUrl }} style={styles.imagePreviewThumb} />
-                <View style={styles.imagePreviewInfo}>
-                  <Text style={styles.imagePreviewLabel}>📸 Imagem anexada</Text>
-                  <Text style={styles.imagePreviewSub}>Comprimida para o feed</Text>
-                </View>
+                <Image source={{ uri: postImagePreview }} style={styles.imagePreviewFull} resizeMode="contain" />
                 <TouchableOpacity
                   style={styles.imageRemoveBtn}
-                  onPress={() => setPostImageUrl("")}
+                  onPress={clearPostImage}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Feather name="x" size={16} color={colors.muted} />
+                  <Feather name="x" size={16} color="#fff" />
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -608,14 +613,20 @@ function CommunityDetail({
                         text: "📷 Câmera",
                         onPress: async () => {
                           setProcessingImage(true);
-                          try { await takePostPhoto(setPostImageUrl); } finally { setProcessingImage(false); }
+                          try {
+                            const r = await takePostPhoto();
+                            if (r) { setPostImagePreview(r.previewUri); setPostImageUrl(r.uploadUrl); }
+                          } finally { setProcessingImage(false); }
                         },
                       },
                       {
                         text: "🖼 Galeria",
                         onPress: async () => {
                           setProcessingImage(true);
-                          try { await pickPostImage(setPostImageUrl); } finally { setProcessingImage(false); }
+                          try {
+                            const r = await pickPostImage();
+                            if (r) { setPostImagePreview(r.previewUri); setPostImageUrl(r.uploadUrl); }
+                          } finally { setProcessingImage(false); }
                         },
                       },
                       { text: "Cancelar", style: "cancel" },
@@ -624,9 +635,9 @@ function CommunityDetail({
                 }
               >
                 <Feather
-                  name={processingImage ? "loader" : postImageUrl ? "image" : "image"}
+                  name={processingImage ? "loader" : "image"}
                   size={18}
-                  color={postImageUrl ? colors.primaryDark : colors.muted}
+                  color={postImagePreview ? colors.primaryDark : colors.muted}
                 />
               </TouchableOpacity>
 
@@ -634,14 +645,14 @@ function CommunityDetail({
                 style={styles.postInput}
                 value={newPost}
                 onChangeText={setNewPost}
-                placeholder={postImageUrl ? "Adicione uma legenda..." : "Compartilhe algo..."}
+                placeholder={postImagePreview ? "Adicione uma legenda..." : "Compartilhe algo..."}
                 placeholderTextColor={colors.muted}
                 multiline
                 maxLength={500}
               />
 
               <TouchableOpacity
-                style={[styles.sendBtn, ((!newPost.trim() && !postImageUrl) || createPost.isPending) && styles.sendBtnDisabled]}
+                style={[styles.sendBtn, ((!newPost.trim() && !postImagePreview) || createPost.isPending) && styles.sendBtnDisabled]}
                 onPress={() => {
                   if (newPost.trim() || postImageUrl) {
                     createPost.mutate({
@@ -650,7 +661,7 @@ function CommunityDetail({
                     });
                   }
                 }}
-                disabled={(!newPost.trim() && !postImageUrl) || createPost.isPending}
+                disabled={(!newPost.trim() && !postImagePreview) || createPost.isPending}
               >
                 <Feather name="send" size={18} color="#1A1A1A" />
               </TouchableOpacity>
@@ -1118,14 +1129,18 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       backgroundColor: colors.card,
     },
     imagePreviewRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      paddingHorizontal: 14,
-      paddingTop: 10,
-      paddingBottom: 6,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      position: "relative",
+      marginHorizontal: 14,
+      marginTop: 10,
+      marginBottom: 6,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: colors.background,
+    },
+    imagePreviewFull: {
+      width: "100%",
+      height: 200,
+      backgroundColor: colors.secondary,
     },
     imagePreviewThumb: {
       width: 56,
@@ -1137,12 +1152,13 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     imagePreviewLabel: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.foreground },
     imagePreviewSub: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted },
     imageRemoveBtn: {
+      position: "absolute",
+      top: 8,
+      right: 8,
       width: 28,
       height: 28,
       borderRadius: 14,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.border,
+      backgroundColor: "rgba(0,0,0,0.6)",
       alignItems: "center",
       justifyContent: "center",
     },

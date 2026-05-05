@@ -260,11 +260,14 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                     </Button>
                   </div>
                   {communityPostImageUrl && (
-                    <div className="relative overflow-hidden rounded-xl border border-border">
-                      <img src={communityPostImageUrl} alt="Previa da imagem" className="h-36 w-full object-cover" />
-                      <button type="button" onClick={onRemoveCommunityPostImage} className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white" aria-label="Remover imagem">
+                    <div className="relative overflow-hidden rounded-xl border border-border bg-black/5">
+                      <img src={communityPostImageUrl} alt="Prévia da imagem" className="w-full max-h-72 object-contain" />
+                      <button type="button" onClick={onRemoveCommunityPostImage} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 transition-colors" aria-label="Remover imagem">
                         <X className="h-4 w-4" />
                       </button>
+                      <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1">
+                        <span className="text-white text-[10px] font-semibold">📸 Foto anexada</span>
+                      </div>
                     </div>
                   )}
                   <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onPickCommunityPostImage} disabled={pickingCommunityPostImage}>
