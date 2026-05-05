@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Heart, MessageCircle, Share2, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UserAvatar } from "@/components/UserAvatar";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface CommunityComment {
@@ -12,6 +13,7 @@ interface CommunityComment {
   createdAt: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   likesCount: number;
   liked: boolean;
 }
@@ -24,6 +26,7 @@ interface CommunityPostCardProps {
     createdAt: string;
     username: string;
     displayName: string | null;
+    avatarUrl?: string | null;
     likesCount: number;
     liked: boolean;
     commentsCount: number;
@@ -144,9 +147,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
       {/* Header + Content */}
       <div className="p-4 space-y-2">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0">
-            {authorName[0].toUpperCase()}
-          </div>
+          <UserAvatar name={authorName} avatarUrl={initialPost.avatarUrl} className="w-7 h-7" fallbackClassName="bg-primary text-primary-foreground" />
           <div>
             <p className="text-xs font-semibold">{authorName}</p>
             <p className="text-xs text-muted-foreground">{timeAgo(initialPost.createdAt)}</p>
@@ -216,9 +217,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
                 const cName = comment.displayName || comment.username;
                 return (
                   <div key={comment.id} className="flex gap-2">
-                    <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                      {cName[0].toUpperCase()}
-                    </div>
+                    <UserAvatar name={cName} avatarUrl={comment.avatarUrl} className="w-6 h-6 mt-0.5" fallbackClassName="bg-secondary text-foreground" />
                     <div className="flex-1 min-w-0">
                       <div className="bg-background/60 rounded-2xl px-3 py-2">
                         <p className="text-xs font-semibold mb-0.5">{cName}</p>

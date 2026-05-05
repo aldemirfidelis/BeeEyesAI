@@ -19,20 +19,7 @@ import { useAuthStore } from "@mobile/stores/authStore";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { DMConversation, DMMessage, displayNameOf, timeAgo } from "@mobile/lib/social";
-
-function Avatar({ name, size = 46, colors }: { name: string; size?: number; colors: any }) {
-  return (
-    <View style={{
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: colors.secondary,
-      alignItems: "center", justifyContent: "center",
-    }}>
-      <Text style={{ fontFamily: FONTS.display, fontSize: size * 0.38, fontWeight: "700", color: colors.foreground }}>
-        {name[0]?.toUpperCase() ?? "?"}
-      </Text>
-    </View>
-  );
-}
+import { UserAvatar } from "@mobile/components/UserAvatar";
 
 function ConversationList({
   onSelect, colors, styles, insets,
@@ -65,7 +52,7 @@ function ConversationList({
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.convRow} onPress={() => onSelect(item)} activeOpacity={0.7}>
               <View style={styles.convAvatarWrap}>
-                <Avatar name={displayNameOf(item.user)} size={56} colors={colors} />
+                <UserAvatar name={displayNameOf(item.user)} avatarUrl={item.user.avatarUrl} size={56} backgroundColor={colors.secondary} color={colors.foreground} />
                 {item.unreadCount > 0 && <View style={styles.onlineDot} />}
               </View>
               <View style={styles.convBody}>
@@ -141,7 +128,7 @@ function ChatScreen({
         >
           <Feather name="arrow-left" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Avatar name={displayNameOf(conversation.user)} size={38} colors={colors} />
+        <UserAvatar name={displayNameOf(conversation.user)} avatarUrl={conversation.user.avatarUrl} size={38} backgroundColor={colors.secondary} color={colors.foreground} />
         <View style={styles.chatHeaderInfo}>
           <Text style={styles.chatHeaderName}>{displayNameOf(conversation.user)}</Text>
           <Text style={styles.chatHeaderHandle}>@{conversation.user.username}</Text>
@@ -165,7 +152,7 @@ function ChatScreen({
               const isMe = msg.senderId !== conversation.user.id;
               return (
                 <View key={msg.id} style={[styles.msgRow, isMe ? styles.msgRowMe : styles.msgRowThem]}>
-                  {!isMe && <Avatar name={displayNameOf(conversation.user)} size={28} colors={colors} />}
+                  {!isMe && <UserAvatar name={displayNameOf(conversation.user)} avatarUrl={conversation.user.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />}
                   <View style={[styles.msgColumn, isMe && { alignItems: "flex-end" }]}>
                     <View style={[styles.msgBubble, isMe ? styles.msgBubbleMe : styles.msgBubbleThem]}>
                       <Text style={[styles.msgText, isMe && styles.msgTextMe]}>{msg.content}</Text>

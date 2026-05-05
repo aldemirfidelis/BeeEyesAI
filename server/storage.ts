@@ -76,7 +76,7 @@ export interface IStorage {
   updatePostAIComment(postId: string, aiComment: string, sentiment: string, sentimentLabel: string): Promise<void>;
   updatePost(postId: string, userId: string, content: string): Promise<Post | null>;
   deletePost(postId: string, userId: string): Promise<boolean>;
-  getFeedForUser(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level"> })[]>;
+  getFeedForUser(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
   likePost(postId: string, userId: string): Promise<void>;
   unlikePost(postId: string, userId: string): Promise<void>;
   hasLikedPost(postId: string, userId: string): Promise<boolean>;
@@ -90,8 +90,8 @@ export interface IStorage {
   cancelConnectionRequest(userId: string, targetUserId: string): Promise<boolean>;
   removeConnection(userId: string, targetUserId: string): Promise<boolean>;
   getConnectionsByUser(userId: string): Promise<UserConnection[]>;
-  getIncomingPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>;
-  getSentPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>;
+  getIncomingPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl: string | null } }[]>;
+  getSentPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl: string | null } }[]>;
   getAcceptedConnectionIds(userId: string): Promise<string[]>;
   getSuggestedConnections(userId: string, limit?: number): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]>;
 
@@ -111,7 +111,7 @@ export interface IStorage {
   markDirectMessagesAsRead(userId: string, fromUserId: string): Promise<void>;
   deleteConversation(userId: string, otherUserId: string): Promise<void>;
   getDirectConversations(userId: string): Promise<Array<{
-    user: Pick<User, "id" | "username" | "displayName" | "level">;
+    user: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl">;
     lastMessage: string;
     lastMessageAt: Date;
     lastMessageFromMe: boolean;
@@ -119,11 +119,11 @@ export interface IStorage {
   }>>;
 
   // Testimonials
-  getTestimonialsForProfile(profileUserId: string): Promise<(Testimonial & { authorUsername: string; authorDisplayName: string | null })[]>;
+  getTestimonialsForProfile(profileUserId: string): Promise<(Testimonial & { authorUsername: string; authorDisplayName: string | null; authorAvatarUrl: string | null })[]>;
   upsertTestimonial(data: InsertTestimonial): Promise<Testimonial>;
 
   // Comments
-  getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]>;
+  getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean })[]>;
   createPostComment(data: InsertPostComment): Promise<PostComment>;
   getCommentCount(postId: string): Promise<number>;
   toggleCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
@@ -133,18 +133,18 @@ export interface IStorage {
   createCommunity(data: InsertCommunity): Promise<Community>;
   deleteCommunity(communityId: string): Promise<void>;
   updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null>;
-  getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string }) | null>;
-  getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]>;
+  getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null>;
+  getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; role: string; joinedAt: Date }[]>;
   joinCommunity(communityId: string, userId: string): Promise<"joined" | "pending">;
   leaveCommunity(communityId: string, userId: string): Promise<void>;
-  getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; requestedAt: Date }[]>;
+  getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; requestedAt: Date }[]>;
   approveJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
   rejectJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
-  getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
+  getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
   createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost>;
   getUserCommunities(userId: string): Promise<Community[]>;
   toggleCommunityPostLike(postId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
-  getCommunityPostComments(postId: string, userId: string): Promise<(CommunityPostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]>;
+  getCommunityPostComments(postId: string, userId: string): Promise<(CommunityPostComment & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean })[]>;
   createCommunityPostComment(data: InsertCommunityPostComment): Promise<CommunityPostComment>;
   toggleCommunityCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
 }
@@ -517,7 +517,7 @@ export class DrizzleStorage implements IStorage {
     return !!deleted;
   }
 
-  async getFeedForUser(userId: string, limit = 30): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level"> })[]> {
+  async getFeedForUser(userId: string, limit = 30): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]> {
     const connectedIds = await this.getAcceptedConnectionIds(userId);
     const feedUserIds = [userId, ...connectedIds];
 
@@ -535,6 +535,7 @@ export class DrizzleStorage implements IStorage {
         authorUsername: users.username,
         authorDisplayName: users.displayName,
         authorLevel: users.level,
+        authorAvatarUrl: users.avatarUrl,
       })
       .from(posts)
       .innerJoin(users, eq(posts.userId, users.id))
@@ -556,6 +557,7 @@ export class DrizzleStorage implements IStorage {
         username: r.authorUsername,
         displayName: r.authorDisplayName,
         level: r.authorLevel,
+        avatarUrl: r.authorAvatarUrl,
       },
     }));
   }
@@ -624,7 +626,7 @@ export class DrizzleStorage implements IStorage {
     return deleted.length > 0;
   }
 
-  async getIncomingPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]> {
+  async getIncomingPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl: string | null } }[]> {
     const rows = await db
       .select({
         connectionId: userConnections.id,
@@ -632,15 +634,16 @@ export class DrizzleStorage implements IStorage {
         username: users.username,
         displayName: users.displayName,
         level: users.level,
+        avatarUrl: users.avatarUrl,
       })
       .from(userConnections)
       .innerJoin(users, eq(userConnections.userId, users.id))
       .where(and(eq(userConnections.targetUserId, userId), eq(userConnections.status, "pending")))
       .orderBy(desc(userConnections.createdAt));
-    return rows.map((r) => ({ connectionId: r.connectionId, user: { id: r.id, username: r.username, displayName: r.displayName, level: r.level } }));
+    return rows.map((r) => ({ connectionId: r.connectionId, user: { id: r.id, username: r.username, displayName: r.displayName, level: r.level, avatarUrl: r.avatarUrl } }));
   }
 
-  async getSentPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]> {
+  async getSentPendingConnections(userId: string): Promise<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl: string | null } }[]> {
     const rows = await db
       .select({
         connectionId: userConnections.id,
@@ -648,12 +651,13 @@ export class DrizzleStorage implements IStorage {
         username: users.username,
         displayName: users.displayName,
         level: users.level,
+        avatarUrl: users.avatarUrl,
       })
       .from(userConnections)
       .innerJoin(users, eq(userConnections.targetUserId, users.id))
       .where(and(eq(userConnections.userId, userId), eq(userConnections.status, "pending")))
       .orderBy(desc(userConnections.createdAt));
-    return rows.map((r) => ({ connectionId: r.connectionId, user: { id: r.id, username: r.username, displayName: r.displayName, level: r.level } }));
+    return rows.map((r) => ({ connectionId: r.connectionId, user: { id: r.id, username: r.username, displayName: r.displayName, level: r.level, avatarUrl: r.avatarUrl } }));
   }
 
   async cancelConnectionRequest(userId: string, targetUserId: string): Promise<boolean> {
@@ -880,7 +884,7 @@ export class DrizzleStorage implements IStorage {
   }
 
   async getDirectConversations(userId: string): Promise<Array<{
-    user: Pick<User, "id" | "username" | "displayName" | "level">;
+    user: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl">;
     lastMessage: string;
     lastMessageAt: Date;
     lastMessageFromMe: boolean;
@@ -915,6 +919,7 @@ export class DrizzleStorage implements IStorage {
         username: users.username,
         displayName: users.displayName,
         level: users.level,
+        avatarUrl: users.avatarUrl,
       })
       .from(users)
       .where(inArray(users.id, partnerIds));
@@ -939,7 +944,7 @@ export class DrizzleStorage implements IStorage {
   }
   // ── Communities ───────────────────────────────────────────────────────────
 
-  async getTestimonialsForProfile(profileUserId: string): Promise<(Testimonial & { authorUsername: string; authorDisplayName: string | null })[]> {
+  async getTestimonialsForProfile(profileUserId: string): Promise<(Testimonial & { authorUsername: string; authorDisplayName: string | null; authorAvatarUrl: string | null })[]> {
     return db
       .select({
         id: testimonials.id,
@@ -949,6 +954,7 @@ export class DrizzleStorage implements IStorage {
         createdAt: testimonials.createdAt,
         authorUsername: users.username,
         authorDisplayName: users.displayName,
+        authorAvatarUrl: users.avatarUrl,
       })
       .from(testimonials)
       .innerJoin(users, eq(testimonials.authorUserId, users.id))
@@ -1022,12 +1028,13 @@ export class DrizzleStorage implements IStorage {
     return { ...community, isMember: membership?.status === "active", memberRole: membership?.role, memberStatus: membership?.status };
   }
 
-  async getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; role: string; joinedAt: Date }[]> {
+  async getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; role: string; joinedAt: Date }[]> {
     return db
       .select({
         id: users.id,
         username: users.username,
         displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
         role: communityMembers.role,
         joinedAt: communityMembers.joinedAt,
       })
@@ -1053,12 +1060,13 @@ export class DrizzleStorage implements IStorage {
     return "joined";
   }
 
-  async getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; requestedAt: Date }[]> {
+  async getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; requestedAt: Date }[]> {
     return db
       .select({
         id: users.id,
         username: users.username,
         displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
         requestedAt: communityMembers.joinedAt,
       })
       .from(communityMembers)
@@ -1098,7 +1106,7 @@ export class DrizzleStorage implements IStorage {
     }
   }
 
-  async getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; likesCount: number; liked: boolean; commentsCount: number })[]> {
+  async getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]> {
     const rows = await db
       .select({
         id: communityPosts.id,
@@ -1109,6 +1117,7 @@ export class DrizzleStorage implements IStorage {
         createdAt: communityPosts.createdAt,
         username: users.username,
         displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
       })
       .from(communityPosts)
       .innerJoin(users, eq(communityPosts.userId, users.id))
@@ -1156,9 +1165,9 @@ export class DrizzleStorage implements IStorage {
     return { liked: !existing, likesCount: Number(result[0]?.count ?? 0) };
   }
 
-  async getCommunityPostComments(postId: string, userId: string): Promise<(CommunityPostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]> {
+  async getCommunityPostComments(postId: string, userId: string): Promise<(CommunityPostComment & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean })[]> {
     const rows = await db
-      .select({ id: communityPostComments.id, postId: communityPostComments.postId, userId: communityPostComments.userId, content: communityPostComments.content, createdAt: communityPostComments.createdAt, username: users.username, displayName: users.displayName })
+      .select({ id: communityPostComments.id, postId: communityPostComments.postId, userId: communityPostComments.userId, content: communityPostComments.content, createdAt: communityPostComments.createdAt, username: users.username, displayName: users.displayName, avatarUrl: users.avatarUrl })
       .from(communityPostComments)
       .innerJoin(users, eq(communityPostComments.userId, users.id))
       .where(eq(communityPostComments.postId, postId))
@@ -1194,7 +1203,7 @@ export class DrizzleStorage implements IStorage {
 
   // ── Comments ──────────────────────────────────────────────────────────────
 
-  async getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; likesCount: number; liked: boolean })[]> {
+  async getCommentsForPost(postId: string, userId: string): Promise<(PostComment & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean })[]> {
     const rows = await db
       .select({
         id: postComments.id,
@@ -1204,6 +1213,7 @@ export class DrizzleStorage implements IStorage {
         createdAt: postComments.createdAt,
         username: users.username,
         displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
       })
       .from(postComments)
       .innerJoin(users, eq(postComments.userId, users.id))

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, TrendingUp, Trophy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/UserAvatar";
 import type { FriendProfile, User } from "@/features/home/types";
 
 interface FriendProfileModalProps {
@@ -10,7 +11,7 @@ interface FriendProfileModalProps {
   currentUser: User | null;
   isFriendUser: (userId: string) => boolean;
   onClose: () => void;
-  onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
+  onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null }) => void;
   timeAgo: (value: string | Date) => string;
 }
 
@@ -38,7 +39,7 @@ export function FriendProfileModal(props: FriendProfileModalProps) {
                 <div className="p-5 space-y-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-2xl font-black">{name[0].toUpperCase()}</div>
+                      <UserAvatar name={name} avatarUrl={user.avatarUrl} className="w-14 h-14" fallbackClassName="bg-primary text-primary-foreground" />
                       <div>
                         <h2 className="font-display text-xl font-bold">{name}</h2>
                         <p className="text-sm text-muted-foreground">@{user.username}</p>
@@ -53,7 +54,7 @@ export function FriendProfileModal(props: FriendProfileModalProps) {
                       className="w-full"
                       disabled={!currentUser || currentUser.level < 2}
                       title={currentUser && currentUser.level < 2 ? "Desbloqueado no Nível 2" : undefined}
-                      onClick={() => onOpenDMWithUser({ id: user.id, username: user.username, displayName: user.displayName, level: user.level })}
+                      onClick={() => onOpenDMWithUser({ id: user.id, username: user.username, displayName: user.displayName, level: user.level, avatarUrl: user.avatarUrl })}
                     >
                       {currentUser && currentUser.level < 2 ? "Mensagem bloqueada até o nível 2" : "Enviar mensagem"}
                     </Button>

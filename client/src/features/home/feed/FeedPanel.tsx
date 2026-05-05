@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/UserAvatar";
 import type { ConnectionSuggestion, FeedPost, User } from "@/features/home/types";
 
 export const SENTIMENT_EMOJI: Record<string, string> = {
@@ -245,9 +246,7 @@ export function FeedPanel(props: FeedPanelProps) {
               const name = suggestion.displayName || suggestion.username;
               return (
                 <div key={suggestion.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/80 px-3 py-2">
-                  <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
-                    {name[0].toUpperCase()}
-                  </div>
+                  <UserAvatar name={name} avatarUrl={suggestion.avatarUrl} className="w-9 h-9" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{name}</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -280,9 +279,7 @@ export function FeedPanel(props: FeedPanelProps) {
           return (
             <Card key={post.id} className="p-4 space-y-2 shadow-sm">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
-                  {name[0].toUpperCase()}
-                </div>
+                <UserAvatar name={name} avatarUrl={post.author.avatarUrl} className="w-9 h-9" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-sm font-semibold">{name}</span>

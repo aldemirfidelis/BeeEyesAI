@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Heart, MessageCircle, Share2, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UserAvatar } from "@/components/UserAvatar";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Author {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
 }
 
@@ -19,6 +21,7 @@ interface Comment {
   createdAt: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   likesCount: number;
   liked: boolean;
 }
@@ -50,20 +53,6 @@ const SENTIMENT_COLOR: Record<string, string> = {
   proud: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
   neutral: "bg-secondary text-muted-foreground",
 };
-
-// Stable avatar color from name initial
-const AVATAR_COLORS = [
-  ["#F59E0B", "#D97706"],
-  ["#8B5CF6", "#7C3AED"],
-  ["#EC4899", "#DB2777"],
-  ["#10B981", "#059669"],
-  ["#3B82F6", "#2563EB"],
-  ["#F97316", "#EA580C"],
-];
-function avatarGradient(name: string) {
-  const idx = name.charCodeAt(0) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[idx];
-}
 
 export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }: FeedPostCardProps) {
   const [liked, setLiked] = useState(initialPost.liked);
@@ -159,7 +148,6 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }
   };
 
   const authorName = initialPost.author.displayName || initialPost.author.username;
-  const [gradFrom, gradTo] = avatarGradient(authorName);
   const sentimentClass = SENTIMENT_COLOR[initialPost.sentiment ?? "neutral"] ?? SENTIMENT_COLOR.neutral;
 
   return (
@@ -168,13 +156,7 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
-            {/* Avatar with gradient */}
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 shadow-sm"
-              style={{ background: `linear-gradient(135deg, ${gradFrom}, ${gradTo})` }}
-            >
-              {authorName[0].toUpperCase()}
-            </div>
+            <UserAvatar name={authorName} avatarUrl={initialPost.author.avatarUrl} className="w-9 h-9 shadow-sm" fallbackClassName="bg-primary text-primary-foreground" />
             <div>
               <p className="text-sm font-semibold leading-tight">{authorName}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -311,9 +293,7 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }
                 const cName = comment.displayName || comment.username;
                 return (
                   <div key={comment.id} className="flex gap-2">
-                    <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                      {cName[0].toUpperCase()}
-                    </div>
+                    <UserAvatar name={cName} avatarUrl={comment.avatarUrl} className="w-6 h-6 mt-0.5" fallbackClassName="bg-secondary text-foreground" />
                     <div className="flex-1 min-w-0">
                       <div className="bg-card rounded-2xl px-3 py-2 shadow-sm border border-border/40">
                         <p className="text-xs font-semibold mb-0.5">{cName}</p>

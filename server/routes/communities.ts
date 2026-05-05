@@ -150,6 +150,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
       ...post,
       username: author?.username ?? "usuário",
       displayName: author?.displayName ?? null,
+      avatarUrl: author?.avatarUrl ?? null,
       likesCount: 0,
       liked: false,
       commentsCount: 0,
@@ -176,6 +177,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
       ...comment,
       username: author?.username ?? "usuário",
       displayName: author?.displayName ?? null,
+      avatarUrl: author?.avatarUrl ?? null,
       likesCount: 0,
       liked: false,
     });

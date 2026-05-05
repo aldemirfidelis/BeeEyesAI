@@ -1,6 +1,7 @@
 import { Check, ChevronRight, Flame, UserMinus, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { UserAvatar } from "@/components/UserAvatar";
 import type { Friend, SearchUser, User } from "@/features/home/types";
 
 interface FriendsPanelProps {
@@ -17,12 +18,12 @@ interface FriendsPanelProps {
   onCancelRequest: (targetUserId: string) => void;
   onRemoveFriend: (friendId: string) => void;
   removingFriendIds: Set<string>;
-  incomingRequests: { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[];
-  sentRequests: { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[];
+  incomingRequests: { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } }[];
+  sentRequests: { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } }[];
   onAcceptRequest: (connectionId: string) => void;
   onRejectRequest: (connectionId: string) => void;
   processingRequestIds: Set<string>;
-  onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
+  onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null }) => void;
   timeAgo: (value: string | Date) => string;
 }
 
@@ -82,7 +83,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
               <Card key={result.id} className="p-3">
                 <div className="flex items-center gap-3">
                   <button className="flex-1 flex items-center gap-3 text-left" onClick={() => onOpenFriendProfile(result.id)}>
-                    <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-sm font-bold shrink-0">{name[0].toUpperCase()}</div>
+                    <UserAvatar name={name} avatarUrl={result.avatarUrl} className="w-9 h-9" fallbackClassName="bg-primary text-primary-foreground" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-semibold truncate">{name}</span>
@@ -100,7 +101,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
                         className="text-xs h-7 px-2"
                         disabled={!user || user.level < 2}
                         title={user && user.level < 2 ? "Desbloqueado no Nível 2" : undefined}
-                        onClick={() => onOpenDMWithUser({ id: result.id, username: result.username, displayName: result.displayName, level: result.level })}
+                        onClick={() => onOpenDMWithUser({ id: result.id, username: result.username, displayName: result.displayName, level: result.level, avatarUrl: result.avatarUrl })}
                       >
                         {user && user.level < 2 ? "Mensagem bloqueada" : "Enviar mensagem"}
                       </Button>
@@ -134,7 +135,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
                 const busy = processingRequestIds.has(connectionId);
                 return (
                   <div key={connectionId} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold shrink-0">{name[0].toUpperCase()}</div>
+                    <UserAvatar name={name} avatarUrl={user.avatarUrl} className="w-9 h-9" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{name}</p>
                       <p className="text-xs text-muted-foreground">@{user.username}</p>
@@ -160,7 +161,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
                 const name = user.displayName || user.username;
                 return (
                   <div key={user.id} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-sm font-bold shrink-0">{name[0].toUpperCase()}</div>
+                    <UserAvatar name={name} avatarUrl={user.avatarUrl} className="w-9 h-9" fallbackClassName="bg-secondary text-foreground" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{name}</p>
                       <p className="text-xs text-muted-foreground">@{user.username}</p>
@@ -197,7 +198,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
               <Card key={friend.id} className="p-3 hover:border-primary/50 transition-colors group">
                 <div className="w-full text-left cursor-pointer" onClick={() => onOpenFriendProfile(friend.id)}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-base font-bold shrink-0">{name[0].toUpperCase()}</div>
+                    <UserAvatar name={name} avatarUrl={friend.avatarUrl} className="w-10 h-10" fallbackClassName="bg-primary text-primary-foreground" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{name}</span>
@@ -232,7 +233,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
                     className="text-xs h-8 px-3"
                     disabled={!user || user.level < 2}
                     title={user && user.level < 2 ? "Desbloqueado no Nível 2" : undefined}
-                    onClick={() => onOpenDMWithUser({ id: friend.id, username: friend.username, displayName: friend.displayName, level: friend.level })}
+                    onClick={() => onOpenDMWithUser({ id: friend.id, username: friend.username, displayName: friend.displayName, level: friend.level, avatarUrl: friend.avatarUrl })}
                   >
                     {user && user.level < 2 ? "Mensagem bloqueada" : "Enviar mensagem"}
                   </Button>

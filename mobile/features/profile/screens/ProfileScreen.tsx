@@ -23,6 +23,7 @@ import { useAuthStore } from "@mobile/stores/authStore";
 import { queryClient } from "@mobile/lib/queryClient";
 import XPProgress from "@mobile/components/XPProgress";
 import { MedalGrid, MedalDetail } from "@mobile/components/MedalBadge";
+import { UserAvatar } from "@mobile/components/UserAvatar";
 import type { MedalSpec } from "@mobile/lib/medals";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
@@ -40,7 +41,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const [showTestimonialModal, setShowTestimonialModal] = React.useState(false);
-  const [selectedFriend, setSelectedFriend] = React.useState<{ id: number; displayName: string; username: string } | null>(null);
+  const [selectedFriend, setSelectedFriend] = React.useState<{ id: number; displayName: string; username: string; avatarUrl?: string | null } | null>(null);
   const [testimonialText, setTestimonialText] = React.useState("");
   const [sendingTestimonial, setSendingTestimonial] = React.useState(false);
   const [selectedMedal, setSelectedMedal] = React.useState<MedalSpec | null>(null);
@@ -270,11 +271,7 @@ export default function ProfileScreen() {
               <View key={item.id} style={styles.testimonialCard}>
                 {/* Avatar do autor */}
                 <View style={styles.testimonialAuthorRow}>
-                  <View style={styles.testimonialAvatar}>
-                    <Text style={styles.testimonialAvatarText}>
-                      {(item.authorDisplayName || item.authorUsername || "?")[0].toUpperCase()}
-                    </Text>
-                  </View>
+                  <UserAvatar name={item.authorDisplayName || item.authorUsername || "?"} avatarUrl={item.authorAvatarUrl} size={42} backgroundColor={colors.primary} color="#1A1A1A" />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.testimonialAuthorName}>
                       {item.authorDisplayName || item.authorUsername}
@@ -328,14 +325,10 @@ export default function ProfileScreen() {
                     style={{ maxHeight: 280, marginTop: 12 }}
                     renderItem={({ item }: { item: any }) => (
                       <TouchableOpacity
-                        onPress={() => setSelectedFriend({ id: item.id, displayName: item.displayName, username: item.username })}
+                        onPress={() => setSelectedFriend({ id: item.id, displayName: item.displayName, username: item.username, avatarUrl: item.avatarUrl })}
                         style={styles.friendPickerRow}
                       >
-                        <View style={styles.friendPickerAvatar}>
-                          <Text style={styles.friendPickerAvatarText}>
-                            {(item.displayName || item.username || "?")[0].toUpperCase()}
-                          </Text>
-                        </View>
+                        <UserAvatar name={item.displayName || item.username || "?"} avatarUrl={item.avatarUrl} size={44} backgroundColor={colors.primary} color="#1A1A1A" />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.friendPickerName}>{item.displayName || item.username}</Text>
                           {item.displayName ? (
@@ -359,11 +352,7 @@ export default function ProfileScreen() {
                     <TouchableOpacity onPress={() => setSelectedFriend(null)} style={styles.testimonialBackBtn}>
                       <Feather name="arrow-left" size={16} color={colors.foreground} />
                     </TouchableOpacity>
-                    <View style={styles.testimonialForAvatar}>
-                      <Text style={styles.testimonialForAvatarText}>
-                        {(selectedFriend.displayName || selectedFriend.username)[0].toUpperCase()}
-                      </Text>
-                    </View>
+                    <UserAvatar name={selectedFriend.displayName || selectedFriend.username} avatarUrl={selectedFriend.avatarUrl} size={42} backgroundColor={colors.primary} color="#1A1A1A" />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.testimonialForLabel}>Escrevendo para</Text>
                       <Text style={styles.testimonialForName}>{selectedFriend.displayName || selectedFriend.username}</Text>

@@ -25,6 +25,7 @@ export interface User {
   bio?: string | null;
   language?: string | null;
   onboardingCompleted?: boolean;
+  avatarUrl?: string | null;
   level: number;
   xp: number;
   anonymousProfileVisitsEnabled?: boolean;
@@ -41,7 +42,7 @@ export interface FeedPost {
   aiComment: string | null;
   imageUrl?: string | null;
   createdAt: string;
-  author: { id: string; username: string; displayName: string | null; level: number };
+  author: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null };
   likesCount: number;
   liked: boolean;
   commentsCount?: number;
@@ -51,6 +52,7 @@ export interface ConnectionSuggestion {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
   commonInterests: string[];
 }
@@ -59,6 +61,7 @@ export interface Friend {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
   currentStreak: number;
   lastActiveAt: string | null;
@@ -69,6 +72,7 @@ export interface SearchUser {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
   currentStreak: number;
   connectionStatus: "none" | "pending" | "accepted";
@@ -79,6 +83,7 @@ export interface FriendProfile {
     id: string;
     username: string;
     displayName: string | null;
+    avatarUrl?: string | null;
     level: number;
     xp: number;
     currentStreak: number;
@@ -113,6 +118,7 @@ export interface CommunityPost {
   createdAt: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   likesCount: number;
   liked: boolean;
   commentsCount: number;
@@ -124,6 +130,7 @@ export interface CommunityMember {
   userId: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   role: "owner" | "member" | string;
   joinedAt?: string | null;
 }
@@ -145,10 +152,11 @@ export interface Testimonial {
   createdAt?: string | null;
   authorUsername?: string | null;
   authorDisplayName?: string | null;
+  authorAvatarUrl?: string | null;
 }
 
 export interface DMConversation {
-  user: { id: string; username: string; displayName: string | null; level: number };
+  user: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null };
   lastMessage: string;
   lastMessageAt: string;
   lastMessageFromMe: boolean;
@@ -180,7 +188,7 @@ export interface ChatFeedSummaryPost {
   aiComment?: string | null;
   sentimentLabel?: string | null;
   sentiment?: string | null;
-  author: { id: string; username: string; displayName: string | null; level: number };
+  author: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null };
 }
 
 export interface NetworkDigestMeta {

@@ -15,6 +15,7 @@ import { useChat } from "@mobile/hooks/useChat";
 import BeeEyes from "@mobile/components/BeeEyes";
 import ChatMessage from "@mobile/components/ChatMessage";
 import AchievementToast from "@mobile/components/AchievementToast";
+import { UserAvatar } from "@mobile/components/UserAvatar";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { type ChatFeedSummaryPost, type ConnectionRequestMeta, type NetworkDigestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNetworkDigestMeta, isNewsDigestMeta, parseMessageMeta, timeAgo } from "@mobile/lib/social";
 import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
@@ -528,9 +529,7 @@ function FeedDigestPostCard({ post, styles }: { post: ChatFeedSummaryPost; style
   return (
     <TouchableOpacity style={styles.feedDigestPost} activeOpacity={0.85} onPress={() => router.push("/feed")}>
       <View style={styles.feedDigestHeader}>
-        <View style={styles.feedDigestAvatar}>
-          <Text style={styles.feedDigestAvatarText}>{authorName[0]?.toUpperCase() || "?"}</Text>
-        </View>
+        <UserAvatar name={authorName} avatarUrl={post.author.avatarUrl} size={32} backgroundColor="#FBBF24" color="#1A1A1A" />
         <View style={{ flex: 1 }}>
           <View style={styles.feedDigestAuthorRow}>
             <Text style={styles.feedDigestAuthor} numberOfLines={1}>{authorName}</Text>

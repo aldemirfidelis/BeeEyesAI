@@ -22,6 +22,7 @@ import { useAuthStore } from "@mobile/stores/authStore";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { FeedPost, ConnectionSuggestion, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
+import { UserAvatar } from "@mobile/components/UserAvatar";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 
@@ -33,20 +34,9 @@ interface FeedComment {
   createdAt: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   likesCount: number;
   liked: boolean;
-}
-
-const AVATAR_COLORS = [
-  ["#F59E0B", "#D97706"],
-  ["#8B5CF6", "#7C3AED"],
-  ["#EC4899", "#DB2777"],
-  ["#10B981", "#059669"],
-  ["#3B82F6", "#2563EB"],
-  ["#F97316", "#EA580C"],
-];
-function avatarColor(name: string) {
-  return AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length][0];
 }
 
 const SENTIMENT_EMOJI: Record<string, string> = {
@@ -124,6 +114,7 @@ async function takeFeedPhoto(): Promise<{ uri: string; width?: number; height?: 
 export default function FeedScreen() {
   const { user } = useAuthStore();
   const themeMode = useUIStore((state) => state.themeMode);
+  const profileImageUri = useUIStore((state) => state.profileImageUri);
   const insets = useSafeAreaInsets();
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -170,7 +161,7 @@ export default function FeedScreen() {
       queryClient.setQueryData<FeedPost[]>(["feed"], (prev = []) => [
         {
           ...newPost,
-          author: { id: user!.id, username: user!.username, displayName: user!.displayName || null, level: user!.level },
+          author: { id: user!.id, username: user!.username, displayName: user!.displayName || null, level: user!.level, avatarUrl: user!.avatarUrl || profileImageUri },
           likesCount: 0,
           liked: false,
           commentsCount: 0,
@@ -218,7 +209,7 @@ export default function FeedScreen() {
     createPost.mutate({ content: postText.trim() || "Imagem compartilhada", imageUrl: postImageUrl });
   }
 
-  const authorInitial = (user?.displayName || user?.username || "?")[0].toUpperCase();
+  const authorName = user?.displayName || user?.username || "?";
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -245,9 +236,7 @@ export default function FeedScreen() {
 
               {/* Header */}
               <View style={styles.composerHeader}>
-                <View style={styles.composerAvatar}>
-                  <Text style={styles.composerAvatarText}>{authorInitial}</Text>
-                </View>
+                <UserAvatar name={authorName} avatarUrl={user?.avatarUrl || profileImageUri} size={40} backgroundColor={colors.primary} color="#1A1A1A" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.composerName}>{user?.displayName || user?.username}</Text>
                   <Text style={styles.composerSub}>Publicação pública</Text>
@@ -386,9 +375,7 @@ export default function FeedScreen() {
         >
           {/* Composer trigger row */}
           <TouchableOpacity style={styles.composerTrigger} onPress={openComposer} activeOpacity={0.75}>
-            <View style={styles.composerTriggerAvatar}>
-              <Text style={styles.composerTriggerAvatarText}>{authorInitial}</Text>
-            </View>
+            <UserAvatar name={authorName} avatarUrl={user?.avatarUrl || profileImageUri} size={36} backgroundColor={colors.primary} color="#1A1A1A" />
             <Text style={styles.composerTriggerPlaceholder}>O que você está pensando?</Text>
             <View style={styles.composerTriggerPhotoBtn}>
               <Feather name="image" size={16} color={colors.primaryDark} />
@@ -400,9 +387,7 @@ export default function FeedScreen() {
               <Text style={styles.sectionTitle}>Sugestoes de conexao</Text>
               {suggestions.map((s) => (
                 <View key={s.id} style={styles.suggestionRow}>
-                  <View style={styles.suggestionAvatar}>
-                    <Text style={styles.suggestionAvatarText}>{displayNameOf(s)[0].toUpperCase()}</Text>
-                  </View>
+                  <UserAvatar name={displayNameOf(s)} avatarUrl={s.avatarUrl} size={42} backgroundColor={colors.secondary} color={colors.foreground} />
                   <View style={{ flex: 1 }}>
                     <View style={styles.suggestionTopRow}>
                       <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
@@ -533,6 +518,7 @@ function PostCard({
           ...data,
           username: data.username || "Voce",
           displayName: data.displayName || null,
+          avatarUrl: data.avatarUrl || null,
           likesCount: data.likesCount ?? 0,
           liked: data.liked ?? false,
         },
@@ -660,9 +646,7 @@ function PostCard({
       )}
 
       <View style={styles.postHeader}>
-        <View style={styles.postAvatar}>
-          <Text style={styles.postAvatarText}>{authorName[0].toUpperCase()}</Text>
-        </View>
+        <UserAvatar name={authorName} avatarUrl={post.author.avatarUrl} size={44} backgroundColor={colors.primary} color="#1A1A1A" />
         <View style={{ flex: 1 }}>
           <View style={styles.postAuthorRow}>
             <Text style={styles.postAuthorName}>{authorName}</Text>
@@ -766,12 +750,9 @@ function PostCard({
 
           {comments.map((comment) => {
             const cName = displayNameOf(comment);
-            const cColor = avatarColor(cName);
             return (
               <View key={comment.id} style={styles.commentRow}>
-                <View style={[styles.commentAvatar, { backgroundColor: cColor }]}>
-                  <Text style={styles.commentAvatarText}>{cName[0].toUpperCase()}</Text>
-                </View>
+                <UserAvatar name={cName} avatarUrl={comment.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />
                 <View style={{ flex: 1 }}>
                   <View style={styles.commentBubble}>
                     <Text style={styles.commentName}>{cName}</Text>

@@ -24,6 +24,7 @@ import { api } from "@mobile/lib/api";
 import { Community, CommunityMember, CommunityPost, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
+import { UserAvatar } from "@mobile/components/UserAvatar";
 
 interface CommunityComment {
   id: string;
@@ -33,6 +34,7 @@ interface CommunityComment {
   createdAt: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   likesCount: number;
   liked: boolean;
 }
@@ -175,9 +177,7 @@ function CommunityList({
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
                 {(listMembersQuery.data ?? []).map((member) => (
                   <View key={member.id} style={styles.memberRow}>
-                    <View style={[styles.memberAvatar, member.role === "owner" && { backgroundColor: colors.primary }]}>
-                      <Text style={styles.memberAvatarText}>{(member.displayName || member.username)[0]?.toUpperCase()}</Text>
-                    </View>
+                    <UserAvatar name={member.displayName || member.username} avatarUrl={member.avatarUrl} size={36} backgroundColor={member.role === "owner" ? colors.primary : colors.secondary} color={colors.foreground} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.memberName}>{member.displayName || member.username}</Text>
                       <Text style={styles.memberRole}>{member.role === "owner" ? "👑 Fundador" : "Membro"}</Text>
@@ -310,7 +310,7 @@ function CommunityDetail({
     },
   });
 
-  const pendingRequestsQuery = useQuery<{ id: string; username: string; displayName: string | null; requestedAt: string }[]>({
+  const pendingRequestsQuery = useQuery<{ id: string; username: string; displayName: string | null; avatarUrl?: string | null; requestedAt: string }[]>({
     queryKey: ["community-requests", community.id],
     queryFn: () => api.get(`/api/communities/${community.id}/requests`).then((r) => r.data),
     enabled: isOwner && !!detail.isPrivate,
@@ -536,9 +536,7 @@ function CommunityDetail({
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
                 {(membersQuery.data ?? []).map((member) => (
                   <View key={member.id} style={styles.memberRow}>
-                    <View style={[styles.memberAvatar, member.role === "owner" && { backgroundColor: colors.primary }]}>
-                      <Text style={styles.memberAvatarText}>{(member.displayName || member.username)[0]?.toUpperCase()}</Text>
-                    </View>
+                    <UserAvatar name={member.displayName || member.username} avatarUrl={member.avatarUrl} size={36} backgroundColor={member.role === "owner" ? colors.primary : colors.secondary} color={colors.foreground} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.memberName}>{member.displayName || member.username}</Text>
                       <Text style={styles.memberRole}>{member.role === "owner" ? "👑 Fundador" : "Membro"}</Text>
@@ -612,9 +610,7 @@ function CommunityDetail({
                 const name = req.displayName || req.username;
                 return (
                   <View key={req.id} style={styles.requestRow}>
-                    <View style={styles.requestAvatar}>
-                      <Text style={styles.requestAvatarText}>{name[0].toUpperCase()}</Text>
-                    </View>
+                    <UserAvatar name={name} avatarUrl={req.avatarUrl} size={32} backgroundColor={colors.primary} color="#1A1A1A" />
                     <Text style={styles.requestName} numberOfLines={1}>{name}</Text>
                     <TouchableOpacity style={styles.approveBtn} onPress={() => approveRequest.mutate(req.id)} disabled={approveRequest.isPending}>
                       <Text style={styles.approveBtnText}>✓</Text>
@@ -992,9 +988,7 @@ function CommunityPostCard({
   return (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
-        <View style={styles.postAvatar}>
-          <Text style={styles.postAvatarText}>{authorName[0].toUpperCase()}</Text>
-        </View>
+        <UserAvatar name={authorName} avatarUrl={post.avatarUrl} size={36} backgroundColor={colors.secondary} color={colors.foreground} />
         <View style={{ flex: 1 }}>
           <Text style={styles.postAuthor}>{authorName}</Text>
           <Text style={styles.postTime}>{timeAgo(post.createdAt)}</Text>
@@ -1022,9 +1016,7 @@ function CommunityPostCard({
           {!commentsLoading && comments.length === 0 && <Text style={styles.commentHint}>Nenhum comentário ainda.</Text>}
           {comments.map((comment) => (
             <View key={comment.id} style={styles.commentRow}>
-              <View style={styles.commentAvatar}>
-                <Text style={styles.commentAvatarText}>{displayNameOf(comment)[0].toUpperCase()}</Text>
-              </View>
+              <UserAvatar name={displayNameOf(comment)} avatarUrl={comment.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />
               <View style={{ flex: 1 }}>
                 <View style={styles.commentBubble}>
                   <Text style={styles.commentName}>{displayNameOf(comment)}</Text>
@@ -1228,8 +1220,6 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     privacyLabel: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 14, color: colors.foreground },
     privacySub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
-    leaveBtnText: { color: colors.destructive },
-
     // Posts
     postsList: { padding: 16, gap: 12 },
     composeWrapper: {

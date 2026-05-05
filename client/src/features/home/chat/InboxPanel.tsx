@@ -3,11 +3,12 @@ import { useState } from "react";
 import { Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/UserAvatar";
 import type { ConnectionSuggestion, DMConversation, DMMessage, User } from "@/features/home/types";
 
 interface InboxPanelProps {
   user: User | null;
-  selectedDMUser: { id: string; username: string; displayName: string | null; level: number } | null;
+  selectedDMUser: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } | null;
   dmMessages: DMMessage[];
   dmInput: string;
   dmSending: boolean;
@@ -18,7 +19,7 @@ interface InboxPanelProps {
   onBack: () => void;
   onInputChange: (value: string) => void;
   onSend: () => void;
-  onOpenThread: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
+  onOpenThread: (target: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null }) => void;
   onDeleteConversation: (userId: string, name: string) => void;
   timeAgo: (value: string | Date) => string;
 }
@@ -34,9 +35,7 @@ export function InboxPanel(props: InboxPanelProps) {
           <button onClick={onBack} className="p-1 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
             Voltar
           </button>
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
-            {(selectedDMUser.displayName || selectedDMUser.username)[0].toUpperCase()}
-          </div>
+          <UserAvatar name={selectedDMUser.displayName || selectedDMUser.username} avatarUrl={selectedDMUser.avatarUrl} className="w-8 h-8" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{selectedDMUser.displayName || selectedDMUser.username}</p>
             <p className="text-xs text-muted-foreground">Nível {selectedDMUser.level}</p>
@@ -96,12 +95,10 @@ export function InboxPanel(props: InboxPanelProps) {
             {suggestions.slice(0, 5).map((suggestion) => (
               <button
                 key={`sug-${suggestion.id}`}
-                onClick={() => onOpenThread({ id: suggestion.id, username: suggestion.username, displayName: suggestion.displayName, level: suggestion.level })}
+                onClick={() => onOpenThread({ id: suggestion.id, username: suggestion.username, displayName: suggestion.displayName, level: suggestion.level, avatarUrl: suggestion.avatarUrl })}
                 className="flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-secondary/50 transition-colors w-14"
               >
-                <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
-                  {(suggestion.displayName || suggestion.username)[0].toUpperCase()}
-                </div>
+                <UserAvatar name={suggestion.displayName || suggestion.username} avatarUrl={suggestion.avatarUrl} className="w-9 h-9" />
                 <p className="text-[10px] text-center leading-tight truncate w-full">{suggestion.displayName || suggestion.username}</p>
               </button>
             ))}
@@ -133,9 +130,7 @@ export function InboxPanel(props: InboxPanelProps) {
                 className="flex-1 min-w-0 text-left px-3 py-3 flex items-center gap-3"
               >
                 <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-black text-primary-foreground">
-                    {name[0].toUpperCase()}
-                  </div>
+                  <UserAvatar name={name} avatarUrl={conversation.user.avatarUrl} className="w-10 h-10" fallbackClassName="bg-primary text-primary-foreground" />
                   {conversation.unreadCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
                       {conversation.unreadCount}

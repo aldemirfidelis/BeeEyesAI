@@ -201,9 +201,19 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       throw badRequest("Comentário vazio");
     }
 
-    const comment = await storage.createPostComment({ postId: req.params.id, userId: req.userId!, content });
+    const [comment, user] = await Promise.all([
+      storage.createPostComment({ postId: req.params.id, userId: req.userId!, content }),
+      storage.getUser(req.userId!),
+    ]);
     triggerMissionAction(req.userId!, "comment_post").catch(() => {});
-    return sendCreated(res, comment);
+    return sendCreated(res, {
+      ...comment,
+      username: user?.username ?? "Voce",
+      displayName: user?.displayName ?? null,
+      avatarUrl: user?.avatarUrl ?? null,
+      likesCount: 0,
+      liked: false,
+    });
   }));
 
   router.post("/api/comments/:id/like", requireAuth, asyncHandler(async (req, res) => {
@@ -236,6 +246,7 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
           id: user.id,
           username: user.username,
           displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
           level: user.level,
           commonInterests: user.commonInterests,
           suggestionMessage: buildConnectionSuggestionMessage("", user.displayName || user.username, user.commonInterests),
@@ -399,6 +410,7 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       id: u!.id,
       username: u!.username,
       displayName: u!.displayName,
+      avatarUrl: u!.avatarUrl,
       level: u!.level,
     })));
   }));

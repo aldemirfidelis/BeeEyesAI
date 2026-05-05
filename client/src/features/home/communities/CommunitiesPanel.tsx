@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Check, ImagePlus, Lock, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import CommunityPostCard from "@/components/CommunityPostCard";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +14,7 @@ interface CommunitiesPanelProps {
   communitiesLoading: boolean;
   communitySearch: string;
   selectedCommunity: (Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null;
-  pendingRequests: { id: string; username: string; displayName: string | null; requestedAt: string }[];
+  pendingRequests: { id: string; username: string; displayName: string | null; avatarUrl?: string | null; requestedAt: string }[];
   onApproveRequest: (communityId: string, userId: string) => void;
   onRejectRequest: (communityId: string, userId: string) => void;
   communityPosts: CommunityPost[];
@@ -259,7 +260,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                     const name = req.displayName || req.username;
                     return (
                       <div key={req.id} className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">{name[0].toUpperCase()}</div>
+                        <UserAvatar name={name} avatarUrl={req.avatarUrl} className="w-7 h-7" />
                         <span className="text-sm font-medium flex-1 truncate">{name}</span>
                         <button onClick={() => onApproveRequest(selectedCommunity.id, req.id)} className="w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors" title="Aprovar">
                           <Check className="w-3.5 h-3.5 text-green-700" />
@@ -347,9 +348,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                 const name = member.displayName || member.username;
                 return (
                   <div key={member.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-background px-3 py-2">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${member.role === "owner" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
-                      {name[0]?.toUpperCase() ?? "?"}
-                    </div>
+                    <UserAvatar name={name} avatarUrl={member.avatarUrl} className="w-9 h-9" fallbackClassName={member.role === "owner" ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{name}</p>
                       <p className="text-xs text-muted-foreground">{member.role === "owner" ? "Fundador" : "Membro"}</p>

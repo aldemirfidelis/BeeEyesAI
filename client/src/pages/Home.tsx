@@ -100,8 +100,8 @@ export default function Home() {
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<FriendProfile | null>(null);
   const [friendProfileLoading, setFriendProfileLoading] = useState(false);
-  const [incomingRequests, setIncomingRequests] = useState<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>([]);
-  const [sentRequests, setSentRequests] = useState<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } }[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } }[]>([]);
+  const [sentRequests, setSentRequests] = useState<{ connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } }[]>([]);
   const [processingRequestIds, setProcessingRequestIds] = useState<Set<string>>(new Set());
 
   // Communities state
@@ -128,7 +128,7 @@ export default function Home() {
   // Direct messages state
   const [dmConversations, setDmConversations] = useState<DMConversation[]>([]);
   const [dmLoading, setDmLoading] = useState(false);
-  const [selectedDMUser, setSelectedDMUser] = useState<{ id: string; username: string; displayName: string | null; level: number } | null>(null);
+  const [selectedDMUser, setSelectedDMUser] = useState<{ id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } | null>(null);
   const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
   const [dmInput, setDmInput] = useState("");
   const [dmSending, setDmSending] = useState(false);
@@ -341,7 +341,7 @@ export default function Home() {
     return friends.some((f) => f.id === targetUserId);
   }, [friends]);
 
-  const openDMWithUser = useCallback((target: { id: string; username: string; displayName: string | null; level: number }) => {
+  const openDMWithUser = useCallback((target: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null }) => {
     setShowSettingsScreen(false);
     setMobileTab("inbox");
     setSelectedFriend(null);

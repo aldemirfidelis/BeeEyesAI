@@ -13,6 +13,7 @@ interface UserBasic {
   bio?: string | null;
   language?: string;
   onboardingCompleted?: boolean;
+  avatarUrl?: string | null;
   currentStreak: number;
 }
 

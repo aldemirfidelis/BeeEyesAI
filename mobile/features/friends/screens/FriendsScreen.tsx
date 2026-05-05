@@ -10,11 +10,13 @@ import { useTranslation } from "react-i18next";
 import { api } from "@mobile/lib/api";
 import type { ConnectionSuggestion } from "@mobile/lib/social";
 import { COLORS, FONTS } from "@mobile/lib/theme";
+import { UserAvatar } from "@mobile/components/UserAvatar";
 
 interface SearchUser {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
   currentStreak: number;
   connectionStatus: "none" | "pending" | "accepted";
@@ -24,6 +26,7 @@ interface Friend {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
   currentStreak: number;
   lastActiveAt: string | null;
@@ -35,6 +38,7 @@ interface FriendProfile {
     id: string;
     username: string;
     displayName: string | null;
+    avatarUrl?: string | null;
     level: number;
     xp: number;
     currentStreak: number;
@@ -86,7 +90,7 @@ export default function FriendsScreen() {
   const [connecting, setConnecting] = useState<Set<string>>(new Set());
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  type PendingConnection = { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number } };
+  type PendingConnection = { connectionId: string; user: { id: string; username: string; displayName: string | null; level: number; avatarUrl?: string | null } };
 
   const { data: friends = [], isLoading } = useQuery<Friend[]>({
     queryKey: ["friends"],
@@ -281,9 +285,7 @@ export default function FriendsScreen() {
               return (
                 <View key={u.id} style={styles.friendCard}>
                   <TouchableOpacity style={styles.friendCardLeft} onPress={() => openProfile(u.id)} activeOpacity={0.7}>
-                    <View style={styles.friendAvatar}>
-                      <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
-                    </View>
+                    <UserAvatar name={name} avatarUrl={u.avatarUrl} size={44} backgroundColor={COLORS.secondary} color={COLORS.foreground} />
                     <View style={{ flex: 1 }}>
                       <View style={styles.friendNameRow}>
                         <Text style={styles.friendName}>{name}</Text>
@@ -331,9 +333,7 @@ export default function FriendsScreen() {
                   const busy = processingIds.has(connectionId);
                   return (
                     <View key={connectionId} style={styles.requestCard}>
-                      <View style={styles.friendAvatar}>
-                        <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
-                      </View>
+                      <UserAvatar name={name} avatarUrl={user.avatarUrl} size={44} backgroundColor={COLORS.secondary} color={COLORS.foreground} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.friendName}>{name}</Text>
                         <Text style={styles.friendInterests}>@{user.username}</Text>
@@ -358,9 +358,7 @@ export default function FriendsScreen() {
                   const name = user.displayName || user.username;
                   return (
                     <View key={connectionId} style={styles.requestCard}>
-                      <View style={styles.friendAvatar}>
-                        <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
-                      </View>
+                      <UserAvatar name={name} avatarUrl={user.avatarUrl} size={44} backgroundColor={COLORS.secondary} color={COLORS.foreground} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.friendName}>{name}</Text>
                         <Text style={styles.friendInterests}>@{user.username}</Text>
@@ -385,9 +383,7 @@ export default function FriendsScreen() {
                   const name = suggestion.displayName || suggestion.username;
                   return (
                     <View key={suggestion.id} style={styles.matchCard}>
-                      <View style={styles.matchAvatar}>
-                        <Text style={styles.matchAvatarText}>{name[0].toUpperCase()}</Text>
-                      </View>
+                      <UserAvatar name={name} avatarUrl={suggestion.avatarUrl} size={48} backgroundColor={COLORS.primary} color={COLORS.foreground} />
                       <View style={{ flex: 1 }}>
                         <View style={styles.matchTopRow}>
                           <Text style={styles.friendName}>{name}</Text>
@@ -441,9 +437,7 @@ export default function FriendsScreen() {
           return (
             <View key={friend.id} style={styles.friendCard}>
               <TouchableOpacity style={styles.friendCardLeft} onPress={() => openProfile(friend.id)} activeOpacity={0.7}>
-                <View style={styles.friendAvatar}>
-                  <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
-                </View>
+                <UserAvatar name={name} avatarUrl={friend.avatarUrl} size={44} backgroundColor={COLORS.secondary} color={COLORS.foreground} />
                 <View style={{ flex: 1 }}>
                   <View style={styles.friendNameRow}>
                     <Text style={styles.friendName}>{name}</Text>
@@ -503,9 +497,7 @@ export default function FriendsScreen() {
                 <>
                   {/* Avatar + name */}
                   <View style={styles.profileAvatarSection}>
-                    <View style={styles.profileAvatar}>
-                      <Text style={styles.profileAvatarText}>{name[0].toUpperCase()}</Text>
-                    </View>
+                    <UserAvatar name={name} avatarUrl={f.avatarUrl} size={96} backgroundColor={COLORS.primary} color="#1A1A1A" />
                     <Text style={styles.profileName}>{name}</Text>
                     <Text style={styles.profileUsername}>@{f.username}</Text>
                   </View>
@@ -878,4 +870,3 @@ const styles = StyleSheet.create({
 
   lastActiveCenter: { fontFamily: FONTS.sans, fontSize: 12, color: COLORS.muted, textAlign: "center" },
 });
-

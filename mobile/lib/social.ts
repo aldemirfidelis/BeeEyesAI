@@ -2,6 +2,7 @@ export interface PostAuthor {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
 }
 
@@ -36,6 +37,7 @@ export interface ConnectionSuggestion {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   level: number;
   commonInterests: string[];
   suggestionMessage?: string;
@@ -71,8 +73,10 @@ export interface Community {
   ownerId: string;
   membersCount: number;
   createdAt: string;
+  isPrivate?: boolean;
   isMember?: boolean;
   memberRole?: string;
+  memberStatus?: string;
 }
 
 export interface CommunityPost {
@@ -84,6 +88,7 @@ export interface CommunityPost {
   createdAt: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   likesCount: number;
   liked: boolean;
   commentsCount: number;
@@ -93,6 +98,7 @@ export interface CommunityMember {
   id: string;
   username: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   role: string;
   joinedAt: string;
 }
