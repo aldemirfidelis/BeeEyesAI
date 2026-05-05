@@ -1,4 +1,4 @@
-import { ChevronRight, Flame, UserPlus, X } from "lucide-react";
+import { ChevronRight, Flame, UserMinus, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Friend, SearchUser, User } from "@/features/home/types";
@@ -15,6 +15,8 @@ interface FriendsPanelProps {
   onOpenFriendProfile: (friendId: string) => void;
   onSearchConnect: (targetUserId: string) => void;
   onCancelRequest: (targetUserId: string) => void;
+  onRemoveFriend: (friendId: string) => void;
+  removingFriendIds: Set<string>;
   onOpenDMWithUser: (target: { id: string; username: string; displayName: string | null; level: number }) => void;
   timeAgo: (value: string | Date) => string;
 }
@@ -32,6 +34,8 @@ export function FriendsPanel(props: FriendsPanelProps) {
     onOpenFriendProfile,
     onSearchConnect,
     onCancelRequest,
+    onRemoveFriend,
+    removingFriendIds,
     onOpenDMWithUser,
     timeAgo,
   } = props;
@@ -152,7 +156,17 @@ export function FriendsPanel(props: FriendsPanelProps) {
                     <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                   </div>
                 </div>
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-between items-center">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    disabled={removingFriendIds.has(friend.id)}
+                    onClick={() => onRemoveFriend(friend.id)}
+                  >
+                    <UserMinus className="w-3.5 h-3.5 mr-1" />
+                    {removingFriendIds.has(friend.id) ? "Removendo..." : "Remover amigo"}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"

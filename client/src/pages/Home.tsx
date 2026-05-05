@@ -420,6 +420,21 @@ export default function Home() {
     finally { setSearchConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
 
+  const [removingFriendIds, setRemovingFriendIds] = useState<Set<string>>(new Set());
+
+  const handleRemoveFriend = async (friendId: string) => {
+    if (!window.confirm("Remover este amigo?")) return;
+    setRemovingFriendIds((prev) => new Set(prev).add(friendId));
+    try {
+      await fetch(`/api/connections/with/${friendId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      setFriends((prev) => prev.filter((f) => f.id !== friendId));
+    } catch { /* ignore */ }
+    finally { setRemovingFriendIds((prev) => { const s = new Set(prev); s.delete(friendId); return s; }); }
+  };
+
   const handleCancelRequest = async (targetUserId: string) => {
     if (searchConnecting.has(targetUserId)) return;
     setSearchConnecting((prev) => new Set(prev).add(targetUserId));
@@ -1545,6 +1560,8 @@ export default function Home() {
             onOpenFriendProfile={openFriendProfile}
             onSearchConnect={handleSearchConnect}
             onCancelRequest={handleCancelRequest}
+            onRemoveFriend={handleRemoveFriend}
+            removingFriendIds={removingFriendIds}
             onOpenDMWithUser={openDMWithUser}
             timeAgo={timeAgo}
           />

@@ -320,6 +320,12 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     return sendOk(res, { ok: true });
   }));
 
+  router.delete("/api/connections/with/:targetUserId", requireAuth, asyncHandler(async (req, res) => {
+    const removed = await storage.removeConnection(req.userId!, req.params.targetUserId);
+    if (!removed) throw notFound("Amizade não encontrada");
+    return sendOk(res, { ok: true });
+  }));
+
   router.put("/api/connections/:id/accept", requireAuth, asyncHandler(async (req, res) => {
     const connection = await storage.acceptConnection(req.params.id, req.userId!);
     if (!connection) {

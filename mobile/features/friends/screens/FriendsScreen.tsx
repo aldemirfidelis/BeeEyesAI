@@ -130,6 +130,29 @@ export default function FriendsScreen() {
     finally { setConnecting((prev) => { const s = new Set(prev); s.delete(targetUserId); return s; }); }
   };
 
+  const handleRemoveFriend = async (friendId: string) => {
+    Alert.alert(
+      "Remover amigo",
+      "Tem certeza que deseja remover esta pessoa da sua lista de amigos?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Remover", style: "destructive",
+          onPress: async () => {
+            try {
+              await api.delete(`/api/connections/with/${friendId}`);
+              queryClient.setQueryData<Friend[]>(["friends"], (prev = []) =>
+                prev.filter((f) => f.id !== friendId)
+              );
+            } catch {
+              Alert.alert("Erro", "Não foi possível remover o amigo.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleCancelRequest = async (targetUserId: string) => {
     if (connecting.has(targetUserId)) return;
     setConnecting((prev) => new Set(prev).add(targetUserId));
@@ -320,36 +343,38 @@ export default function FriendsScreen() {
           })();
 
           return (
-            <TouchableOpacity
-              key={friend.id}
-              style={styles.friendCard}
-              onPress={() => openProfile(friend.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.friendAvatar}>
-                <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.friendNameRow}>
-                  <Text style={styles.friendName}>{name}</Text>
-                  <View style={styles.levelBadge}>
-                    <Text style={styles.levelBadgeText}>Nv {friend.level}</Text>
+            <View key={friend.id} style={styles.friendCard}>
+              <TouchableOpacity style={styles.friendCardLeft} onPress={() => openProfile(friend.id)} activeOpacity={0.7}>
+                <View style={styles.friendAvatar}>
+                  <Text style={styles.friendAvatarText}>{name[0].toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.friendNameRow}>
+                    <Text style={styles.friendName}>{name}</Text>
+                    <View style={styles.levelBadge}>
+                      <Text style={styles.levelBadgeText}>Nv {friend.level}</Text>
+                    </View>
+                    {friend.currentStreak > 0 && (
+                      <Text style={styles.streakText}>🔥 {friend.currentStreak}d</Text>
+                    )}
                   </View>
-                  {friend.currentStreak > 0 && (
-                    <Text style={styles.streakText}>🔥 {friend.currentStreak}d</Text>
+                  {interests.length > 0 && (
+                    <Text style={styles.friendInterests} numberOfLines={1}>
+                      {interests.slice(0, 3).join(" · ")}
+                    </Text>
+                  )}
+                  {friend.lastActiveAt && (
+                    <Text style={styles.lastActive}>Ativo {timeAgo(friend.lastActiveAt)}</Text>
                   )}
                 </View>
-                {interests.length > 0 && (
-                  <Text style={styles.friendInterests} numberOfLines={1}>
-                    {interests.slice(0, 3).join(" · ")}
-                  </Text>
-                )}
-                {friend.lastActiveAt && (
-                  <Text style={styles.lastActive}>Ativo {timeAgo(friend.lastActiveAt)}</Text>
-                )}
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.removeFriendBtn}
+                onPress={() => handleRemoveFriend(friend.id)}
+              >
+                <Text style={styles.removeFriendText}>✕</Text>
+              </TouchableOpacity>
+            </View>
           );
         })}
       </ScrollView>
@@ -596,6 +621,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  removeFriendBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  removeFriendText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#EF4444",
   },
   friendAvatar: {
     width: 46,
