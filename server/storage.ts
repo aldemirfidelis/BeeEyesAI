@@ -78,6 +78,7 @@ export interface IStorage {
   updatePost(postId: string, userId: string, content: string): Promise<Post | null>;
   deletePost(postId: string, userId: string): Promise<boolean>;
   getFeedForUser(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
+  getForYouFeed(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
   likePost(postId: string, userId: string): Promise<void>;
   unlikePost(postId: string, userId: string): Promise<void>;
   hasLikedPost(postId: string, userId: string): Promise<boolean>;
@@ -552,6 +553,47 @@ export class DrizzleStorage implements IStorage {
       .from(posts)
       .innerJoin(users, eq(posts.userId, users.id))
       .where(inArray(posts.userId, feedUserIds))
+      .orderBy(desc(posts.createdAt))
+      .limit(limit);
+
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      content: r.content,
+      imageUrl: r.imageUrl,
+      sentiment: r.sentiment,
+      sentimentLabel: r.sentimentLabel,
+      aiComment: r.aiComment,
+      createdAt: r.createdAt,
+      author: {
+        id: r.authorId,
+        username: r.authorUsername,
+        displayName: r.authorDisplayName,
+        level: r.authorLevel,
+        avatarUrl: r.authorAvatarUrl,
+      },
+    }));
+  }
+
+  async getForYouFeed(userId: string, limit = 60): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]> {
+    const rows = await db
+      .select({
+        id: posts.id,
+        userId: posts.userId,
+        content: posts.content,
+        imageUrl: posts.imageUrl,
+        sentiment: posts.sentiment,
+        sentimentLabel: posts.sentimentLabel,
+        aiComment: posts.aiComment,
+        createdAt: posts.createdAt,
+        authorId: users.id,
+        authorUsername: users.username,
+        authorDisplayName: users.displayName,
+        authorLevel: users.level,
+        authorAvatarUrl: users.avatarUrl,
+      })
+      .from(posts)
+      .innerJoin(users, eq(posts.userId, users.id))
       .orderBy(desc(posts.createdAt))
       .limit(limit);
 

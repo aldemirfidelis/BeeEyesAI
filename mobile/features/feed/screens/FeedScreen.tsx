@@ -127,6 +127,7 @@ export default function FeedScreen() {
   const [showComposer, setShowComposer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [feedMode, setFeedMode] = useState<"friends" | "for-you">("for-you");
   const inputRef = useRef<TextInput>(null);
 
   function openComposer() {
@@ -146,8 +147,8 @@ export default function FeedScreen() {
   }
 
   const { data: feed = [], isLoading } = useQuery<FeedPost[]>({
-    queryKey: ["feed"],
-    queryFn: () => api.get("/api/feed").then((r) => r.data),
+    queryKey: ["feed", feedMode],
+    queryFn: () => api.get(`/api/feed?mode=${feedMode}`).then((r) => r.data),
     staleTime: 60 * 1000,
   });
 
@@ -160,7 +161,7 @@ export default function FeedScreen() {
   const createPost = useMutation({
     mutationFn: ({ content, imageUrl }: { content: string; imageUrl?: string }) => api.post("/api/posts", { content, imageUrl: imageUrl || null }).then((r) => r.data),
     onSuccess: (newPost) => {
-      queryClient.setQueryData<FeedPost[]>(["feed"], (prev = []) => [
+      queryClient.setQueryData<FeedPost[]>(["feed", feedMode], (prev = []) => [
         {
           ...newPost,
           author: { id: user!.id, username: user!.username, displayName: user!.displayName || null, level: user!.level, avatarUrl: user!.avatarUrl || profileImageUri },
@@ -367,7 +368,23 @@ export default function FeedScreen() {
       <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Feed</Text>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.headerTitle}>Feed</Text>
+              <View style={styles.feedModeTabs}>
+                {([
+                  ["friends", "Amigos"],
+                  ["for-you", "Para Você"],
+                ] as const).map(([mode, label]) => (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[styles.feedModeTab, feedMode === mode && styles.feedModeTabActive]}
+                    onPress={() => setFeedMode(mode)}
+                  >
+                    <Text style={[styles.feedModeText, feedMode === mode && styles.feedModeTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
             <Text style={styles.headerSubtitle}>Compartilhe e acompanhe sua rede</Text>
           </View>
         </View>
@@ -832,6 +849,12 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       borderBottomColor: colors.border,
     },
     headerTitle: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: colors.foreground },
+    headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    feedModeTabs: { flexDirection: "row", backgroundColor: colors.secondary, borderRadius: 12, padding: 2 },
+    feedModeTab: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    feedModeTabActive: { backgroundColor: colors.card },
+    feedModeText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted },
+    feedModeTextActive: { color: colors.foreground },
     headerSubtitle: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
     newPostBtn: {
       backgroundColor: colors.primary,

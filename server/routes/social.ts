@@ -25,10 +25,13 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
 
   router.get("/api/feed", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 30, min: 1, max: 100 });
+    const mode = String(req.query.mode || "for-you") === "friends" ? "friends" : "for-you";
     const [viewer, viewerPersonality, feed] = await Promise.all([
       storage.getUser(req.userId!),
       storage.getPersonality(req.userId!),
-      storage.getFeedForUser(req.userId!, limit),
+      mode === "friends"
+        ? storage.getFeedForUser(req.userId!, limit)
+        : storage.getForYouFeed(req.userId!, Math.max(limit * 3, 60)),
     ]);
 
     if (!viewer) {
@@ -61,11 +64,14 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     }));
 
     const ranked = enriched.sort((a, b) => {
+      if (mode === "friends") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
       const aScore = a.personalizedInsight?.relevanceScore ?? 0;
       const bScore = b.personalizedInsight?.relevanceScore ?? 0;
       if (bScore !== aScore) return bScore - aScore;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    }).slice(0, limit);
 
     return sendOk(res, ranked);
   }));

@@ -19,6 +19,7 @@ export const SENTIMENT_EMOJI: Record<string, string> = {
 interface FeedPanelProps {
   feed: FeedPost[];
   feedLoading: boolean;
+  feedMode: "for-you" | "friends";
   postText: string;
   postImagePreviewUrl: string;
   postImageUrl: string;
@@ -29,6 +30,7 @@ interface FeedPanelProps {
   connectingIds: Set<string>;
   currentUser: User | null;
   onLoadFeed: () => void;
+  onFeedModeChange: (mode: "for-you" | "friends") => void;
   onTogglePostInput: () => void;
   onPostTextChange: (value: string) => void;
   onPickPostImage: (capture?: boolean) => void;
@@ -48,6 +50,7 @@ export function FeedPanel(props: FeedPanelProps) {
   const {
     feed,
     feedLoading,
+    feedMode,
     postText,
     postImagePreviewUrl,
     postImageUrl,
@@ -58,6 +61,7 @@ export function FeedPanel(props: FeedPanelProps) {
     connectingIds,
     currentUser,
     onLoadFeed,
+    onFeedModeChange,
     onTogglePostInput,
     onPostTextChange,
     onPickPostImage,
@@ -74,9 +78,28 @@ export function FeedPanel(props: FeedPanelProps) {
 
   return (
     <>
-      <div className="p-4 border-b flex items-center justify-between">
+      <div className="p-4 border-b flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-semibold">Feed</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-lg font-semibold">Feed</h2>
+            <div className="flex rounded-xl bg-secondary p-0.5">
+              {([
+                ["friends", "Amigos"],
+                ["for-you", "Para Você"],
+              ] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onFeedModeChange(mode)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+                    feedMode === mode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground mt-1">Atualizações da sua rede e gatilhos sociais importantes.</p>
         </div>
         <div className="flex items-center gap-2">

@@ -86,6 +86,7 @@ export default function Home() {
   // Feed state
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [feedMode, setFeedMode] = useState<"for-you" | "friends">("for-you");
   const [postText, setPostText] = useState("");
   const [postImagePreviewUrl, setPostImagePreviewUrl] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
@@ -577,14 +578,14 @@ export default function Home() {
     setFeedLoading(true);
     try {
       const [feedRes, suggestionsRes] = await Promise.all([
-        fetch("/api/feed", { headers: authHeaders() }),
+        fetch(`/api/feed?mode=${feedMode}`, { headers: authHeaders() }),
         fetch("/api/connections/suggestions?limit=3", { headers: authHeaders() }),
       ]);
       if (feedRes.ok) setFeed(await feedRes.json());
       if (suggestionsRes.ok) setSuggestions(await suggestionsRes.json());
     } catch { /* ignore */ }
     finally { setFeedLoading(false); }
-  }, [token]);
+  }, [token, feedMode]);
 
   const loadCommunities = useCallback(async (search = "") => {
     if (!token) return;
@@ -1610,6 +1611,7 @@ export default function Home() {
           <FeedPanel
             feed={feed}
             feedLoading={feedLoading}
+            feedMode={feedMode}
             postText={postText}
             postImagePreviewUrl={postImagePreviewUrl}
             postImageUrl={postImageUrl}
@@ -1619,6 +1621,7 @@ export default function Home() {
             suggestions={suggestions}
             connectingIds={connectingIds}
             onLoadFeed={loadFeed}
+            onFeedModeChange={setFeedMode}
             onTogglePostInput={() => setShowPostInput((value) => !value)}
             onPostTextChange={setPostText}
             onPickPostImage={(capture) => capture ? feedCameraInputRef.current?.click() : feedImageInputRef.current?.click()}
