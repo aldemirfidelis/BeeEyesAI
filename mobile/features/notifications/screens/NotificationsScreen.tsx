@@ -62,8 +62,10 @@ export default function NotificationsScreen() {
           </View>
         ) : (
           safeNotifications.map((item) => (
-            <View
+            <TouchableOpacity
               key={item.id}
+              activeOpacity={0.7}
+              onPress={() => router.navigate("/")}
               style={[
                 styles.notificationCard,
                 item.tone === "danger"
@@ -84,7 +86,7 @@ export default function NotificationsScreen() {
               <Text style={styles.notificationSource}>
                 {item.category === "social" ? t("notifications_social") : item.category === "activity" ? t("notifications_activity") : t("notifications_alert")} · {item.source}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>

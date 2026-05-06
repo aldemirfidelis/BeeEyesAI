@@ -53,7 +53,7 @@ interface ChatWorkspaceProps {
   onQuickAction: (action: "feed" | "missions" | "news" | "inbox" | "communities") => void;
 }
 
-function NotificationsDropdown({ authHeaders, onClose }: { authHeaders: () => Record<string, string>; onClose: () => void }) {
+function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { authHeaders: () => Record<string, string>; onClose: () => void; onNotificationClick: (item: any) => void }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
@@ -86,7 +86,20 @@ function NotificationsDropdown({ authHeaders, onClose }: { authHeaders: () => Re
         ) : items.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">Nenhum alerta por enquanto.</div>
         ) : items.map((item) => (
-          <div key={item.id} className={`px-4 py-3 border-b border-border/50 last:border-0 ${!item.read ? "bg-primary/5" : ""}`}>
+          <div 
+            key={item.id} 
+            className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!item.read ? "bg-primary/5" : ""}`}
+            onClick={() => {
+              if (!item.read) {
+                fetch("/api/notifications/read", {
+                  method: "POST",
+                  headers: { ...authHeaders(), "Content-Type": "application/json" },
+                  body: JSON.stringify({ ids: [item.id] })
+                }).catch(() => {});
+              }
+              onNotificationClick(item);
+            }}
+          >
             <p className="text-sm font-semibold text-foreground">{item.title}</p>
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.body}</p>
           </div>
@@ -182,7 +195,17 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
               <span className="text-[10px] font-semibold leading-none">Alertas</span>
             </button>
             {showNotifications && (
-              <NotificationsDropdown authHeaders={authHeaders} onClose={() => setShowNotifications(false)} />
+              <NotificationsDropdown 
+                authHeaders={authHeaders} 
+                onClose={() => setShowNotifications(false)} 
+                onNotificationClick={(item) => {
+                  onSearchQueryChange(item.body);
+                  setShowNotifications(false);
+                  if (!item.read) {
+                    setUnreadCount((prev) => Math.max(0, prev - 1));
+                  }
+                }}
+              />
             )}
 
             {/* Amigos */}
