@@ -991,7 +991,7 @@ export default function Home() {
   }
 
   const handleSendMessage = async (voiceText?: string) => {
-    const content = (voiceText ?? inputValue).trim();
+    const content = (typeof voiceText === "string" ? voiceText : inputValue).trim();
     if (!content || isLoading || !token) return;
     const slashCommand = content.toLowerCase();
     const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };

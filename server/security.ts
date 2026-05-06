@@ -4,7 +4,7 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
 
   if (process.env.NODE_ENV === "production") {
     res.setHeader(
