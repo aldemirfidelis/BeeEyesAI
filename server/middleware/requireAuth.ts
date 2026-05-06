@@ -1,6 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { unauthorized } from "../api/errors";
 import { verifyToken } from "../auth";
+import { storage } from "../storage";
 
 export interface AuthRequest extends Request {
   userId: string;
@@ -15,6 +16,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   try {
     const payload = verifyToken(header.slice(7));
     req.userId = payload.sub;
+    storage.updateLastActive(req.userId).catch(() => {});
     next();
   } catch {
     next(unauthorized("Token inválido ou expirado"));

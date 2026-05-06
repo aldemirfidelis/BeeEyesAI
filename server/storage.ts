@@ -35,6 +35,7 @@ export interface IStorage {
   updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void>;
   updateUserPassword(userId: string, passwordHash: string): Promise<void>;
   updateUserPushToken(userId: string, token: string | null): Promise<void>;
+  updateLastActive(userId: string): Promise<void>;
   updateUserXP(userId: string, xpToAdd: number): Promise<User>;
   updateUserStreak(userId: string): Promise<User>;
   incrementMessageCount(userId: string): Promise<void>;
@@ -149,6 +150,8 @@ export interface IStorage {
   toggleCommunityCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
 }
 
+const lastActiveCache = new Map<string, number>();
+
 export class DrizzleStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -212,6 +215,15 @@ export class DrizzleStorage implements IStorage {
 
   async updateUserPushToken(userId: string, token: string | null): Promise<void> {
     await db.update(users).set({ expoPushToken: token }).where(eq(users.id, userId));
+  }
+
+  async updateLastActive(userId: string): Promise<void> {
+    const now = Date.now();
+    const lastUpdate = lastActiveCache.get(userId) || 0;
+    if (now - lastUpdate > 2 * 60 * 1000) { // update at most every 2 minutes
+      lastActiveCache.set(userId, now);
+      await db.update(users).set({ lastActiveAt: new Date(now) }).where(eq(users.id, userId)).execute().catch(() => {});
+    }
   }
 
   async getAllUsersExcept(userId: string): Promise<User[]> {
