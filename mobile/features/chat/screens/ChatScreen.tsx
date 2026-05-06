@@ -49,7 +49,9 @@ export default function ChatScreen() {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingStartRef = useRef<number>(0);
   const [showInsight, setShowInsight] = useState(false);
   const [attention, setAttention] = useState({ x: 0, y: 0 });
   const [lastInteractionAt, setLastInteractionAt] = useState(Date.now());
@@ -276,6 +278,10 @@ export default function ChatScreen() {
     if (isTranscribing) return;
 
     if (isRecording) {
+      // Enforce minimum 1 second to avoid Whisper hallucinations on silent audio
+      const elapsed = Date.now() - recordingStartRef.current;
+      if (elapsed < 1000) return;
+
       try {
         await recordingRef.current?.stopAndUnloadAsync();
         const uri = recordingRef.current?.getURI() ?? null;
@@ -299,6 +305,9 @@ export default function ChatScreen() {
             if (data.text) {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               await sendMessage(data.text);
+            } else {
+              setTranscriptionError(true);
+              setTimeout(() => setTranscriptionError(false), 3000);
             }
           }
         } finally {
@@ -312,6 +321,7 @@ export default function ChatScreen() {
       return;
     }
 
+    setTranscriptionError(false);
     try {
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
@@ -320,6 +330,7 @@ export default function ChatScreen() {
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
+      recordingStartRef.current = Date.now();
       setIsRecording(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {
@@ -494,6 +505,11 @@ export default function ChatScreen() {
           />
         )}
 
+        {transcriptionError && (
+          <Text style={styles.transcriptionError}>
+            Não entendi o áudio. Fale mais alto ou por mais tempo.
+          </Text>
+        )}
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
@@ -729,6 +745,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     sendButtonDisabled: { opacity: 0.4 },
     micButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center" },
     micButtonRecording: { backgroundColor: colors.destructive },
+    transcriptionError: { fontFamily: FONTS.sans, fontSize: 12, color: colors.destructive, paddingHorizontal: 16, paddingBottom: 4 },
     tipCard: { marginTop: 6, marginBottom: 8, marginLeft: 6, marginRight: 24, padding: 14, borderRadius: 18, backgroundColor: colors.primary + "18", borderWidth: 1.5, borderColor: colors.primary + "55", gap: 8 },
     tipHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
     tipBee: { fontSize: 16 },

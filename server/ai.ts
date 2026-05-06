@@ -1853,17 +1853,49 @@ export function parseAIActions(response: string): {
   return { cleanText, suggestedMission, achievement, fetchNews };
 }
 
-export async function transcribeAudio(base64Audio: string, mimeType = "audio/webm"): Promise<string> {
+// Patterns Whisper hallucinates when audio is silent, too short, or inaudible
+const WHISPER_HALLUCINATION_PATTERNS = [
+  /www\./i,
+  /https?:\/\//i,
+  /\.com(\b|\/|$)/i,
+  /\.br(\b|\/|$)/i,
+  /\.net(\b|\/|$)/i,
+  /acesse\s+(o\s+)?nosso\s+site/i,
+  /visite\s+(o\s+)?(nosso\s+)?site/i,
+  /inscreva-se/i,
+  /clique\s+aqui/i,
+  /curta\s+e\s+compartilhe/i,
+  /não\s+esqueça\s+de\s+se\s+inscrever/i,
+  /legendado\s+por/i,
+  /transcri(to|ção)\s+por/i,
+  /subtitled?\s+by/i,
+  /like\s+and\s+subscribe/i,
+];
+
+function isWhisperHallucination(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  return WHISPER_HALLUCINATION_PATTERNS.some((p) => p.test(t));
+}
+
+// Returns the transcribed text, or null if the audio was invalid/hallucinated
+export async function transcribeAudio(base64Audio: string, mimeType = "audio/webm"): Promise<string | null> {
   const buffer = Buffer.from(base64Audio, "base64");
+
+  // Reject suspiciously small buffers — a real 1-second audio is at least ~3 KB
+  if (buffer.length < 1500) return null;
+
   const ext = mimeType.split("/")[1]?.split(";")[0] ?? "webm";
   const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
   const transcription = await openai.audio.transcriptions.create({
     file: audioFile,
     model: "whisper-1",
     language: "pt",
-    // Contextual prompt so Whisper recognizes Brazilian Portuguese vocabulary and domain terms
     prompt:
       "Aplicativo de produtividade pessoal em português do Brasil. O usuário fala sobre metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução pessoal e conquistas.",
   });
-  return transcription.text;
+
+  const text = transcription.text.trim();
+  if (isWhisperHallucination(text)) return null;
+  return text || null;
 }

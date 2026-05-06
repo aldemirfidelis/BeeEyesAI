@@ -115,8 +115,10 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef<number>(0);
 
   useEffect(() => {
     fetch("/api/notifications/center", { headers: props.authHeaders() })
@@ -174,13 +176,22 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     if (isTranscribing) return;
 
     if (isRecording) {
+      // Enforce minimum 1 second to avoid empty/silent audio hallucinations
+      const elapsed = Date.now() - recordingStartRef.current;
+      if (elapsed < 1000) return;
       mediaRecorderRef.current?.stop();
       return;
     }
 
+    setTranscriptionError(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const mimeType =
+        MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4";
       const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
 
@@ -192,7 +203,12 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
         stream.getTracks().forEach((t) => t.stop());
         setIsRecording(false);
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        if (blob.size === 0) return;
+        // Reject suspiciously small blobs — real 1s audio is at least ~3 KB
+        if (blob.size < 2000) {
+          setTranscriptionError(true);
+          setTimeout(() => setTranscriptionError(false), 3000);
+          return;
+        }
 
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -207,7 +223,12 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             });
             if (res.ok) {
               const data = await res.json();
-              if (data.text) onSendVoiceMessage(data.text);
+              if (data.text) {
+                onSendVoiceMessage(data.text);
+              } else {
+                setTranscriptionError(true);
+                setTimeout(() => setTranscriptionError(false), 3000);
+              }
             }
           } finally {
             setIsTranscribing(false);
@@ -216,7 +237,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
         reader.readAsDataURL(blob);
       };
 
-      recorder.start();
+      recorder.start(250);
+      recordingStartRef.current = Date.now();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch {
@@ -343,6 +365,11 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           )}
 
 
+          {transcriptionError && (
+            <p className="max-w-4xl mx-auto mb-2 text-xs text-destructive">
+              Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.
+            </p>
+          )}
           <div className="flex gap-2 max-w-4xl mx-auto">
             <Input
               ref={inputRef}
