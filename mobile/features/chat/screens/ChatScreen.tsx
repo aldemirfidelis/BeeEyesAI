@@ -547,7 +547,7 @@ function FeedDigestPostCard({ post, styles }: { post: ChatFeedSummaryPost; style
       </View>
 
       <Text style={styles.feedDigestContent} numberOfLines={4}>{post.content}</Text>
-      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.feedDigestImage} resizeMode="cover" /> : null}
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.feedDigestImage} resizeMode="contain" /> : null}
 
       {post.aiComment ? (
         <View style={styles.feedDigestAi}>

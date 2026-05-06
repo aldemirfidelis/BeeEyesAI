@@ -1077,7 +1077,7 @@ function CommunityPostCard({
       </View>
 
       <Text style={styles.postContent}>{post.content}</Text>
-      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} /> : null}
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="contain" /> : null}
 
       <View style={styles.postActions}>
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>

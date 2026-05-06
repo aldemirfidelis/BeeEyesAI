@@ -670,7 +670,7 @@ function PostCard({
       </View>
 
       <Text style={styles.postContent}>{currentContent}</Text>
-      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="cover" /> : null}
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="contain" /> : null}
 
       {post.aiComment ? (
         <View style={styles.aiCommentBox}>

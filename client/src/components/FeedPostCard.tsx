@@ -290,7 +290,7 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, 
           <img
             src={initialPost.imageUrl}
             alt="Imagem da publicacao"
-            className="mt-3 w-full max-h-[360px] rounded-xl object-cover border border-border/50"
+            className="mt-3 w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/50"
             loading="lazy"
           />
         )}

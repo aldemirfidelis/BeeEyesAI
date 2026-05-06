@@ -158,9 +158,9 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
           <img
             src={initialPost.imageUrl}
             alt="Imagem da publicacao na comunidade"
-            className="w-full max-h-72 rounded-xl object-cover border border-border/40"
-            loading="lazy"
+            className="w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/40"
           />
+        )}
         )}
       </div>
 
