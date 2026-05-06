@@ -990,10 +990,9 @@ export default function Home() {
     return { label: "Boa", color: "#4CAF50", w: "80%" };
   }
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading || !token) return;
-
-    const content = inputValue.trim();
+  const handleSendMessage = async (voiceText?: string) => {
+    const content = (voiceText ?? inputValue).trim();
+    if (!content || isLoading || !token) return;
     const slashCommand = content.toLowerCase();
     const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
@@ -1910,6 +1909,7 @@ export default function Home() {
         onInputChange={handleEyeInputChange}
         onInputFocusChange={handleEyeInputFocusChange}
         onSendMessage={handleSendMessage}
+        onSendVoiceMessage={(text) => handleSendMessage(text)}
         onQuickAction={(action) => {
           if (action === "feed") { setMobileTab("feed"); loadFeed(); }
           if (action === "missions") handleMissionsCommand();

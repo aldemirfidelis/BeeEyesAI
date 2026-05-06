@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import BeeEyes, { type BeeEyesEvent, type BeeEyesExpression } from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
 import StreakDisplay from "@/components/StreakDisplay";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AnimatePresence } from "framer-motion";
-import { Bell, ImagePlus, MessageCircle, Search, Send, Settings, User, Users, X } from "lucide-react";
+import { Bell, ImagePlus, Loader2, MessageCircle, Mic, MicOff, Search, Send, Settings, User, Users, X } from "lucide-react";
 import type { Message, User as UserType } from "@/features/home/types";
 
 interface ChatWorkspaceProps {
@@ -50,6 +50,7 @@ interface ChatWorkspaceProps {
   onInputChange: (value: string) => void;
   onInputFocusChange: (focused: boolean) => void;
   onSendMessage: () => void;
+  onSendVoiceMessage: (text: string) => void;
   onQuickAction: (action: "feed" | "missions" | "news" | "inbox" | "communities") => void;
 }
 
@@ -112,6 +113,10 @@ function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { 
 export function ChatWorkspace(props: ChatWorkspaceProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     fetch("/api/notifications/center", { headers: props.authHeaders() })
@@ -161,8 +166,63 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     onInputChange,
     onInputFocusChange,
     onSendMessage,
+    onSendVoiceMessage,
     onQuickAction,
   } = props;
+
+  const handleMicToggle = useCallback(async () => {
+    if (isTranscribing) return;
+
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size === 0) return;
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = (reader.result as string).split(",")[1];
+          if (!base64) return;
+          setIsTranscribing(true);
+          try {
+            const res = await fetch("/api/transcribe", {
+              method: "POST",
+              headers: { ...authHeaders(), "Content-Type": "application/json" },
+              body: JSON.stringify({ audio: base64, mimeType }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.text) onSendVoiceMessage(data.text);
+            }
+          } finally {
+            setIsTranscribing(false);
+          }
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      // mic permission denied or unavailable
+    }
+  }, [isRecording, isTranscribing, authHeaders, onSendVoiceMessage]);
 
   const visibleMessages = msgSearchQuery
     ? messages.filter((message) => message.content.toLowerCase().includes(msgSearchQuery.toLowerCase()))
@@ -297,6 +357,21 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
               autoFocus
               data-testid="input-chat-message"
             />
+            <Button
+              onClick={handleMicToggle}
+              size="icon"
+              variant={isRecording ? "destructive" : "outline"}
+              disabled={isLoading || isTranscribing}
+              title={isRecording ? "Parar gravação" : "Enviar áudio"}
+            >
+              {isTranscribing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : isRecording ? (
+                <MicOff className="w-4 h-4" />
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
+            </Button>
             <Button onClick={onSendMessage} size="icon" disabled={isLoading} data-testid="button-send-message">
               <Send className="w-4 h-4" />
             </Button>

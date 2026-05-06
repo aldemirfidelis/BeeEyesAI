@@ -39,7 +39,14 @@
       "Bash(node --env-file=.env -e ' *)",
       "Bash(git commit -m ' *)",
       "Bash(dir d:\\\\Projetos\\\\BeeEyesAI)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(Get-ChildItem -Path \"d:\\\\Projetos\\\\BeeEyesAI\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(npx expo *)",
+      "Bash(node -e \"const pkg = require\\('./package.json'\\); console.log\\(pkg.dependencies['expo-av'], pkg.dependencies['expo-file-system']\\)\")",
+      "Bash(node -e \"const fs = require\\('./node_modules/expo-file-system/build/index'\\); console.log\\(Object.keys\\(fs\\).filter\\(k => k.toLowerCase\\(\\).includes\\('encoding'\\)\\)\\)\")",
+      "Bash(node -e \"const fs = require\\('expo-file-system'\\); console.log\\(Object.keys\\(fs\\).filter\\(k => k.toLowerCase\\(\\).includes\\('encoding'\\)\\)\\)\")"
     ]
   }
 }

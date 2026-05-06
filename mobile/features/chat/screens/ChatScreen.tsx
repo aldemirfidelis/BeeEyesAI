@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
+import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { FlashList } from "@shopify/flash-list";
 import * as Haptics from "expo-haptics";
@@ -7,7 +10,7 @@ import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@mobile/lib/api";
+import { api, API_URL_RAW } from "@mobile/lib/api";
 import { useChatStore } from "@mobile/stores/chatStore";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { useAuthStore } from "@mobile/stores/authStore";
@@ -44,6 +47,9 @@ export default function ChatScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const [showInsight, setShowInsight] = useState(false);
   const [attention, setAttention] = useState({ x: 0, y: 0 });
   const [lastInteractionAt, setLastInteractionAt] = useState(Date.now());
@@ -266,6 +272,61 @@ export default function ChatScreen() {
     y: clampNumber(attention.y + (isInputFocused ? 0.5 : 0) + (isTyping ? 0.12 : 0), -1, 1),
   }), [attention.x, attention.y, isInputFocused, isTyping]);
 
+  async function handleMicPress() {
+    if (isTranscribing) return;
+
+    if (isRecording) {
+      try {
+        await recordingRef.current?.stopAndUnloadAsync();
+        const uri = recordingRef.current?.getURI() ?? null;
+        recordingRef.current = null;
+        setIsRecording(false);
+
+        if (!uri) return;
+        setIsTranscribing(true);
+        try {
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const token = await SecureStore.getItemAsync("bee_token");
+          const res = await fetch(`${API_URL_RAW}/api/transcribe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ audio: base64, mimeType: "audio/m4a" }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.text) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              await sendMessage(data.text);
+            }
+          }
+        } finally {
+          setIsTranscribing(false);
+        }
+      } catch {
+        recordingRef.current = null;
+        setIsRecording(false);
+        setIsTranscribing(false);
+      }
+      return;
+    }
+
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      setIsRecording(false);
+    }
+  }
+
   async function handleSend() {
     const message = inputValue.trim();
     if (!message) return;
@@ -446,6 +507,17 @@ export default function ChatScreen() {
             onFocus={() => { markInteraction(); setIsInputFocused(true); setEyeExpression("curious"); }}
             onBlur={() => setIsInputFocused(false)}
           />
+          <TouchableOpacity
+            style={[styles.micButton, isRecording && styles.micButtonRecording]}
+            onPress={handleMicPress}
+            disabled={isTranscribing}
+          >
+            {isTranscribing ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <Feather name={isRecording ? "mic-off" : "mic"} size={18} color={isRecording ? "#FFFFFF" : colors.foreground} />
+            )}
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.sendButton, (!inputValue.trim() || isTyping) && styles.sendButtonDisabled]} onPress={handleSend} disabled={!inputValue.trim() || isTyping}>
             <Feather name="send" size={18} color="#1A1A1A" />
           </TouchableOpacity>
@@ -655,6 +727,8 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     input: { flex: 1, backgroundColor: colors.background, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 120, borderWidth: 1, borderColor: colors.border },
     sendButton: { minWidth: 48, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
     sendButtonDisabled: { opacity: 0.4 },
+    micButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center" },
+    micButtonRecording: { backgroundColor: colors.destructive },
     tipCard: { marginTop: 6, marginBottom: 8, marginLeft: 6, marginRight: 24, padding: 14, borderRadius: 18, backgroundColor: colors.primary + "18", borderWidth: 1.5, borderColor: colors.primary + "55", gap: 8 },
     tipHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
     tipBee: { fontSize: 16 },

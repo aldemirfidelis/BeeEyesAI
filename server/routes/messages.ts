@@ -9,6 +9,7 @@ import {
   parseAIActions,
   streamChat,
   summarizeNewsArticle,
+  transcribeAudio,
   updatePersonalityFromMessage,
 } from "../ai";
 import { parseBoundedInt } from "../http";
@@ -576,6 +577,15 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     }
 
     return sendOk(res, { summary });
+  }));
+
+  router.post("/api/transcribe", requireAuth, asyncHandler(async (req, res) => {
+    const { audio, mimeType = "audio/webm" } = req.body ?? {};
+    if (!audio || typeof audio !== "string") {
+      throw badRequest("audio é obrigatório");
+    }
+    const text = await transcribeAudio(audio, mimeType);
+    return sendOk(res, { text });
   }));
 
   return router;

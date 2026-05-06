@@ -1,6 +1,6 @@
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { type User, type UserPersonality, type Mission, type MoodEntry } from "../shared/schema";
 import { storage } from "./storage";
 import { personalityCache, memoryCache } from "./cache";
@@ -1851,4 +1851,19 @@ export function parseAIActions(response: string): {
   }
 
   return { cleanText, suggestedMission, achievement, fetchNews };
+}
+
+export async function transcribeAudio(base64Audio: string, mimeType = "audio/webm"): Promise<string> {
+  const buffer = Buffer.from(base64Audio, "base64");
+  const ext = mimeType.split("/")[1]?.split(";")[0] ?? "webm";
+  const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
+  const transcription = await openai.audio.transcriptions.create({
+    file: audioFile,
+    model: "whisper-1",
+    language: "pt",
+    // Contextual prompt so Whisper recognizes Brazilian Portuguese vocabulary and domain terms
+    prompt:
+      "Aplicativo de produtividade pessoal em português do Brasil. O usuário fala sobre metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução pessoal e conquistas.",
+  });
+  return transcription.text;
 }
