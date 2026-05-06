@@ -467,7 +467,6 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     }
 
     const created = await storage.sendDirectMessage({ senderId: req.userId!, recipientId, content });
-    triggerMissionAction(req.userId!, "send_dm").catch(() => {});
     return sendCreated(res, created);
   }));
 

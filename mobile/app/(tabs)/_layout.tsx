@@ -1,9 +1,7 @@
 import { Tabs } from "expo-router";
-import { Alert, TouchableOpacity, View, Platform } from "react-native";
+import { View, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api } from "../../lib/api";
 import { getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
 
@@ -39,14 +37,6 @@ export default function TabsLayout() {
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
   const isDark = themeMode === "dark";
-
-  const { data: me } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => api.get("/api/me").then((r) => r.data),
-    staleTime: 30 * 1000,
-    refetchInterval: 10 * 1000,
-  });
-  const userLevel = me?.level ?? 1;
 
   const tabBarBackground = isDark
     ? "rgba(20,20,20,0.95)"
@@ -116,38 +106,8 @@ export default function TabsLayout() {
         options={{
           title: t("tab_inbox"),
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon
-              name="mail"
-              color={userLevel >= 2 ? color : colors.muted}
-              focused={focused}
-            />
+            <TabIcon name="mail" color={color} focused={focused} />
           ),
-          tabBarButton:
-            userLevel >= 2
-              ? undefined
-              : ({
-                  style,
-                  children,
-                  accessibilityState,
-                  accessibilityLabel,
-                  testID,
-                }) => (
-                  <TouchableOpacity
-                    onPress={() =>
-                      Alert.alert(
-                        t("tab_locked_title"),
-                        t("tab_locked_msg"),
-                        [{ text: t("understood"), style: "cancel" }]
-                      )
-                    }
-                    accessibilityState={accessibilityState}
-                    accessibilityLabel={accessibilityLabel}
-                    testID={testID}
-                    style={[style, { opacity: 0.4 }]}
-                  >
-                    {children}
-                  </TouchableOpacity>
-                ),
         }}
       />
       <Tabs.Screen

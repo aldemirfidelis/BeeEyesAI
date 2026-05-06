@@ -16,7 +16,7 @@ interface FriendProfileModalProps {
 }
 
 export function FriendProfileModal(props: FriendProfileModalProps) {
-  const { open, loading, selectedFriend, currentUser, isFriendUser, onClose, onOpenDMWithUser, timeAgo } = props;
+  const { open, loading, selectedFriend, isFriendUser, onClose, onOpenDMWithUser, timeAgo } = props;
 
   return (
     <AnimatePresence>
@@ -52,11 +52,9 @@ export function FriendProfileModal(props: FriendProfileModalProps) {
                     <Button
                       variant="outline"
                       className="w-full"
-                      disabled={!currentUser || currentUser.level < 2}
-                      title={currentUser && currentUser.level < 2 ? "Desbloqueado no Nível 2" : undefined}
                       onClick={() => onOpenDMWithUser({ id: user.id, username: user.username, displayName: user.displayName, level: user.level, avatarUrl: user.avatarUrl })}
                     >
-                      {currentUser && currentUser.level < 2 ? "Mensagem bloqueada até o nível 2" : "Enviar mensagem"}
+                      Enviar mensagem
                     </Button>
                   )}
 

@@ -402,14 +402,13 @@ export const PREDEFINED_MISSIONS: Array<{
   { actionType: "add_friend", title: "Faça uma conexão", description: "Envie um pedido de amizade para alguém", xpReward: 20, tier: 2 },
   { actionType: "accept_friend", title: "Aceite um amigo", description: "Aceite um pedido de conexão recebido", xpReward: 20, tier: 2 },
   { actionType: "comment_post", title: "Participe da conversa", description: "Comente em uma publicação do feed", xpReward: 25, tier: 2 },
-  { actionType: "send_dm", title: "Conversa privada", description: "Mande uma mensagem direta para um amigo", xpReward: 40, tier: 3 },
   { actionType: "join_community", title: "Entre em uma comunidade", description: "Participe de uma comunidade", xpReward: 40, tier: 3 },
   { actionType: "post_in_community", title: "Voz na comunidade", description: "Publique algo em uma comunidade que você participa", xpReward: 30, tier: 4 },
   { actionType: "create_community", title: "Funde sua comunidade", description: "Crie sua própria comunidade", xpReward: 50, tier: 4 },
 ];
 
 export const LEVEL_UNLOCKS: Record<number, string> = {
-  2: "Mensagens Diretas (DM) desbloqueadas",
+  2: "Conexões sociais em destaque",
   3: "Visita anônima de perfil desbloqueada",
   4: "Badge exclusiva no perfil desbloqueada",
   5: "Modo IA Avançado desbloqueado",

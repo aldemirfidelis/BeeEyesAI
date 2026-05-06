@@ -29,7 +29,6 @@ interface FriendsPanelProps {
 
 export function FriendsPanel(props: FriendsPanelProps) {
   const {
-    user,
     friends,
     friendsLoading,
     friendSearch,
@@ -99,11 +98,9 @@ export function FriendsPanel(props: FriendsPanelProps) {
                         size="sm"
                         variant="outline"
                         className="text-xs h-7 px-2"
-                        disabled={!user || user.level < 2}
-                        title={user && user.level < 2 ? "Desbloqueado no Nível 2" : undefined}
                         onClick={() => onOpenDMWithUser({ id: result.id, username: result.username, displayName: result.displayName, level: result.level, avatarUrl: result.avatarUrl })}
                       >
-                        {user && user.level < 2 ? "Mensagem bloqueada" : "Enviar mensagem"}
+                        Enviar mensagem
                       </Button>
                     </div>
                   ) : result.connectionStatus === "pending" ? (
@@ -231,11 +228,9 @@ export function FriendsPanel(props: FriendsPanelProps) {
                     size="sm"
                     variant="outline"
                     className="text-xs h-8 px-3"
-                    disabled={!user || user.level < 2}
-                    title={user && user.level < 2 ? "Desbloqueado no Nível 2" : undefined}
                     onClick={() => onOpenDMWithUser({ id: friend.id, username: friend.username, displayName: friend.displayName, level: friend.level, avatarUrl: friend.avatarUrl })}
                   >
-                    {user && user.level < 2 ? "Mensagem bloqueada" : "Enviar mensagem"}
+                    Enviar mensagem
                   </Button>
                 </div>
               </Card>

@@ -18,8 +18,8 @@ const pt = {
   tab_missions: "Missões",
   tab_inbox: "Mensagens",
   tab_communities: "Comunidades",
-  tab_locked_title: "🔒 Bloqueado",
-  tab_locked_msg: "Mensagens Diretas são desbloqueadas no Nível 2.\nComplete mais missões para subir de nível!",
+  tab_locked_title: "Disponível",
+  tab_locked_msg: "Mensagens Diretas estão disponíveis desde o início.",
 
   // AUTH - LOGIN
   login_tagline: "Sua melhor amiga com IA 🐝",
@@ -165,7 +165,7 @@ const pt = {
   missions_tier_social: "Social",
   missions_tier_connected: "Conectado",
   missions_tier_creator: "Criador",
-  missions_unlock_dm: "Mensagens Diretas desbloqueadas",
+  missions_unlock_social: "Conexões sociais em destaque",
   missions_unlock_anon: "Visita anônima de perfil desbloqueada",
   missions_unlock_badge: "Badge exclusiva no perfil desbloqueada",
   missions_unlock_ai: "Modo IA Avançado desbloqueado",

@@ -22,7 +22,7 @@ const TIER_META: Record<number, { labelKey: string; emoji: string; color: string
 };
 
 const LEVEL_UNLOCKS: Record<number, { icon: string; labelKey: string }> = {
-  2: { icon: "📨", labelKey: "missions_unlock_dm" },
+  2: { icon: "🤝", labelKey: "missions_unlock_social" },
   3: { icon: "👻", labelKey: "missions_unlock_anon" },
   4: { icon: "🏅", labelKey: "missions_unlock_badge" },
   5: { icon: "🤖", labelKey: "missions_unlock_ai" },

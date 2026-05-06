@@ -28,7 +28,7 @@ const APP_TIPS: { id: number; text: string }[] = [
   { id: 8,  text: "💡 Dica: você pode conversar comigo sobre qualquer coisa — produtividade, reflexões, ideias, planos. Quanto mais natural a conversa, melhores minhas análises sobre você." },
 
   // ── Missões & XP ──────────────────────────────────────────────────────────
-  { id: 9,  text: "💡 Dica: complete missões diárias para ganhar XP e subir de nível. Cada nível desbloqueia recursos novos — Mensagens Diretas no nível 2, navegação anônima no nível 3." },
+  { id: 9,  text: "💡 Dica: complete missões diárias para ganhar XP e subir de nível. Você ganha novos destaques sociais e recursos extras conforme evolui." },
   { id: 10, text: "💡 Dica: os Desafios Bônus aparecem quando você completa todas as missões do dia. São aleatórios, valem XP extra e foram criados especialmente para manter seu ritmo." },
   { id: 11, text: "💡 Dica: missões do sistema (Boas-vindas, Social, Conectado, Criador) são a base do seu crescimento no app. Complete todas de uma fase para desbloquear a próxima." },
   { id: 12, text: "💡 Dica: o Resumo Semanal na tela de Missões traz um raio-x da sua semana — consistência, disciplina, ponto forte e onde melhorar. Aparece toda semana automaticamente." },
@@ -51,7 +51,7 @@ const APP_TIPS: { id: number; text: string }[] = [
   { id: 23, text: "💡 Dica: ao aceitar uma conexão, vocês dois ganham a conquista de conexão. Com 5 amigos, você desbloqueia a medalha 'Abelha Social'." },
 
   // ── Mensagens Diretas ──────────────────────────────────────────────────────
-  { id: 24, text: "💡 Dica: Mensagens Diretas desbloqueiam no nível 2. Complete missões para chegar lá e começar a conversar em privado com seus amigos." },
+  { id: 24, text: "💡 Dica: Mensagens Diretas estão liberadas desde o início. Chame seus amigos quando quiser e continue a conversa em privado." },
   { id: 25, text: "💡 Dica: na sua inbox, você pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para você acompanhar facilmente." },
 
   // ── Humor & Bem-estar ──────────────────────────────────────────────────────

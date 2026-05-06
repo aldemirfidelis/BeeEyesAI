@@ -20,8 +20,8 @@ const es: Record<TranslationKeys, string> = {
   tab_missions: "Misiones",
   tab_inbox: "Mensajes",
   tab_communities: "Comunidades",
-  tab_locked_title: "🔒 Bloqueado",
-  tab_locked_msg: "Los mensajes directos se desbloquean en el Nivel 2.\n¡Completa más misiones para subir de nivel!",
+  tab_locked_title: "Disponible",
+  tab_locked_msg: "Los mensajes directos están disponibles desde el inicio.",
 
   // AUTH - LOGIN
   login_tagline: "Tu mejor amiga con IA 🐝",
@@ -167,7 +167,7 @@ const es: Record<TranslationKeys, string> = {
   missions_tier_social: "Social",
   missions_tier_connected: "Conectado",
   missions_tier_creator: "Creador",
-  missions_unlock_dm: "Mensajes directos desbloqueados",
+  missions_unlock_social: "Conexiones sociales destacadas",
   missions_unlock_anon: "Visita anónima de perfil desbloqueada",
   missions_unlock_badge: "Insignia exclusiva en el perfil desbloqueada",
   missions_unlock_ai: "Modo IA Avanzado desbloqueado",
