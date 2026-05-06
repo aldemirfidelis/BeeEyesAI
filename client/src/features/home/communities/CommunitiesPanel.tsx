@@ -16,6 +16,7 @@ interface CommunitiesPanelProps {
   selectedCommunity: (Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null;
   pendingRequests: { id: string; username: string; displayName: string | null; avatarUrl?: string | null; requestedAt: string }[];
   friends: User[];
+  friendsLoading?: boolean;
   onApproveRequest: (communityId: string, userId: string) => void;
   onRejectRequest: (communityId: string, userId: string) => void;
   onInviteToCommunity: (communityId: string, userIds: string[]) => Promise<void>;
@@ -625,7 +626,9 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
             <h2 className="font-bold text-base flex-1">Convidar para {selectedCommunity.name}</h2>
           </div>
           <div className="p-4 flex-1 overflow-y-auto space-y-3">
-            {props.friends.length === 0 ? (
+            {props.friendsLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-10">Carregando amigos...</p>
+            ) : props.friends.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-10">Você ainda não tem amigos para convidar.</p>
             ) : (
               props.friends.map((friend) => {

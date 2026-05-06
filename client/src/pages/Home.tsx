@@ -771,6 +771,7 @@ export default function Home() {
     }
     if (mobileTab === "communities") {
       loadCommunities(communitySearch);
+      loadFriends();
     }
   }, [mobileTab, loadFeed, loadFriends, loadDMConversations, loadConversationSuggestions, loadCommunities]);
 
@@ -1739,6 +1740,7 @@ export default function Home() {
             }}
             pendingRequests={pendingRequests}
             friends={friends}
+            friendsLoading={friendsLoading}
             onApproveRequest={handleApproveRequest}
             onRejectRequest={handleRejectRequest}
             onInviteToCommunity={async (communityId, userIds) => {
