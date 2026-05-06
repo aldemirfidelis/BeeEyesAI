@@ -161,7 +161,6 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
             className="w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/40"
           />
         )}
-        )}
       </div>
 
       {/* Actions bar */}

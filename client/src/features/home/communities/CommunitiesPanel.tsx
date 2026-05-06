@@ -5,7 +5,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Community, CommunityMember, CommunityPost, User } from "@/features/home/types";
+import type { Community, CommunityMember, CommunityPost, Friend } from "@/features/home/types";
 
 type EditingCommunity = { id: string; name: string; description: string; imageUrl: string } | null;
 
@@ -15,7 +15,7 @@ interface CommunitiesPanelProps {
   communitySearch: string;
   selectedCommunity: (Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null;
   pendingRequests: { id: string; username: string; displayName: string | null; avatarUrl?: string | null; requestedAt: string }[];
-  friends: User[];
+  friends: Friend[];
   friendsLoading?: boolean;
   onApproveRequest: (communityId: string, userId: string) => void;
   onRejectRequest: (communityId: string, userId: string) => void;

@@ -84,7 +84,7 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
   type NotificationCenterItem = {
     id: string;
     category: "alert" | "activity" | "social";
-    source: "intelligent" | "proactive" | "visit" | "connection";
+    source: "intelligent" | "proactive" | "visit" | "connection" | "community";
     title: string;
     body: string;
     tone: "danger" | "warning" | "positive" | "neutral";

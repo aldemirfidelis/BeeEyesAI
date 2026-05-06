@@ -121,7 +121,7 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
     for (const targetId of userIds) {
       if (typeof targetId !== "string") continue;
       // Skip if already a member
-      if (members.some(m => m.userId === targetId && m.status === "active")) continue;
+      if (members.some((m) => m.id === targetId)) continue;
       
       await storage.createMessage({
         userId: targetId,
