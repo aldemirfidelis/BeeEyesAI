@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -38,7 +39,6 @@ function ConversationList({
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.listHeader}>
         <Text style={styles.listHeaderTitle}>{user?.displayName || user?.username}</Text>
-        <Feather name="edit" size={22} color={colors.foreground} />
       </View>
 
       <Text style={styles.listSection}>Mensagens</Text>
@@ -113,6 +113,33 @@ function ChatScreen({
     },
   });
 
+  const deleteConversation = useMutation({
+    mutationFn: () => api.delete(`/api/dm/${conversation.user.id}`).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+      queryClient.removeQueries({ queryKey: ["dm-messages", conversation.user.id] });
+      onBack();
+    },
+    onError: () => {
+      Alert.alert("Erro", "Não foi possível apagar a conversa.");
+    },
+  });
+
+  function handleDeleteConversation() {
+    Alert.alert(
+      "Apagar conversa",
+      `Apagar toda a conversa com ${displayNameOf(conversation.user)}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Apagar",
+          style: "destructive",
+          onPress: () => deleteConversation.mutate(),
+        },
+      ],
+    );
+  }
+
   useEffect(() => {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 200);
   }, [messagesQuery.data]);
@@ -133,7 +160,15 @@ function ChatScreen({
           <Text style={styles.chatHeaderName}>{displayNameOf(conversation.user)}</Text>
           <Text style={styles.chatHeaderHandle}>@{conversation.user.username}</Text>
         </View>
-        <Feather name="more-horizontal" size={22} color={colors.muted} />
+        <TouchableOpacity
+          onPress={handleDeleteConversation}
+          disabled={deleteConversation.isPending}
+          style={styles.moreBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityLabel="Apagar conversa"
+        >
+          <Feather name="more-horizontal" size={22} color={colors.muted} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -310,6 +345,13 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       backgroundColor: colors.card,
     },
     backBtn: { marginRight: 2 },
+    moreBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     chatHeaderInfo: { flex: 1 },
     chatHeaderName: {
       fontFamily: FONTS.sans,
