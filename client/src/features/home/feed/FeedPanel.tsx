@@ -1,10 +1,10 @@
-import { Camera, Heart, Image, MessageCircle, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, UserPlus, X } from "lucide-react";
+import { Camera, Heart, Image, MessageCircle, MoreHorizontal, Plus, RefreshCw, UserPlus, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/UserAvatar";
 import type { ConnectionSuggestion, FeedPost, User } from "@/features/home/types";
+import FeedPostCard from "@/components/FeedPostCard";
 
 export const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊",
@@ -40,101 +40,7 @@ interface FeedPanelProps {
   onEditPost: (postId: string, content: string) => Promise<void>;
   onDeletePost: (postId: string) => Promise<void>;
   timeAgo: (value: string | Date) => string;
-}
-
-function PostMenu({ postId, content, onEdit, onDelete }: {
-  postId: string;
-  content: string;
-  onEdit: (postId: string, content: string) => Promise<void>;
-  onDelete: (postId: string) => Promise<void>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(content);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  async function handleSaveEdit() {
-    if (!editText.trim() || editText.trim() === content) { setEditing(false); return; }
-    setSaving(true);
-    try {
-      await onEdit(postId, editText.trim());
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!window.confirm("Apagar este post?")) return;
-    setDeleting(true);
-    try {
-      await onDelete(postId);
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <div className="space-y-2 mt-1">
-        <Textarea
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          className="text-sm min-h-[80px] resize-none"
-          maxLength={500}
-          autoFocus
-        />
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button>
-          <Button size="sm" onClick={handleSaveEdit} disabled={saving || !editText.trim()}
-            className="bg-amber-400 hover:bg-amber-500 text-gray-900 font-bold">
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-      >
-        <MoreHorizontal className="w-4 h-4" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[140px]">
-          <button
-            onClick={() => { setOpen(false); setEditText(content); setEditing(true); }}
-            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Editar post
-          </button>
-          <button
-            onClick={() => { setOpen(false); handleDelete(); }}
-            disabled={deleting}
-            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            {deleting ? "Apagando..." : "Apagar post"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  authHeaders: () => Record<string, string>;
 }
 
 export function FeedPanel(props: FeedPanelProps) {
@@ -274,53 +180,17 @@ export function FeedPanel(props: FeedPanelProps) {
           </div>
         )}
         {feed.map((post) => {
-          const name = post.author.displayName || post.author.username;
           const isOwner = currentUser?.id === post.author.id;
           return (
-            <Card key={post.id} className="p-4 space-y-2 shadow-sm">
-              <div className="flex items-center gap-2">
-                <UserAvatar name={name} avatarUrl={post.author.avatarUrl} className="w-9 h-9" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-semibold">{name}</span>
-                    <span className="text-xs text-muted-foreground bg-secondary rounded px-1 shrink-0">Nv {post.author.level}</span>
-                    {post.sentiment && SENTIMENT_EMOJI[post.sentiment] && <span className="text-xs shrink-0">{SENTIMENT_EMOJI[post.sentiment]}</span>}
-                  </div>
-                  <span className="text-xs text-muted-foreground">{timeAgo(post.createdAt)}</span>
-                </div>
-                {isOwner && (
-                  <PostMenu
-                    postId={post.id}
-                    content={post.content}
-                    onEdit={onEditPost}
-                    onDelete={onDeletePost}
-                  />
-                )}
-              </div>
-              <p className="text-sm leading-relaxed">{post.content}</p>
-              {post.imageUrl && <img src={post.imageUrl} alt="Imagem da publicacao" className="w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/40" loading="lazy" />}
-              {post.aiComment && (
-                <div className="border-l-2 border-primary/40 pl-3 py-1 bg-secondary/20 rounded-r-lg">
-                  <p className="text-xs text-muted-foreground">🐝 {post.aiComment}</p>
-                </div>
-              )}
-              <div className="flex items-center gap-4 pt-1">
-                <button
-                  onClick={() => onLikePost(post.id)}
-                  className={`flex items-center gap-1 text-xs transition-colors ${post.liked ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}
-                  data-testid={`feed-like-${post.id}`}
-                >
-                  <Heart className={`w-4 h-4 ${post.liked ? "fill-current" : ""}`} />
-                  {post.likesCount}
-                </button>
-                {post.commentsCount !== undefined && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MessageCircle className="w-4 h-4" />
-                    {post.commentsCount}
-                  </span>
-                )}
-              </div>
-            </Card>
+            <FeedPostCard
+              key={post.id}
+              post={{ ...post, commentsCount: post.commentsCount ?? 0 }}
+              authHeaders={props.authHeaders}
+              timeAgo={(d) => timeAgo(d)}
+              isOwner={isOwner}
+              onEdit={onEditPost}
+              onDelete={onDeletePost}
+            />
           );
         })}
       </div>

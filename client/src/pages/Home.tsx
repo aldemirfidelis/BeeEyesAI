@@ -1630,6 +1630,7 @@ export default function Home() {
             onDeletePost={handleDeletePost}
             currentUser={user}
             timeAgo={timeAgo}
+            authHeaders={authHeaders}
           />
         </TabsContent>
 

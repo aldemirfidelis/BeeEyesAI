@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/UserAvatar";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -42,6 +43,9 @@ interface FeedPostCardProps {
   };
   authHeaders: () => Record<string, string>;
   timeAgo: (date: string) => string;
+  isOwner?: boolean;
+  onEdit?: (postId: string, content: string) => Promise<void>;
+  onDelete?: (postId: string) => Promise<void>;
 }
 
 const SENTIMENT_COLOR: Record<string, string> = {
@@ -54,7 +58,102 @@ const SENTIMENT_COLOR: Record<string, string> = {
   neutral: "bg-secondary text-muted-foreground",
 };
 
-export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }: FeedPostCardProps) {
+function PostMenu({ postId, content, onEdit, onDelete }: {
+  postId: string;
+  content: string;
+  onEdit: (postId: string, content: string) => Promise<void>;
+  onDelete: (postId: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(content);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  async function handleSaveEdit() {
+    if (!editText.trim() || editText.trim() === content) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onEdit(postId, editText.trim());
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Apagar este post?")) return;
+    setDeleting(true);
+    try {
+      await onDelete(postId);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-2 mt-1 absolute inset-0 z-10 bg-card p-4 rounded-xl border border-border">
+        <Textarea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          className="text-sm min-h-[80px] resize-none"
+          maxLength={500}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button>
+          <Button size="sm" onClick={handleSaveEdit} disabled={saving || !editText.trim()}
+            className="bg-amber-400 hover:bg-amber-500 text-gray-900 font-bold">
+            {saving ? "Salvando..." : "Salvar"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative shrink-0" ref={menuRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-20 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[140px]">
+          <button
+            onClick={() => { setOpen(false); setEditText(content); setEditing(true); }}
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Editar post
+          </button>
+          <button
+            onClick={() => { setOpen(false); handleDelete(); }}
+            disabled={deleting}
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {deleting ? "Apagando..." : "Apagar post"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, isOwner, onEdit, onDelete }: FeedPostCardProps) {
   const [liked, setLiked] = useState(initialPost.liked);
   const [likesCount, setLikesCount] = useState(initialPost.likesCount);
   const [commentsCount, setCommentsCount] = useState(initialPost.commentsCount);
@@ -151,25 +250,35 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo }
   const sentimentClass = SENTIMENT_COLOR[initialPost.sentiment ?? "neutral"] ?? SENTIMENT_COLOR.neutral;
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div className="relative rounded-2xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <UserAvatar name={authorName} avatarUrl={initialPost.author.avatarUrl} className="w-9 h-9 shadow-sm" fallbackClassName="bg-primary text-primary-foreground" />
-            <div>
-              <p className="text-sm font-semibold leading-tight">{authorName}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
+          <div className="flex items-center gap-3 min-w-0">
+            <UserAvatar name={authorName} avatarUrl={initialPost.author.avatarUrl} className="w-9 h-9 shadow-sm shrink-0" fallbackClassName="bg-primary text-primary-foreground" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold leading-tight truncate">{authorName}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 <span className="font-medium text-primary/80">Nv {initialPost.author.level}</span>
                 {" · "}{timeAgo(initialPost.createdAt)}
               </p>
             </div>
           </div>
-          {initialPost.sentimentLabel && (
-            <span className={`text-xs rounded-full px-2.5 py-1 font-medium shrink-0 ${sentimentClass}`}>
-              {initialPost.sentimentLabel}
-            </span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {initialPost.sentimentLabel && (
+              <span className={`text-xs rounded-full px-2.5 py-1 font-medium ${sentimentClass}`}>
+                {initialPost.sentimentLabel}
+              </span>
+            )}
+            {isOwner && onEdit && onDelete && (
+              <PostMenu
+                postId={initialPost.id}
+                content={initialPost.content}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            )}
+          </div>
         </div>
 
         {/* Content */}
