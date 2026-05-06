@@ -25,6 +25,7 @@ import { Community, CommunityMember, CommunityPost, displayNameOf, timeAgo } fro
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { UserAvatar } from "@mobile/components/UserAvatar";
+import { UserProfileModal } from "@mobile/components/UserProfileModal";
 
 interface CommunityComment {
   id: string;
@@ -38,6 +39,14 @@ interface CommunityComment {
   likesCount: number;
   liked: boolean;
 }
+
+type CommunityFriend = {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl?: string | null;
+  level: number;
+};
 
 const DEFAULT_COMMUNITY = { name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "", isPrivate: false };
 
@@ -128,11 +137,12 @@ async function takePostPhoto(): Promise<PostImageResult | null> {
 
 // ── Community List ────────────────────────────────────────────────────────────
 function CommunityList({
-  onSelect, colors, styles, insets, onOpenCreate,
+  onSelect, colors, styles, insets, onOpenCreate, onOpenProfile,
 }: {
   onSelect: (c: Community) => void;
   colors: any; styles: any; insets: any;
   onOpenCreate: () => void;
+  onOpenProfile: (userId: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [membersSheet, setMembersSheet] = useState<Community | null>(null);
@@ -177,11 +187,13 @@ function CommunityList({
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
                 {(listMembersQuery.data ?? []).map((member) => (
                   <View key={member.id} style={styles.memberRow}>
-                    <UserAvatar name={member.displayName || member.username} avatarUrl={member.avatarUrl} size={36} backgroundColor={member.role === "owner" ? colors.primary : colors.secondary} color={colors.foreground} />
-                    <View style={{ flex: 1 }}>
+                    <TouchableOpacity onPress={() => onOpenProfile(member.id)}>
+                      <UserAvatar name={member.displayName || member.username} avatarUrl={member.avatarUrl} size={36} backgroundColor={member.role === "owner" ? colors.primary : colors.secondary} color={colors.foreground} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpenProfile(member.id)}>
                       <Text style={styles.memberName}>{member.displayName || member.username}</Text>
                       <Text style={styles.memberRole}>{member.role === "owner" ? "👑 Fundador" : "Membro"}</Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -258,11 +270,12 @@ function CommunityList({
 
 // ── Community Detail ──────────────────────────────────────────────────────────
 function CommunityDetail({
-  community, onBack, colors, styles, insets,
+  community, onBack, colors, styles, insets, onOpenProfile,
 }: {
   community: Community;
   onBack: () => void;
   colors: any; styles: any; insets: any;
+  onOpenProfile: (userId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [newPost, setNewPost] = useState("");
@@ -286,7 +299,7 @@ function CommunityDetail({
     queryFn: () => api.get(`/api/communities/${community.id}`).then((r) => r.data),
   });
 
-  const friendsQuery = useQuery<User[]>({
+  const friendsQuery = useQuery<CommunityFriend[]>({
     queryKey: ["friends"],
     queryFn: () => api.get(`/api/friends`).then((r) => r.data),
     enabled: showInviteModal,
@@ -610,11 +623,13 @@ function CommunityDetail({
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
                 {(membersQuery.data ?? []).map((member) => (
                   <View key={member.id} style={styles.memberRow}>
-                    <UserAvatar name={member.displayName || member.username} avatarUrl={member.avatarUrl} size={36} backgroundColor={member.role === "owner" ? colors.primary : colors.secondary} color={colors.foreground} />
-                    <View style={{ flex: 1 }}>
+                    <TouchableOpacity onPress={() => onOpenProfile(member.id)}>
+                      <UserAvatar name={member.displayName || member.username} avatarUrl={member.avatarUrl} size={36} backgroundColor={member.role === "owner" ? colors.primary : colors.secondary} color={colors.foreground} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpenProfile(member.id)}>
                       <Text style={styles.memberName}>{member.displayName || member.username}</Text>
                       <Text style={styles.memberRole}>{member.role === "owner" ? "👑 Fundador" : "Membro"}</Text>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -715,6 +730,7 @@ function CommunityDetail({
                 colors={colors}
                 communityName={detail.name}
                 communityEmoji={detail.emoji}
+                onOpenProfile={onOpenProfile}
               />
             ))
           ) : (
@@ -824,6 +840,7 @@ export default function CommunitiesScreen() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Community | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [communityForm, setCommunityForm] = useState(DEFAULT_COMMUNITY);
   const [pickingCreateImage, setPickingCreateImage] = useState(false);
 
@@ -858,6 +875,7 @@ export default function CommunitiesScreen() {
           colors={colors}
           styles={styles}
           insets={insets}
+          onOpenProfile={setProfileUserId}
         />
       ) : (
         <CommunityList
@@ -866,8 +884,11 @@ export default function CommunitiesScreen() {
           styles={styles}
           insets={insets}
           onOpenCreate={() => setShowCreateModal(true)}
+          onOpenProfile={setProfileUserId}
         />
       )}
+
+      <UserProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
 
       <Modal visible={showCreateModal} animationType="slide" transparent statusBarTranslucent>
         <View style={{ flex: 1 }}>
@@ -982,12 +1003,13 @@ export default function CommunitiesScreen() {
 
 // ── Post Card ─────────────────────────────────────────────────────────────────
 function CommunityPostCard({
-  post, colors, communityName, communityEmoji,
+  post, colors, communityName, communityEmoji, onOpenProfile,
 }: {
   post: CommunityPost;
   colors: ReturnType<typeof getThemeColors>;
   communityName: string;
   communityEmoji: string;
+  onOpenProfile: (userId: string) => void;
 }) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [liked, setLiked] = useState(post.liked);
@@ -1069,11 +1091,13 @@ function CommunityPostCard({
   return (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
-        <UserAvatar name={authorName} avatarUrl={post.avatarUrl} size={36} backgroundColor={colors.secondary} color={colors.foreground} />
-        <View style={{ flex: 1 }}>
+        <TouchableOpacity onPress={() => onOpenProfile(post.userId)}>
+          <UserAvatar name={authorName} avatarUrl={post.avatarUrl} size={36} backgroundColor={colors.secondary} color={colors.foreground} />
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpenProfile(post.userId)}>
           <Text style={styles.postAuthor}>{authorName}</Text>
           <Text style={styles.postTime}>{timeAgo(post.createdAt)}</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.postContent}>{post.content}</Text>
@@ -1097,10 +1121,14 @@ function CommunityPostCard({
           {!commentsLoading && comments.length === 0 && <Text style={styles.commentHint}>Nenhum comentário ainda.</Text>}
           {comments.map((comment) => (
             <View key={comment.id} style={styles.commentRow}>
-              <UserAvatar name={displayNameOf(comment)} avatarUrl={comment.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />
+              <TouchableOpacity onPress={() => onOpenProfile(comment.userId)}>
+                <UserAvatar name={displayNameOf(comment)} avatarUrl={comment.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />
+              </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <View style={styles.commentBubble}>
-                  <Text style={styles.commentName}>{displayNameOf(comment)}</Text>
+                  <TouchableOpacity onPress={() => onOpenProfile(comment.userId)}>
+                    <Text style={styles.commentName}>{displayNameOf(comment)}</Text>
+                  </TouchableOpacity>
                   <Text style={styles.commentText}>{comment.content}</Text>
                 </View>
                 <View style={styles.commentFooter}>

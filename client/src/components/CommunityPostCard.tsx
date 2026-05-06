@@ -31,14 +31,16 @@ interface CommunityPostCardProps {
     liked: boolean;
     commentsCount: number;
     imageUrl?: string | null;
+    userId?: string;
   };
   communityName: string;
   communityEmoji: string;
   authHeaders: () => Record<string, string>;
   timeAgo: (date: string | Date) => string;
+  onOpenProfile?: (userId: string) => void;
 }
 
-export default function CommunityPostCard({ post: initialPost, communityName, communityEmoji, authHeaders, timeAgo }: CommunityPostCardProps) {
+export default function CommunityPostCard({ post: initialPost, communityName, communityEmoji, authHeaders, timeAgo, onOpenProfile }: CommunityPostCardProps) {
   const [liked, setLiked] = useState(initialPost.liked);
   const [likesCount, setLikesCount] = useState(initialPost.likesCount);
   const [commentsCount, setCommentsCount] = useState(initialPost.commentsCount);
@@ -146,13 +148,13 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
     <div className="bg-secondary/30 rounded-xl overflow-hidden" data-testid={`community-post-card-${initialPost.id}`}>
       {/* Header + Content */}
       <div className="p-4 space-y-2">
-        <div className="flex items-center gap-2">
+        <button type="button" className="flex items-center gap-2 text-left" onClick={() => initialPost.userId && onOpenProfile?.(initialPost.userId)}>
           <UserAvatar name={authorName} avatarUrl={initialPost.avatarUrl} className="w-7 h-7" fallbackClassName="bg-primary text-primary-foreground" />
           <div>
-            <p className="text-xs font-semibold">{authorName}</p>
+            <p className="text-xs font-semibold hover:underline">{authorName}</p>
             <p className="text-xs text-muted-foreground">{timeAgo(initialPost.createdAt)}</p>
           </div>
-        </div>
+        </button>
         <p className="text-sm leading-relaxed">{initialPost.content}</p>
         {initialPost.imageUrl && (
           <img
@@ -216,10 +218,12 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
                 const cName = comment.displayName || comment.username;
                 return (
                   <div key={comment.id} className="flex gap-2">
-                    <UserAvatar name={cName} avatarUrl={comment.avatarUrl} className="w-6 h-6 mt-0.5" fallbackClassName="bg-secondary text-foreground" />
+                    <button type="button" onClick={() => onOpenProfile?.(comment.userId)} className="mt-0.5">
+                      <UserAvatar name={cName} avatarUrl={comment.avatarUrl} className="w-6 h-6" fallbackClassName="bg-secondary text-foreground" />
+                    </button>
                     <div className="flex-1 min-w-0">
                       <div className="bg-background/60 rounded-2xl px-3 py-2">
-                        <p className="text-xs font-semibold mb-0.5">{cName}</p>
+                        <button type="button" onClick={() => onOpenProfile?.(comment.userId)} className="text-xs font-semibold mb-0.5 hover:underline">{cName}</button>
                         <p className="text-xs leading-relaxed">{comment.content}</p>
                       </div>
                       <div className="flex items-center gap-3 mt-1 pl-1">

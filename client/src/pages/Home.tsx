@@ -1629,6 +1629,7 @@ export default function Home() {
             onLikePost={handleLikePost}
             onEditPost={handleEditPost}
             onDeletePost={handleDeletePost}
+            onOpenFriendProfile={openFriendProfile}
             currentUser={user}
             timeAgo={timeAgo}
             authHeaders={authHeaders}
@@ -1755,6 +1756,7 @@ export default function Home() {
                 alert("Não foi possível enviar os convites.");
               }
             }}
+            onOpenFriendProfile={openFriendProfile}
             authHeaders={authHeaders}
             timeAgo={timeAgo}
           />

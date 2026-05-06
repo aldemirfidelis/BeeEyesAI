@@ -23,6 +23,7 @@ import { useUIStore } from "@mobile/stores/uiStore";
 import { FeedPost, ConnectionSuggestion, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { UserAvatar } from "@mobile/components/UserAvatar";
+import { UserProfileModal } from "@mobile/components/UserProfileModal";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 
@@ -125,6 +126,7 @@ export default function FeedScreen() {
   const [pickingImage, setPickingImage] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   function openComposer() {
@@ -360,6 +362,8 @@ export default function FeedScreen() {
         </View>
       </Modal>
 
+      <UserProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+
       <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <View>
@@ -387,10 +391,14 @@ export default function FeedScreen() {
               <Text style={styles.sectionTitle}>Sugestoes de conexao</Text>
               {suggestions.map((s) => (
                 <View key={s.id} style={styles.suggestionRow}>
-                  <UserAvatar name={displayNameOf(s)} avatarUrl={s.avatarUrl} size={42} backgroundColor={colors.secondary} color={colors.foreground} />
+                  <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
+                    <UserAvatar name={displayNameOf(s)} avatarUrl={s.avatarUrl} size={42} backgroundColor={colors.secondary} color={colors.foreground} />
+                  </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <View style={styles.suggestionTopRow}>
-                      <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
+                      <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
+                        <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
+                      </TouchableOpacity>
                       {typeof s.matchScore === "number" ? (
                         <View style={styles.matchBadge}>
                           <Text style={styles.matchBadgeText}>{s.matchScore}% match</Text>
@@ -441,6 +449,7 @@ export default function FeedScreen() {
               isLiking={likePost.isPending}
               colors={colors}
               currentUserId={user?.id}
+              onOpenProfile={setProfileUserId}
             />
           ))}
         </ScrollView>
@@ -455,12 +464,14 @@ function PostCard({
   isLiking,
   colors,
   currentUserId,
+  onOpenProfile,
 }: {
   post: FeedPost & { commentsCount: number };
   onLike: () => void;
   isLiking: boolean;
   colors: ReturnType<typeof getThemeColors>;
   currentUserId?: string;
+  onOpenProfile: (userId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -646,10 +657,14 @@ function PostCard({
       )}
 
       <View style={styles.postHeader}>
-        <UserAvatar name={authorName} avatarUrl={post.author.avatarUrl} size={44} backgroundColor={colors.primary} color="#1A1A1A" />
+        <TouchableOpacity onPress={() => onOpenProfile(post.author.id)}>
+          <UserAvatar name={authorName} avatarUrl={post.author.avatarUrl} size={44} backgroundColor={colors.primary} color="#1A1A1A" />
+        </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <View style={styles.postAuthorRow}>
-            <Text style={styles.postAuthorName}>{authorName}</Text>
+            <TouchableOpacity onPress={() => onOpenProfile(post.author.id)}>
+              <Text style={styles.postAuthorName}>{authorName}</Text>
+            </TouchableOpacity>
             <View style={styles.levelChip}>
               <Text style={styles.levelChipText}>Nv {post.author.level}</Text>
             </View>
@@ -752,10 +767,14 @@ function PostCard({
             const cName = displayNameOf(comment);
             return (
               <View key={comment.id} style={styles.commentRow}>
-                <UserAvatar name={cName} avatarUrl={comment.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />
+                <TouchableOpacity onPress={() => onOpenProfile(comment.userId)}>
+                  <UserAvatar name={cName} avatarUrl={comment.avatarUrl} size={28} backgroundColor={colors.secondary} color={colors.foreground} />
+                </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                   <View style={styles.commentBubble}>
-                    <Text style={styles.commentName}>{cName}</Text>
+                    <TouchableOpacity onPress={() => onOpenProfile(comment.userId)}>
+                      <Text style={styles.commentName}>{cName}</Text>
+                    </TouchableOpacity>
                     <Text style={styles.commentText}>{comment.content}</Text>
                   </View>
                   <View style={styles.commentFooter}>

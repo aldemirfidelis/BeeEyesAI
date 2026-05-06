@@ -20,6 +20,7 @@ interface CommunitiesPanelProps {
   onApproveRequest: (communityId: string, userId: string) => void;
   onRejectRequest: (communityId: string, userId: string) => void;
   onInviteToCommunity: (communityId: string, userIds: string[]) => Promise<void>;
+  onOpenFriendProfile: (friendId: string) => void;
   communityPosts: CommunityPost[];
   communityPostsLoading: boolean;
   communityPostInput: string;
@@ -161,7 +162,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
     onCloseCommunity, onCommunityPostInputChange, onPickCommunityPostImage, onRemoveCommunityPostImage, onSendCommunityPost,
     onShowCreateCommunity, onNewCommunityChange, onCreateCommunity,
     onOpenEditCommunity, onEditCommunityChange, onSaveEditCommunity, onCancelEditCommunity,
-    onDeleteCommunity, authHeaders, timeAgo,
+    onDeleteCommunity, authHeaders, timeAgo, onOpenFriendProfile,
     pendingRequests, onApproveRequest, onRejectRequest,
   } = props;
 
@@ -346,6 +347,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                     communityEmoji={selectedCommunity.emoji}
                     authHeaders={authHeaders}
                     timeAgo={timeAgo}
+                    onOpenProfile={onOpenFriendProfile}
                   />
                 ))}
               </div>
@@ -375,11 +377,13 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                 const name = member.displayName || member.username;
                 return (
                   <div key={member.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-background px-3 py-2">
-                    <UserAvatar name={name} avatarUrl={member.avatarUrl} className="w-9 h-9" fallbackClassName={member.role === "owner" ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">{name}</p>
+                    <button type="button" onClick={() => onOpenFriendProfile(member.id)} className="shrink-0">
+                      <UserAvatar name={name} avatarUrl={member.avatarUrl} className="w-9 h-9" fallbackClassName={member.role === "owner" ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"} />
+                    </button>
+                    <button type="button" onClick={() => onOpenFriendProfile(member.id)} className="min-w-0 flex-1 text-left">
+                      <p className="text-sm font-semibold truncate hover:underline">{name}</p>
                       <p className="text-xs text-muted-foreground">{member.role === "owner" ? "Fundador" : "Membro"}</p>
-                    </div>
+                    </button>
                   </div>
                 );
               })}

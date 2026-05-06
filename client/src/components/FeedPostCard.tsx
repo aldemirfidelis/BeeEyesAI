@@ -46,6 +46,7 @@ interface FeedPostCardProps {
   isOwner?: boolean;
   onEdit?: (postId: string, content: string) => Promise<void>;
   onDelete?: (postId: string) => Promise<void>;
+  onOpenProfile?: (userId: string) => void;
 }
 
 const SENTIMENT_COLOR: Record<string, string> = {
@@ -153,7 +154,7 @@ function PostMenu({ postId, content, onEdit, onDelete }: {
   );
 }
 
-export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, isOwner, onEdit, onDelete }: FeedPostCardProps) {
+export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, isOwner, onEdit, onDelete, onOpenProfile }: FeedPostCardProps) {
   const [liked, setLiked] = useState(initialPost.liked);
   const [likesCount, setLikesCount] = useState(initialPost.likesCount);
   const [commentsCount, setCommentsCount] = useState(initialPost.commentsCount);
@@ -254,16 +255,16 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, 
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
+          <button type="button" onClick={() => onOpenProfile?.(initialPost.author.id)} className="flex items-center gap-3 min-w-0 text-left">
             <UserAvatar name={authorName} avatarUrl={initialPost.author.avatarUrl} className="w-9 h-9 shadow-sm shrink-0" fallbackClassName="bg-primary text-primary-foreground" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold leading-tight truncate">{authorName}</p>
+              <p className="text-sm font-semibold leading-tight truncate hover:underline">{authorName}</p>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 <span className="font-medium text-primary/80">Nv {initialPost.author.level}</span>
                 {" · "}{timeAgo(initialPost.createdAt)}
               </p>
             </div>
-          </div>
+          </button>
           <div className="flex items-center gap-2 shrink-0">
             {initialPost.sentimentLabel && (
               <span className={`text-xs rounded-full px-2.5 py-1 font-medium ${sentimentClass}`}>
@@ -402,10 +403,12 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, 
                 const cName = comment.displayName || comment.username;
                 return (
                   <div key={comment.id} className="flex gap-2">
-                    <UserAvatar name={cName} avatarUrl={comment.avatarUrl} className="w-6 h-6 mt-0.5" fallbackClassName="bg-secondary text-foreground" />
+                    <button type="button" onClick={() => onOpenProfile?.(comment.userId)} className="mt-0.5">
+                      <UserAvatar name={cName} avatarUrl={comment.avatarUrl} className="w-6 h-6" fallbackClassName="bg-secondary text-foreground" />
+                    </button>
                     <div className="flex-1 min-w-0">
                       <div className="bg-card rounded-2xl px-3 py-2 shadow-sm border border-border/40">
-                        <p className="text-xs font-semibold mb-0.5">{cName}</p>
+                        <button type="button" onClick={() => onOpenProfile?.(comment.userId)} className="text-xs font-semibold mb-0.5 hover:underline">{cName}</button>
                         <p className="text-xs leading-relaxed text-foreground/85">{comment.content}</p>
                       </div>
                       <div className="flex items-center gap-3 mt-1 pl-1">

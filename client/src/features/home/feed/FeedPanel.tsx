@@ -39,6 +39,7 @@ interface FeedPanelProps {
   onLikePost: (postId: string) => void;
   onEditPost: (postId: string, content: string) => Promise<void>;
   onDeletePost: (postId: string) => Promise<void>;
+  onOpenFriendProfile: (friendId: string) => void;
   timeAgo: (value: string | Date) => string;
   authHeaders: () => Record<string, string>;
 }
@@ -67,6 +68,7 @@ export function FeedPanel(props: FeedPanelProps) {
     onLikePost,
     onEditPost,
     onDeletePost,
+    onOpenFriendProfile,
     timeAgo,
   } = props;
 
@@ -152,13 +154,15 @@ export function FeedPanel(props: FeedPanelProps) {
               const name = suggestion.displayName || suggestion.username;
               return (
                 <div key={suggestion.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/80 px-3 py-2">
-                  <UserAvatar name={name} avatarUrl={suggestion.avatarUrl} className="w-9 h-9" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{name}</p>
+                  <button type="button" onClick={() => onOpenFriendProfile(suggestion.id)} className="shrink-0">
+                    <UserAvatar name={name} avatarUrl={suggestion.avatarUrl} className="w-9 h-9" />
+                  </button>
+                  <button type="button" onClick={() => onOpenFriendProfile(suggestion.id)} className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-semibold truncate hover:underline">{name}</p>
                     <p className="text-xs text-muted-foreground truncate">
                       {suggestion.commonInterests.slice(0, 2).join(" · ") || `Nível ${suggestion.level}`}
                     </p>
-                  </div>
+                  </button>
                   <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" disabled={connectingIds.has(suggestion.id)} onClick={() => onConnect(suggestion.id)}>
                     <UserPlus className="w-3 h-3 mr-1" />
                     Conectar
@@ -190,6 +194,7 @@ export function FeedPanel(props: FeedPanelProps) {
               isOwner={isOwner}
               onEdit={onEditPost}
               onDelete={onDeletePost}
+              onOpenProfile={onOpenFriendProfile}
             />
           );
         })}
