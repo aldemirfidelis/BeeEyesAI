@@ -1,11 +1,11 @@
 import { useRef, useState } from "react";
-import { Check, ImagePlus, Lock, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { Check, ImagePlus, Lock, Pencil, Plus, Send, Trash2, X, UserPlus } from "lucide-react";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Community, CommunityMember, CommunityPost } from "@/features/home/types";
+import type { Community, CommunityMember, CommunityPost, User } from "@/features/home/types";
 
 type EditingCommunity = { id: string; name: string; description: string; imageUrl: string } | null;
 
@@ -15,8 +15,10 @@ interface CommunitiesPanelProps {
   communitySearch: string;
   selectedCommunity: (Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null;
   pendingRequests: { id: string; username: string; displayName: string | null; avatarUrl?: string | null; requestedAt: string }[];
+  friends: User[];
   onApproveRequest: (communityId: string, userId: string) => void;
   onRejectRequest: (communityId: string, userId: string) => void;
+  onInviteToCommunity: (communityId: string, userIds: string[]) => Promise<void>;
   communityPosts: CommunityPost[];
   communityPostsLoading: boolean;
   communityPostInput: string;
@@ -172,6 +174,9 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
   const [membersOpen, setMembersOpen] = useState(false);
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(new Set());
+  const [inviting, setInviting] = useState(false);
 
   async function openMembersSheet() {
     if (!selectedCommunity) return;
@@ -182,6 +187,18 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
       if (res.ok) setMembers(await res.json());
     } finally {
       setMembersLoading(false);
+    }
+  }
+
+  async function handleSendInvites() {
+    if (!selectedCommunity || selectedInviteIds.size === 0) return;
+    setInviting(true);
+    try {
+      await props.onInviteToCommunity(selectedCommunity.id, Array.from(selectedInviteIds));
+      setInviteModalOpen(false);
+      setSelectedInviteIds(new Set());
+    } finally {
+      setInviting(false);
     }
   }
 
@@ -251,6 +268,15 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
             <div className="p-4 space-y-4">
               {selectedCommunity.description && (
                 <p className="text-sm text-muted-foreground bg-secondary/30 rounded-xl px-4 py-3">{selectedCommunity.description}</p>
+              )}
+
+              {selectedCommunity.isMember && (
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="w-full text-xs h-8" onClick={() => setInviteModalOpen(true)}>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Convidar amigos
+                  </Button>
+                </div>
               )}
 
               {selectedCommunity.memberRole === "owner" && selectedCommunity.isPrivate && pendingRequests.length > 0 && (
@@ -588,6 +614,50 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
       </div>
 
       </div>{/* end scrollable wrapper */}
+
+      {/* ── Invite modal ──────────────────────────────────────── */}
+      {inviteModalOpen && selectedCommunity && (
+        <div className="absolute inset-0 z-50 bg-background flex flex-col">
+          <div className="border-b border-border/40 px-4 py-3 flex items-center gap-3 shrink-0">
+            <button onClick={() => { setInviteModalOpen(false); setSelectedInviteIds(new Set()); }} className="text-muted-foreground hover:text-foreground">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="font-bold text-base flex-1">Convidar para {selectedCommunity.name}</h2>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto space-y-3">
+            {props.friends.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10">Você ainda não tem amigos para convidar.</p>
+            ) : (
+              props.friends.map((friend) => {
+                const isSelected = selectedInviteIds.has(friend.id);
+                return (
+                  <div key={friend.id} className="flex items-center gap-3 p-2 rounded-xl border border-border/50 hover:bg-secondary/30 transition-colors cursor-pointer" onClick={() => {
+                    const next = new Set(selectedInviteIds);
+                    if (isSelected) next.delete(friend.id);
+                    else next.add(friend.id);
+                    setSelectedInviteIds(next);
+                  }}>
+                    <UserAvatar name={friend.displayName || friend.username} avatarUrl={friend.avatarUrl} className="w-10 h-10" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{friend.displayName || friend.username}</p>
+                      <p className="text-xs text-muted-foreground truncate">Nível {friend.level}</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="p-4 border-t border-border/40 shrink-0">
+            <Button className="w-full" disabled={selectedInviteIds.size === 0 || inviting} onClick={handleSendInvites}>
+              {inviting ? "Enviando..." : `Convidar ${selectedInviteIds.size > 0 ? selectedInviteIds.size : ""} amigos`}
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

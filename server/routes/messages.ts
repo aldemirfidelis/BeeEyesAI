@@ -274,6 +274,19 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
         }];
       }
 
+      if (metadata.type === "community_invite") {
+        return [{
+          id: `community-invite-${message.id}`,
+          category: "social" as const,
+          source: "community" as const,
+          title: "Convite para Comunidade",
+          body: message.content,
+          tone: "positive" as const,
+          createdAt: new Date(message.createdAt).toISOString(),
+          read: false,
+        }];
+      }
+
       return [];
     });
 

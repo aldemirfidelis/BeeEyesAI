@@ -273,6 +273,8 @@ function CommunityDetail({
   const [postImagePreview, setPostImagePreview] = useState(""); // URI local para exibição
   const [postImageUrl, setPostImageUrl] = useState("");         // base64 para upload
   const [processingImage, setProcessingImage] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(new Set());
 
   function clearPostImage() {
     setPostImagePreview("");
@@ -282,6 +284,24 @@ function CommunityDetail({
   const detailQuery = useQuery<Community>({
     queryKey: ["community", community.id],
     queryFn: () => api.get(`/api/communities/${community.id}`).then((r) => r.data),
+  });
+
+  const friendsQuery = useQuery<User[]>({
+    queryKey: ["friends"],
+    queryFn: () => api.get(`/api/friends`).then((r) => r.data),
+    enabled: showInviteModal,
+  });
+
+  const sendInvites = useMutation({
+    mutationFn: (userIds: string[]) => api.post(`/api/communities/${community.id}/invite`, { userIds }).then((r) => r.data),
+    onSuccess: () => {
+      setShowInviteModal(false);
+      setSelectedInviteIds(new Set());
+      Alert.alert("Sucesso", "Convites enviados com sucesso!");
+    },
+    onError: () => {
+      Alert.alert("Erro", "Não foi possível enviar convites.");
+    },
   });
 
   const postsQuery = useQuery<CommunityPost[]>({
@@ -514,6 +534,60 @@ function CommunityDetail({
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Invite friends modal */}
+      <Modal visible={showInviteModal} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => { setShowInviteModal(false); setSelectedInviteIds(new Set()); }}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setShowInviteModal(false); setSelectedInviteIds(new Set()); }}>
+          <TouchableOpacity activeOpacity={1} style={styles.membersSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.membersHeader}>
+              <Text style={styles.modalTitle}>Convidar para {detail.name}</Text>
+              <TouchableOpacity onPress={() => { setShowInviteModal(false); setSelectedInviteIds(new Set()); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            {(friendsQuery.isPending || friendsQuery.isFetching) ? (
+              <ActivityIndicator color={colors.primaryDark} style={{ marginVertical: 32 }} />
+            ) : friendsQuery.isError ? (
+              <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Erro ao carregar amigos.</Text>
+            ) : (friendsQuery.data ?? []).length === 0 ? (
+              <Text style={[styles.memberRole, { textAlign: "center", paddingVertical: 24 }]}>Você ainda não tem amigos para convidar.</Text>
+            ) : (
+              <View style={{ flexShrink: 1, paddingBottom: 16 }}>
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+                  {(friendsQuery.data ?? []).map((friend) => {
+                    const isSelected = selectedInviteIds.has(friend.id);
+                    return (
+                      <TouchableOpacity key={friend.id} style={styles.memberRow} onPress={() => {
+                        const next = new Set(selectedInviteIds);
+                        if (isSelected) next.delete(friend.id);
+                        else next.add(friend.id);
+                        setSelectedInviteIds(next);
+                      }}>
+                        <UserAvatar name={friend.displayName || friend.username} avatarUrl={friend.avatarUrl} size={36} backgroundColor={colors.secondary} color={colors.foreground} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.memberName}>{friend.displayName || friend.username}</Text>
+                          <Text style={styles.memberRole}>Nível {friend.level}</Text>
+                        </View>
+                        <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                          {isSelected && <Feather name="check" size={14} color={colors.primary} />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <TouchableOpacity
+                  style={[styles.modalPrimary, { marginTop: 16 }, (selectedInviteIds.size === 0 || sendInvites.isPending) && { opacity: 0.5 }]}
+                  onPress={() => sendInvites.mutate(Array.from(selectedInviteIds))}
+                  disabled={selectedInviteIds.size === 0 || sendInvites.isPending}
+                >
+                  <Text style={styles.modalPrimaryText}>{sendInvites.isPending ? "Enviando..." : `Convidar ${selectedInviteIds.size > 0 ? selectedInviteIds.size : ""} amigos`}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Members bottom sheet */}
       <Modal visible={showMembers} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowMembers(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowMembers(false)}>
@@ -602,6 +676,13 @@ function CommunityDetail({
           {detail.description ? (
             <Text style={styles.detailDesc}>{detail.description}</Text>
           ) : null}
+
+          {detail.isMember && (
+            <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInviteModal(true)}>
+              <Feather name="user-plus" size={16} color={colors.primaryDark} />
+              <Text style={styles.inviteBtnText}>Convidar amigos</Text>
+            </TouchableOpacity>
+          )}
 
           {isOwner && detail.isPrivate && (pendingRequestsQuery.data?.length ?? 0) > 0 && (
             <View style={styles.requestsSection}>
@@ -1221,6 +1302,39 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     privacyLabel: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 14, color: colors.foreground },
     privacySub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
     // Posts
+    inviteBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      backgroundColor: colors.primary + "1A",
+      paddingVertical: 12,
+      marginHorizontal: 16,
+      marginTop: 8,
+      marginBottom: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary + "33",
+    },
+    inviteBtnText: {
+      fontFamily: FONTS.sans,
+      fontWeight: "700",
+      fontSize: 14,
+      color: colors.primaryDark,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: colors.muted,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    checkboxSelected: {
+      backgroundColor: colors.primary + "33",
+      borderColor: colors.primary,
+    },
     postsList: { padding: 16, gap: 12 },
     composeWrapper: {
       borderTopWidth: 1,

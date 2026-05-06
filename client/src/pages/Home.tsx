@@ -1738,8 +1738,21 @@ export default function Home() {
               }
             }}
             pendingRequests={pendingRequests}
+            friends={friends}
             onApproveRequest={handleApproveRequest}
             onRejectRequest={handleRejectRequest}
+            onInviteToCommunity={async (communityId, userIds) => {
+              try {
+                await apiFetch(`/api/communities/${communityId}/invite`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", ...authHeaders() },
+                  body: JSON.stringify({ userIds }),
+                });
+                alert("Convites enviados com sucesso!");
+              } catch {
+                alert("Não foi possível enviar os convites.");
+              }
+            }}
             authHeaders={authHeaders}
             timeAgo={timeAgo}
           />

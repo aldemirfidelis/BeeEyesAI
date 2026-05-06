@@ -102,6 +102,45 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
     return sendOk(res, await storage.getPendingJoinRequests(req.params.id));
   }));
 
+  router.post("/api/communities/:id/invite", requireAuth, asyncHandler(async (req, res) => {
+    const community = await storage.getCommunityById(req.params.id, req.userId!);
+    if (!community) throw notFound("Comunidade não encontrada");
+
+    const { userIds } = req.body ?? {};
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      throw badRequest("Lista de usuários inválida");
+    }
+
+    const requester = await storage.getUser(req.userId!);
+    if (!requester) throw notFound("Usuário não encontrado");
+    
+    const requesterName = requester.displayName || requester.username;
+    const members = await storage.getCommunityMembers(community.id);
+
+    let invitedCount = 0;
+    for (const targetId of userIds) {
+      if (typeof targetId !== "string") continue;
+      // Skip if already a member
+      if (members.some(m => m.userId === targetId && m.status === "active")) continue;
+      
+      await storage.createMessage({
+        userId: targetId,
+        role: "assistant",
+        content: `${requesterName} convidou você para entrar na comunidade "${community.name}". Vá para a aba Comunidades e pesquise por "${community.name}" para participar!`,
+        metadata: JSON.stringify({
+          type: "community_invite",
+          communityId: community.id,
+          communityName: community.name,
+          fromUserId: requester.id,
+          fromName: requesterName,
+        }),
+      });
+      invitedCount++;
+    }
+
+    return sendOk(res, { ok: true, invitedCount });
+  }));
+
   router.post("/api/communities/:id/requests/:userId/approve", requireAuth, asyncHandler(async (req, res) => {
     const approved = await storage.approveJoinRequest(req.params.id, req.params.userId, req.userId!);
     if (!approved) throw notFound("Solicitação não encontrada ou sem permissão");
