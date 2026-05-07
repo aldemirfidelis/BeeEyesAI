@@ -34,8 +34,10 @@ interface AdminUser { id: string; username: string; displayName: string | null; 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function timeAgo(iso: string) {
+function timeAgo(iso: string | null | undefined) {
+  if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
+  if (isNaN(diff)) return "—";
   const m = Math.floor(diff / 60000);
   if (m < 1) return "agora";
   if (m < 60) return `${m}m atrás`;
@@ -44,7 +46,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d atrás`;
 }
 
-function fmt(n: number) { return n.toLocaleString("pt-BR"); }
+function fmt(n: number | null | undefined) { return (n ?? 0).toLocaleString("pt-BR"); }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 

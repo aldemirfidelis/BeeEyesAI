@@ -250,9 +250,9 @@ export default function ChatScreen() {
     if (lastActiveHours !== null && lastActiveHours >= 20) return `Voce ficou ${Math.round(lastActiveHours)}h longe. Retome com uma acao simples antes de perder ritmo.`;
     if (missionStats.pending > 0 && missionStats.completionRate < 0.34) return `Voce esta ${100 - Math.round(missionStats.completionRate * 100)}% abaixo do ritmo de missoes de hoje.`;
     if (missionStats.completed > 0) return "Bom. Hoje ja existe evidencia de progresso, nao so intencao.";
-    if (streak === 0) return "Sua sequencia ainda nao comecou. Uma acao concluida hoje muda esse estado.";
+    if ((me?.currentStreak ?? 0) === 0) return "Sua sequencia ainda nao comecou. Uma acao concluida hoje muda esse estado.";
     return "Se quiser, eu transformo sua prioridade atual em uma acao objetiva agora.";
-  }, [lastActiveHours, missionStats.completed, missionStats.completionRate, missionStats.pending, streak]);
+  }, [lastActiveHours, me?.currentStreak, missionStats.completed, missionStats.completionRate, missionStats.pending]);
   const insightText = score?.insight ?? fallbackInsightText;
 
   const presenceLabel = useMemo(() => {
