@@ -519,12 +519,12 @@ function FinanceSection({ authHeaders }: { authHeaders: () => Record<string, str
 
 // ── Notes Section ─────────────────────────────────────────────────────────────
 
-const NOTE_COLORS: Record<string, { bg: string; border: string }> = {
-  default: { bg: "bg-card", border: "border-border" },
-  yellow:  { bg: "bg-yellow-50 dark:bg-yellow-950/30", border: "border-yellow-200 dark:border-yellow-800" },
-  blue:    { bg: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200 dark:border-blue-800" },
-  green:   { bg: "bg-green-50 dark:bg-green-950/30", border: "border-green-200 dark:border-green-800" },
-  pink:    { bg: "bg-pink-50 dark:bg-pink-950/30", border: "border-pink-200 dark:border-pink-800" },
+const NOTE_COLORS: Record<string, { bg: string; border: string; dot: string }> = {
+  default: { bg: "",        border: "",        dot: "#94a3b8" },
+  yellow:  { bg: "#fefce8", border: "#fde047", dot: "#fde047" },
+  blue:    { bg: "#eff6ff", border: "#bfdbfe", dot: "#93c5fd" },
+  green:   { bg: "#f0fdf4", border: "#bbf7d0", dot: "#86efac" },
+  pink:    { bg: "#fdf2f8", border: "#fbcfe8", dot: "#f9a8d4" },
 };
 
 const COLOR_OPTIONS = Object.keys(NOTE_COLORS);
@@ -643,7 +643,8 @@ function NotesSection({ authHeaders }: { authHeaders: () => Record<string, strin
               <button
                 key={c}
                 onClick={() => setNewColor(c)}
-                className={`w-5 h-5 rounded-full border-2 transition-transform ${newColor === c ? "scale-125 border-foreground" : "border-transparent"} ${NOTE_COLORS[c].bg}`}
+                style={{ backgroundColor: NOTE_COLORS[c].dot }}
+                className={`w-5 h-5 rounded-full border-2 transition-transform ${newColor === c ? "scale-125 border-foreground" : "border-transparent"}`}
               />
             ))}
             <div className="flex-1" />
@@ -672,10 +673,10 @@ function NotesSection({ authHeaders }: { authHeaders: () => Record<string, strin
       ) : (
         <div className="grid grid-cols-1 gap-2">
           {notesList.map((note) => {
-            const colors = NOTE_COLORS[note.color] ?? NOTE_COLORS.default;
+            const nc = NOTE_COLORS[note.color] ?? NOTE_COLORS.default;
             const isEditing = editingId === note.id;
             return (
-              <div key={note.id} className={`rounded-xl border p-3 ${colors.bg} ${colors.border}`}>
+              <div key={note.id} className="rounded-xl border p-3" style={nc.bg ? { backgroundColor: nc.bg, borderColor: nc.border } : undefined}>
                 {isEditing ? (
                   <div className="space-y-2">
                     <Input

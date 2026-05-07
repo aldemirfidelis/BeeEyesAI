@@ -640,6 +640,13 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
 
 // ── Notes Section ────────────────────────────────────────────────────────────
 
+const NOTE_BG: Record<string, string> = {
+  yellow: "#FEFCE8",
+  blue:   "#EFF6FF",
+  green:  "#F0FDF4",
+  pink:   "#FDF2F8",
+};
+
 function NotesSection({ colors }: { colors: any }) {
   const [notesList, setNotesList] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -772,7 +779,7 @@ function NotesSection({ colors }: { colors: any }) {
         notesList.map((note) => {
           const isEditing = editingId === note.id;
           return (
-            <View key={note.id} style={[noteStyles.card, { backgroundColor: colors.card, borderColor: note.pinned ? colors.primaryDark : colors.border }]}>
+            <View key={note.id} style={[noteStyles.card, { backgroundColor: NOTE_BG[note.color] ?? colors.card, borderColor: note.pinned ? colors.primaryDark : colors.border }]}>
               {isEditing ? (
                 <View>
                   <TextInput
