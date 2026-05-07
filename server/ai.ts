@@ -1853,6 +1853,9 @@ export function parseAIActions(response: string): {
   return { cleanText, suggestedMission, achievement, fetchNews };
 }
 
+const TRANSCRIBE_PROMPT =
+  "Aplicativo de produtividade pessoal em português do Brasil. O usuário fala sobre metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução pessoal e conquistas.";
+
 // Patterns Whisper hallucinates when audio is silent, too short, or inaudible
 const WHISPER_HALLUCINATION_PATTERNS = [
   /www\./i,
@@ -1875,6 +1878,8 @@ const WHISPER_HALLUCINATION_PATTERNS = [
 function isWhisperHallucination(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
+  // Whisper echoes the prompt when it receives silent/inaudible audio
+  if (TRANSCRIBE_PROMPT.toLowerCase().includes(t.toLowerCase())) return true;
   return WHISPER_HALLUCINATION_PATTERNS.some((p) => p.test(t));
 }
 
@@ -1887,13 +1892,23 @@ export async function transcribeAudio(base64Audio: string, mimeType = "audio/web
 
   const ext = mimeType.split("/")[1]?.split(";")[0] ?? "webm";
   const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
+
+  // verbose_json exposes no_speech_prob per segment — the most reliable silence detector
   const transcription = await openai.audio.transcriptions.create({
     file: audioFile,
     model: "whisper-1",
     language: "pt",
-    prompt:
-      "Aplicativo de produtividade pessoal em português do Brasil. O usuário fala sobre metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução pessoal e conquistas.",
-  });
+    response_format: "verbose_json",
+    prompt: TRANSCRIBE_PROMPT,
+  }) as unknown as { text: string; segments?: Array<{ no_speech_prob?: number }> };
+
+  // If Whisper itself says no speech was detected, discard
+  const segments = transcription.segments ?? [];
+  if (segments.length > 0) {
+    const avgNoSpeechProb =
+      segments.reduce((sum, seg) => sum + (seg.no_speech_prob ?? 0), 0) / segments.length;
+    if (avgNoSpeechProb > 0.6) return null;
+  }
 
   const text = transcription.text.trim();
   if (isWhisperHallucination(text)) return null;
