@@ -873,11 +873,52 @@ export function buildFeedInsight(postContent: string, sentimentLabel?: string | 
   };
 }
 
-function buildProactivePrompt(user: User, facts: string[], missionsText: string): string {
+function formatEventTime(startAt: Date): string {
+  const now = new Date();
+  const diffMin = Math.round((startAt.getTime() - now.getTime()) / 60000);
+  const timeStr = startAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+  if (diffMin < 60) return `em ${diffMin} minutos (${timeStr})`;
+  if (diffMin < 240) return `em ${Math.round(diffMin / 60)}h (${timeStr})`;
+  const isToday = startAt.toDateString() === now.toDateString();
+  return isToday ? `hoje às ${timeStr}` : `amanhã às ${timeStr}`;
+}
+
+function fmtReais(cents: number): string {
+  return `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function buildProactivePrompt(
+  user: User,
+  facts: string[],
+  missionsText: string,
+  upcomingEvents: Array<{ title: string; startAt: Date; location?: string | null }>,
+  financeSummary: { balance: number; totalExpense: number; topCategory?: string; topCategoryAmount?: number } | null,
+): string {
   const factsText =
     facts.length > 0
       ? facts.slice(0, 10).map((f, i) => `${i + 1}. ${f}`).join("\n")
       : "Ainda sem memórias salvas";
+
+  const eventsText = upcomingEvents.length > 0
+    ? upcomingEvents.map(e => `- "${e.title}" ${formatEventTime(new Date(e.startAt))}${e.location ? ` (${e.location})` : ""}`).join("\n")
+    : null;
+
+  const financeText = financeSummary
+    ? [
+        `Saldo do mês: ${fmtReais(financeSummary.balance)} (${financeSummary.balance >= 0 ? "positivo ✅" : "negativo ⚠️"})`,
+        `Total de despesas: ${fmtReais(financeSummary.totalExpense)}`,
+        financeSummary.topCategory ? `Maior gasto: ${financeSummary.topCategory} (${fmtReais(financeSummary.topCategoryAmount ?? 0)})` : null,
+      ].filter(Boolean).join("\n")
+    : null;
+
+  const urgentBlock = eventsText || financeText ? `
+CONTEXTO PRIORITÁRIO (use obrigatoriamente se existir):
+${eventsText ? `📅 Eventos próximos (próximas 24h):\n${eventsText}` : ""}
+${financeText ? `💰 Finanças do mês:\n${financeText}` : ""}
+
+Se houver evento próximo → USE o tipo 9 (AGENDA).
+Se o saldo for negativo ou houver gasto dominante → USE o tipo 10 (FINANÇAS).
+` : "";
 
   return `[SISTEMA - mensagem espontânea da BeeEyes]
 Você é a BeeEyes 🐝, assistente pessoal e companheira de evolução de ${user.username}. Gere UMA mensagem espontânea, natural e relevante. Escolha o tipo mais impactante com base no contexto:
@@ -890,7 +931,9 @@ Você é a BeeEyes 🐝, assistente pessoal e companheira de evolução de ${use
 6. MISSÃO: lembre gentilmente de missão pendente — "Você queria... ainda dá tempo hoje!"
 7. SCORE: comente o progresso, sequência ou nível de forma motivadora
 8. CHECK-IN: mensagem carinhosa perguntando como está o dia
-
+9. AGENDA: avise sobre evento próximo de forma natural — "Ei, não esquece que você tem X em Y!"
+10. FINANÇAS: dica financeira prática se o saldo estiver negativo ou um gasto estiver muito alto — "Vi que suas despesas em X estão altas, que tal..."
+${urgentBlock}
 Memórias sobre ${user.username}:
 ${factsText}
 
@@ -908,7 +951,9 @@ Regras:
 export async function generateProactiveMessage(
   user: User,
   personality: UserPersonality,
-  incompleteMissions: Mission[]
+  incompleteMissions: Mission[],
+  upcomingEvents: Array<{ title: string; startAt: Date; location?: string | null }> = [],
+  financeSummary: { balance: number; totalExpense: number; topCategory?: string; topCategoryAmount?: number } | null = null,
 ): Promise<string | null> {
   const facts = parseFacts(personality.traits);
   const missionsText =
@@ -917,7 +962,7 @@ export async function generateProactiveMessage(
       : "Nenhuma missão pendente";
 
   const systemPrompt = buildSystemPrompt(user, personality);
-  const userPrompt = buildProactivePrompt(user, facts, missionsText);
+  const userPrompt = buildProactivePrompt(user, facts, missionsText, upcomingEvents, financeSummary);
 
   return callWithFallback(
     [

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
@@ -505,7 +505,8 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
   }));
 
   router.get("/api/proactive", requireAuth, asyncHandler(async (req, res) => {
-    const recentMessages = await storage.getMessagesByUser(req.userId!, 10);
+    const userId = req.userId!;
+    const recentMessages = await storage.getMessagesByUser(userId, 10);
 
     if (recentMessages.length > 0) {
       const lastMsg = recentMessages[recentMessages.length - 1];
@@ -513,42 +514,68 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       if (minutesSinceLast < 15) return sendOk(res, { message: null });
 
       const lastProactive = [...recentMessages].reverse().find((message) => {
-        try {
-          return JSON.parse(message.metadata || "{}").proactive === true;
-        } catch {
-          return false;
-        }
+        try { return JSON.parse(message.metadata || "{}").proactive === true; } catch { return false; }
       });
-
       if (lastProactive) {
         const minutesSince = (Date.now() - new Date(lastProactive.createdAt).getTime()) / 60000;
         if (minutesSince < 90) return sendOk(res, { message: null });
       }
     }
 
-    if (Math.random() > 0.4) {
+    // Fetch colmeia context to detect urgent situations
+    const now = new Date();
+    const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const next4h  = new Date(now.getTime() +  4 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [upcomingEvents, monthTxs] = await Promise.all([
+      db.select({ title: calendarEvents.title, startAt: calendarEvents.startAt, location: calendarEvents.location })
+        .from(calendarEvents)
+        .where(and(eq(calendarEvents.userId, userId), gte(calendarEvents.startAt, now), lte(calendarEvents.startAt, next24h)))
+        .orderBy(calendarEvents.startAt)
+        .limit(5),
+      db.select({ type: financeTransactions.type, amountCents: financeTransactions.amountCents, category: financeTransactions.category })
+        .from(financeTransactions)
+        .where(and(eq(financeTransactions.userId, userId), gte(financeTransactions.date, monthStart))),
+    ]);
+
+    const totalIncome  = monthTxs.filter(t => t.type === "income").reduce((s, t) => s + t.amountCents, 0);
+    const totalExpense = monthTxs.filter(t => t.type === "expense").reduce((s, t) => s + t.amountCents, 0);
+    const balance = totalIncome - totalExpense;
+    const byCat = monthTxs.filter(t => t.type === "expense").reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] ?? 0) + t.amountCents;
+      return acc;
+    }, {} as Record<string, number>);
+    const topCatEntry = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
+
+    const hasUrgentEvent = upcomingEvents.some(e => new Date(e.startAt) <= next4h);
+    const hasBadFinance  = monthTxs.length >= 3 && balance < 0;
+    const financeSummary = monthTxs.length > 0
+      ? { balance, totalExpense, topCategory: topCatEntry?.[0], topCategoryAmount: topCatEntry?.[1] }
+      : null;
+
+    // Skip randomly unless there's an urgent context
+    if (!hasUrgentEvent && !hasBadFinance && Math.random() > 0.4) {
       return sendOk(res, { message: null });
     }
 
     const [user, personality, missions] = await Promise.all([
-      storage.getUser(req.userId!),
-      storage.getPersonality(req.userId!),
-      storage.getMissionsByUser(req.userId!, false),
+      storage.getUser(userId),
+      storage.getPersonality(userId),
+      storage.getMissionsByUser(userId, false),
     ]);
 
-    if (!user || !personality) {
-      return sendOk(res, { message: null });
-    }
+    if (!user || !personality) return sendOk(res, { message: null });
 
-    const content = Math.random() < 0.35
+    // Use app tip only when there's no colmeia context to highlight
+    const hasColmeiaContext = upcomingEvents.length > 0 || financeSummary !== null;
+    const content = (!hasColmeiaContext && Math.random() < 0.35)
       ? APP_TIPS[Math.floor(Math.random() * APP_TIPS.length)].text
-      : await generateProactiveMessage(user, personality, missions);
-    if (!content) {
-      return sendOk(res, { message: null });
-    }
+      : await generateProactiveMessage(user, personality, missions, upcomingEvents, financeSummary);
+    if (!content) return sendOk(res, { message: null });
 
     await storage.createMessage({
-      userId: req.userId!,
+      userId,
       role: "assistant",
       content,
       metadata: JSON.stringify({ proactive: true }),

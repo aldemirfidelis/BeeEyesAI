@@ -33,6 +33,7 @@ export const users = pgTable("users", {
   expoPushToken: text("expo_push_token"),
   lastActiveAt: timestamp("last_active_at").defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  isAdmin: boolean("is_admin").notNull().default(false),
 });
 
 export const userPersonality = pgTable("user_personality", {

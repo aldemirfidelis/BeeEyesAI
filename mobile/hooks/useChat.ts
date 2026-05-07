@@ -10,6 +10,9 @@ function cleanAIText(text: string): string {
     .replace(/\{"suggest_mission":\s*\{[^}]+\}\}/g, "")
     .replace(/\{"achievement":\s*\{[^}]+\}\}/g, "")
     .replace(/\{"fetch_news":\s*\{[^}]+\}\}/g, "")
+    .replace(/\{"create_event":\s*\{[\s\S]*?\}\}/g, "")
+    .replace(/\{"log_finance":\s*\{[\s\S]*?\}\}/g, "")
+    .replace(/\{"save_note":\s*\{[\s\S]*?\}\}/g, "")
     .trim();
 }
 
@@ -95,6 +98,15 @@ export function useChat() {
           } else if (event.type === "news_fetched") {
             newsFetched = { query: event.query, items: event.items };
             setEyeExpression("excited");
+          } else if (event.type === "note_saved") {
+            queryClient.invalidateQueries({ queryKey: ["colmeia-notes"] });
+            showAchievement({ title: "Nota salva!", description: event.note?.title || "Adicionada à Colmeia" });
+          } else if (event.type === "event_created") {
+            queryClient.invalidateQueries({ queryKey: ["colmeia-events"] });
+            showAchievement({ title: "Evento criado!", description: event.event?.title || "Adicionado ao Calendário" });
+          } else if (event.type === "finance_logged") {
+            queryClient.invalidateQueries({ queryKey: ["colmeia-finance"] });
+            showAchievement({ title: "Transação registrada!", description: event.transaction?.description || event.transaction?.category || "Adicionada às Finanças" });
           }
         } catch { /* skip malformed */ }
       }

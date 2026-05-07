@@ -49,7 +49,14 @@
       "Bash(node -e \"const fs = require\\('expo-file-system'\\); console.log\\(Object.keys\\(fs\\).filter\\(k => k.toLowerCase\\(\\).includes\\('encoding'\\)\\)\\)\")",
       "PowerShell(Get-ChildItem -Recurse -Depth 3 | Where-Object {$_.FullName -notmatch 'node_modules|\\\\.next|dist|build'} | Select-Object -ExpandProperty FullName | head -50)",
       "PowerShell(Get-ChildItem -Path \"d:\\\\Projetos\\\\BeeEyesAI\" -Recurse -Depth 3 | Where-Object {$_.FullName -notmatch 'node_modules|\\\\.next|dist|build'} | Select-Object -First 100 FullName)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "PowerShell(Get-ChildItem \"d:\\\\Projetos\\\\BeeEyesAI\\\\\" | Where-Object { $_.Name -match \"^\\\\.env|docker|compose|\\\\.yml$|\\\\.yaml$\" } | Select-Object Name)",
+      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" log --all --oneline)",
+      "PowerShell(head -20)",
+      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" log --all --oneline -20)",
+      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" log --all -S \"GOOGLE_CLIENT_SECRET\" --oneline)",
+      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" show 333a690:.env 2>$null)",
+      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" show 333a690 --stat)"
     ]
   }
 }

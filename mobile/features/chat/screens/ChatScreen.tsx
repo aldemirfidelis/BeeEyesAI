@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
@@ -46,8 +46,11 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordingStartRef = useRef<number>(0);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const waveHeights = useRef(Array.from({ length: 6 }, () => new Animated.Value(4))).current;
   const [showInsight, setShowInsight] = useState(false);
   const [attention, setAttention] = useState({ x: 0, y: 0 });
   const [lastInteractionAt, setLastInteractionAt] = useState(Date.now());
@@ -329,6 +332,48 @@ export default function ChatScreen() {
     }
   }
 
+  // Timer counter
+  useEffect(() => {
+    if (!isRecording) { setRecordingSeconds(0); return; }
+    const timer = setInterval(() => setRecordingSeconds(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [isRecording]);
+
+  // Pulsing red dot
+  useEffect(() => {
+    if (!isRecording) { pulseAnim.setValue(1); return; }
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.15, duration: 550, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 550, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [isRecording]);
+
+  // Waveform bars
+  useEffect(() => {
+    if (!isRecording) { waveHeights.forEach(h => h.setValue(4)); return; }
+    const anims = waveHeights.map((h, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(h, { toValue: 6 + Math.random() * 18, duration: 120 + i * 40, useNativeDriver: false }),
+          Animated.timing(h, { toValue: 3 + Math.random() * 8,  duration: 120 + i * 40, useNativeDriver: false }),
+        ])
+      )
+    );
+    anims.forEach(a => a.start());
+    return () => anims.forEach(a => a.stop());
+  }, [isRecording]);
+
+  async function handleCancelRecording() {
+    try { await recordingRef.current?.stopAndUnloadAsync(); } catch {}
+    recordingRef.current = null;
+    setIsRecording(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
   async function handleSend() {
     const message = inputValue.trim();
     if (!message) return;
@@ -499,34 +544,72 @@ export default function ChatScreen() {
             Não entendi o áudio. Fale mais alto ou por mais tempo.
           </Text>
         )}
-        <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            value={inputValue}
-            onChangeText={(value) => { setInputValue(value); markInteraction(); }}
-            placeholder={t("chat_placeholder")}
-            placeholderTextColor={colors.muted}
-            multiline
-            maxLength={1000}
-            onSubmitEditing={handleSend}
-            onFocus={() => { markInteraction(); setIsInputFocused(true); setEyeExpression("curious"); }}
-            onBlur={() => setIsInputFocused(false)}
-          />
-          <TouchableOpacity
-            style={[styles.micButton, isRecording && styles.micButtonRecording]}
-            onPress={handleMicPress}
-            disabled={isTranscribing}
-          >
-            {isTranscribing ? (
-              <ActivityIndicator size="small" color={colors.foreground} />
-            ) : (
-              <Feather name={isRecording ? "mic-off" : "mic"} size={18} color={isRecording ? "#FFFFFF" : colors.foreground} />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.sendButton, (!inputValue.trim() || isTyping) && styles.sendButtonDisabled]} onPress={handleSend} disabled={!inputValue.trim() || isTyping}>
-            <Feather name="send" size={18} color="#1A1A1A" />
-          </TouchableOpacity>
-        </View>
+
+        {isRecording || isTranscribing ? (
+          <View style={styles.recordingRow}>
+            {/* Cancel — trash icon */}
+            <TouchableOpacity
+              onPress={handleCancelRecording}
+              disabled={isTranscribing}
+              style={styles.recCancelBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Feather name="trash-2" size={20} color={isTranscribing ? colors.muted : colors.destructive} />
+            </TouchableOpacity>
+
+            {/* Pulsing dot + timer */}
+            <View style={styles.recInfo}>
+              <Animated.View style={[styles.recDot, { opacity: pulseAnim }]} />
+              <Text style={styles.recTimer}>
+                {`${Math.floor(recordingSeconds / 60)}:${String(recordingSeconds % 60).padStart(2, "0")}`}
+              </Text>
+            </View>
+
+            {/* Waveform bars */}
+            <View style={styles.recWaveform}>
+              {waveHeights.map((h, i) => (
+                <Animated.View
+                  key={i}
+                  style={[styles.recWaveBar, { height: h, opacity: isTranscribing ? 0.3 : 1 }]}
+                />
+              ))}
+            </View>
+
+            {/* Send / processing */}
+            <TouchableOpacity
+              onPress={handleMicPress}
+              disabled={isTranscribing}
+              style={styles.recSendBtn}
+            >
+              {isTranscribing ? (
+                <ActivityIndicator size="small" color="#1A1A1A" />
+              ) : (
+                <Feather name="send" size={18} color="#1A1A1A" />
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              value={inputValue}
+              onChangeText={(value) => { setInputValue(value); markInteraction(); }}
+              placeholder={t("chat_placeholder")}
+              placeholderTextColor={colors.muted}
+              multiline
+              maxLength={1000}
+              onSubmitEditing={handleSend}
+              onFocus={() => { markInteraction(); setIsInputFocused(true); setEyeExpression("curious"); }}
+              onBlur={() => setIsInputFocused(false)}
+            />
+            <TouchableOpacity style={styles.micButton} onPress={handleMicPress}>
+              <Feather name="mic" size={18} color={colors.foreground} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.sendButton, (!inputValue.trim() || isTyping) && styles.sendButtonDisabled]} onPress={handleSend} disabled={!inputValue.trim() || isTyping}>
+              <Feather name="send" size={18} color="#1A1A1A" />
+            </TouchableOpacity>
+          </View>
+        )}
 
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -731,6 +814,14 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     sendButtonDisabled: { opacity: 0.4 },
     micButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center" },
     micButtonRecording: { backgroundColor: colors.destructive },
+    recordingRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.card, minHeight: 64 },
+    recCancelBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+    recInfo: { flexDirection: "row", alignItems: "center", gap: 6 },
+    recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.destructive },
+    recTimer: { fontFamily: FONTS.mono, fontSize: 15, fontWeight: "700", color: colors.foreground, minWidth: 36 },
+    recWaveform: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, height: 32 },
+    recWaveBar: { width: 3, borderRadius: 2, backgroundColor: colors.destructive },
+    recSendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
     transcriptionError: { fontFamily: FONTS.sans, fontSize: 12, color: colors.destructive, paddingHorizontal: 16, paddingBottom: 4 },
     tipCard: { marginTop: 6, marginBottom: 8, marginLeft: 6, marginRight: 24, padding: 14, borderRadius: 18, backgroundColor: colors.primary + "18", borderWidth: 1.5, borderColor: colors.primary + "55", gap: 8 },
     tipHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
