@@ -34,10 +34,7 @@ type MeResponse = {
   gender?: string | null;
   bio?: string | null;
   language?: string;
-  level: number;
-  xp: number;
   anonymousProfileVisitsEnabled?: boolean;
-  currentStreak: number;
 };
 
 

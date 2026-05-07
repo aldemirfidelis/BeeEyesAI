@@ -61,20 +61,6 @@ export function UserProfileModal({ userId, onClose }: { userId: string | null; o
 
               {data.user.bio ? <Text style={styles.bio}>{data.user.bio}</Text> : null}
 
-              <View style={styles.stats}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>Nv {data.user.level}</Text>
-                  <Text style={styles.statLabel}>Nível</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>{data.user.currentStreak}d</Text>
-                  <Text style={styles.statLabel}>Streak</Text>
-                </View>
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>{data.activeMissionsCount}</Text>
-                  <Text style={styles.statLabel}>Missões</Text>
-                </View>
-              </View>
 
               {data.interests.length > 0 ? (
                 <View style={styles.section}>

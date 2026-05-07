@@ -21,16 +21,11 @@ import { api } from "@mobile/lib/api";
 import type { NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { queryClient } from "@mobile/lib/queryClient";
-import XPProgress from "@mobile/components/XPProgress";
 import { MedalGrid, MedalDetail } from "@mobile/components/MedalBadge";
 import { UserAvatar } from "@mobile/components/UserAvatar";
 import type { MedalSpec } from "@mobile/lib/medals";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
-
-function xpForLevel(level: number) {
-  return level * 100 + (level - 1) * 50;
-}
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -159,16 +154,7 @@ export default function ProfileScreen() {
           <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
           {profile?.displayName ? <Text style={styles.usernameHandle}>@{profile?.username}</Text> : null}
           {profile?.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>Nivel {profile?.level ?? 1}</Text>
-          </View>
         </View>
-
-        {me && (
-          <View style={styles.section}>
-            <XPProgress currentXP={me.xp} level={me.level} xpToNextLevel={xpForLevel(me.level)} />
-          </View>
-        )}
 
         {score ? (
           <View style={styles.scoreCard}>
@@ -186,7 +172,6 @@ export default function ProfileScreen() {
         ) : null}
 
         <View style={styles.statsGrid}>
-          <StatCard emoji="🔥" label="Streak" value={`${profile?.currentStreak ?? 0} dias`} colors={colors} />
           <StatCard emoji="🏆" label="Medalhas" value={safeAchievements.length.toString()} colors={colors} />
         </View>
 
@@ -462,13 +447,6 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     usernameHandle: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted },
     profileBio: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground, textAlign: "center", paddingHorizontal: 18 },
     profileMeta: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
-    levelBadge: {
-      backgroundColor: colors.secondary,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 4,
-    },
-    levelText: { fontFamily: FONTS.mono, fontSize: 13, fontWeight: "700", color: colors.foreground },
     section: {
       backgroundColor: colors.card,
       borderRadius: 20,
