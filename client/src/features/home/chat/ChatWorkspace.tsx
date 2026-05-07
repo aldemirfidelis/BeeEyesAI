@@ -2,7 +2,6 @@ import type { ReactNode, RefObject } from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import BeeEyes, { type BeeEyesEvent, type BeeEyesExpression } from "@/components/BeeEyes";
 import ChatMessage from "@/components/ChatMessage";
-import StreakDisplay from "@/components/StreakDisplay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +20,7 @@ interface ChatWorkspaceProps {
   eyeInputFocused: boolean;
   eyeIsTyping: boolean;
   eyeScrollProgress: number;
-  eyeEngagementLevel: number;
+  eyeEngagementLevel?: number;
   showMsgSearch: boolean;
   msgSearchQuery: string;
   messages: Message[];

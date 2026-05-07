@@ -647,7 +647,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                     <UserAvatar name={friend.displayName || friend.username} avatarUrl={friend.avatarUrl} className="w-10 h-10" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{friend.displayName || friend.username}</p>
-                      <p className="text-xs text-muted-foreground truncate">Nível {friend.level}</p>
+                      <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
                     </div>
                     <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
                       {isSelected && <Check className="w-3.5 h-3.5 text-primary-foreground" />}

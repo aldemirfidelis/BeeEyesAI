@@ -579,7 +579,7 @@ function CommunityDetail({
                         <UserAvatar name={friend.displayName || friend.username} avatarUrl={friend.avatarUrl} size={36} backgroundColor={colors.secondary} color={colors.foreground} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.memberName}>{friend.displayName || friend.username}</Text>
-                          <Text style={styles.memberRole}>Nível {friend.level}</Text>
+                          <Text style={styles.memberRole}>@{friend.username}</Text>
                         </View>
                         <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                           {isSelected && <Feather name="check" size={14} color={colors.primary} />}

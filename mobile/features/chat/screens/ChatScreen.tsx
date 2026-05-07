@@ -30,10 +30,6 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function xpForLevel(level: number) {
-  return level * 100 + (level - 1) * 50;
-}
-
 export default function ChatScreen() {
   const { t } = useTranslation();
 
@@ -239,15 +235,10 @@ export default function ChatScreen() {
     return { total, completed, pending: Math.max(total - completed, 0), completionRate: total > 0 ? completed / total : 0 };
   }, [missionList]);
 
-  const level = me?.level ?? user?.level ?? 1;
-  const xp = me?.xp ?? user?.xp ?? 0;
-  const xpGoal = xpForLevel(level);
-  const xpProgress = clampNumber(xp / Math.max(xpGoal, 1), 0, 1);
-  const streak = me?.currentStreak ?? user?.currentStreak ?? 0;
   const lastActiveHours = me?.lastActiveAt ? Math.max(0, (Date.now() - new Date(me.lastActiveAt).getTime()) / 3600000) : null;
-  const fallbackFocusScore = useMemo(() => Math.round(Math.min(streak / 7, 1) * 35 + missionStats.completionRate * 45 + xpProgress * 20), [missionStats.completionRate, streak, xpProgress]);
+  const fallbackFocusScore = useMemo(() => Math.round(missionStats.completionRate * 100), [missionStats.completionRate]);
   const focusScore = score?.focusScore ?? fallbackFocusScore;
-  const consistencyScore = score?.consistencyScore ?? Math.round(Math.min(streak / 7, 1) * 100);
+  const consistencyScore = score?.consistencyScore ?? Math.round(missionStats.completionRate * 100);
   const disciplineScore = score?.disciplineScore ?? Math.round(missionStats.completionRate * 100);
   const scoreColor = focusScore < 40 ? colors.destructive : focusScore < 70 ? colors.primaryDark : colors.success;
   const scoreTone = score?.scoreTone ?? (focusScore < 40 ? "Risco" : focusScore < 70 ? "Ritmo" : "Progresso");
@@ -432,9 +423,7 @@ export default function ChatScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>{t("chat_insight_modal")}</Text>
               <View style={styles.progressMetaRow}>
-                <View style={styles.metricBadge}><Text style={styles.metricLabel}>{t("chat_streak")}</Text><Text style={styles.metricValue}>{streak}d</Text></View>
                 <View style={styles.metricBadge}><Text style={styles.metricLabel}>{t("chat_missions")}</Text><Text style={styles.metricValue}>{missionStats.completed}/{Math.max(missionStats.total, 1)}</Text></View>
-                <View style={styles.metricBadge}><Text style={styles.metricLabel}>XP</Text><Text style={styles.metricValue}>{xp}/{xpGoal}</Text></View>
               </View>
               <View style={[styles.scoreTrack, { marginTop: 12 }]}><View style={[styles.scoreFill, { width: `${focusScore}%`, backgroundColor: scoreColor }]} /></View>
               <View style={[styles.secondaryScoreRow, { marginTop: 8 }]}>
@@ -621,9 +610,6 @@ function FeedDigestPostCard({ post, styles }: { post: ChatFeedSummaryPost; style
         <View style={{ flex: 1 }}>
           <View style={styles.feedDigestAuthorRow}>
             <Text style={styles.feedDigestAuthor} numberOfLines={1}>{authorName}</Text>
-            <View style={styles.feedDigestLevel}>
-              <Text style={styles.feedDigestLevelText}>Nv {post.author.level}</Text>
-            </View>
           </View>
           <Text style={styles.feedDigestTime}>{timeAgo(post.createdAt)}</Text>
         </View>

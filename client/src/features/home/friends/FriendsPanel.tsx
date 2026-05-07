@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Flame, UserMinus, UserPlus, X } from "lucide-react";
+import { Check, ChevronRight, UserMinus, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -86,7 +86,6 @@ export function FriendsPanel(props: FriendsPanelProps) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-semibold truncate">{name}</span>
-                        <span className="text-xs text-muted-foreground bg-secondary rounded px-1 shrink-0">Nv {result.level}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">@{result.username}</span>
                     </div>
@@ -199,13 +198,6 @@ export function FriendsPanel(props: FriendsPanelProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{name}</span>
-                        <span className="text-xs text-muted-foreground bg-secondary rounded px-1">Nv {friend.level}</span>
-                        {friend.currentStreak > 0 && (
-                          <span className="text-xs text-orange-500 flex items-center gap-0.5">
-                            <Flame className="w-3 h-3" />
-                            {friend.currentStreak}d
-                          </span>
-                        )}
                       </div>
                       {interests.length > 0 && <p className="text-xs text-muted-foreground truncate">{interests.slice(0, 3).join(" · ")}</p>}
                       {lastActive && <p className="text-xs text-muted-foreground">Ativo {lastActive}</p>}

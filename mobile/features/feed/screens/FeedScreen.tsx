@@ -682,9 +682,6 @@ function PostCard({
             <TouchableOpacity onPress={() => onOpenProfile(post.author.id)}>
               <Text style={styles.postAuthorName}>{authorName}</Text>
             </TouchableOpacity>
-            <View style={styles.levelChip}>
-              <Text style={styles.levelChipText}>Nv {post.author.level}</Text>
-            </View>
           </View>
           <Text style={styles.postTime}>{timeAgo(post.createdAt)}</Text>
         </View>

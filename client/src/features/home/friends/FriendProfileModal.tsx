@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Flame, TrendingUp, Trophy, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/UserAvatar";
 import type { FriendProfile, User } from "@/features/home/types";
@@ -32,7 +32,7 @@ export function FriendProfileModal(props: FriendProfileModalProps) {
           >
             {loading && <div className="flex items-center justify-center h-40"><p className="text-sm text-muted-foreground">Carregando perfil...</p></div>}
             {selectedFriend && !loading && (() => {
-              const { user, recentPosts, interests, activeMissionsCount } = selectedFriend;
+              const { user, recentPosts, interests } = selectedFriend;
               const name = user.displayName || user.username;
               const canSendMessage = isFriendUser(user.id);
               return (
@@ -57,24 +57,6 @@ export function FriendProfileModal(props: FriendProfileModalProps) {
                       Enviar mensagem
                     </Button>
                   )}
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-secondary/50 rounded-xl p-3 text-center">
-                      <Trophy className="w-4 h-4 mx-auto mb-1 text-primary" />
-                      <p className="text-sm font-bold">Nv {user.level}</p>
-                      <p className="text-xs text-muted-foreground">Nível</p>
-                    </div>
-                    <div className="bg-secondary/50 rounded-xl p-3 text-center">
-                      <Flame className="w-4 h-4 mx-auto mb-1 text-orange-500" />
-                      <p className="text-sm font-bold">{user.currentStreak}d</p>
-                      <p className="text-xs text-muted-foreground">Streak</p>
-                    </div>
-                    <div className="bg-secondary/50 rounded-xl p-3 text-center">
-                      <TrendingUp className="w-4 h-4 mx-auto mb-1 text-green-500" />
-                      <p className="text-sm font-bold">{activeMissionsCount}</p>
-                      <p className="text-xs text-muted-foreground">Missões</p>
-                    </div>
-                  </div>
 
                   {interests.length > 0 && (
                     <div>

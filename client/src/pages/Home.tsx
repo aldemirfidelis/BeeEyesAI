@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
 import ChatMessage from "@/components/ChatMessage";
 import MissionCard from "@/components/MissionCard";
-import XPProgress from "@/components/XPProgress";
 import MoodSelector from "@/components/MoodSelector";
 import AchievementPopup from "@/components/AchievementPopup";
-import StreakDisplay from "@/components/StreakDisplay";
 import ThemeToggle from "@/components/ThemeToggle";
 import type { BeeEyesEvent, BeeEyesExpression } from "@/components/BeeEyes";
 import { Button } from "@/components/ui/button";
@@ -12,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon } from "lucide-react";
+import { Send, Plus, MessageCircle, Globe, UserPlus, Heart, Users, X, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
 import { AuthScreen } from "@/features/home/auth/AuthScreen";
@@ -1291,7 +1289,7 @@ export default function Home() {
       if (data.user) setUser(data.user);
       setEyeExpression("excited");
       pulseEyeEvent("mission-complete", 2200);
-      setAchievementData({ title: "Missão Completa!", description: `+${mission.xpReward} XP ganhos!` });
+      setAchievementData({ title: "Missão Completa! 🎯", description: mission.title });
       setShowAchievement(true);
       setTimeout(() => { setEyeExpression("happy"); setShowAchievement(false); }, 4000);
     } catch { /* ignore */ }
@@ -1460,12 +1458,12 @@ export default function Home() {
     const active = sys.filter((m) => !m.completed);
     const done = sys.filter((m) => m.completed);
     if (sys.length === 0) {
-      injectAssistantMessage("Você ainda não tem missões ativas. Continue usando o app para ganhar XP! 🎯");
+      injectAssistantMessage("Você ainda não tem missões ativas. Continue usando o app! 🎯");
       return;
     }
     const lines = [
       `🎯 Progresso das missões: ${done.length}/${sys.length} concluídas`,
-      ...active.slice(0, 3).map((m) => `▸ ${m.title} (+${m.xpReward} XP)`),
+      ...active.slice(0, 3).map((m) => `▸ ${m.title}`),
       ...(active.length > 3 ? [`...e mais ${active.length - 3} missões`] : []),
     ];
     injectAssistantMessage(lines.join("\n"));
@@ -1577,10 +1575,6 @@ export default function Home() {
 
   const sidebarContent = (
     <>
-      <div className="p-4 border-b">
-        {user && <XPProgress currentXP={user.xp} level={user.level} xpToNextLevel={500} />}
-      </div>
-
       <Tabs
         value={mobileTab === "chat" ? "feed" : mobileTab}
         className="flex-1 flex flex-col min-h-0"
@@ -1783,11 +1777,6 @@ export default function Home() {
     </>
   );
 
-  const eyeEngagementLevel = Math.min(
-    1,
-    ((user?.totalMessagesCount ?? messages.filter((message) => message.role === "user").length) + (selectedMood !== null && selectedMood >= 4 ? 8 : 0)) / 48,
-  );
-
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-background">
 
@@ -1802,7 +1791,7 @@ export default function Home() {
         eyeInputFocused={eyeInputFocused}
         eyeIsTyping={eyeIsTyping}
         eyeScrollProgress={eyeScrollProgress}
-        eyeEngagementLevel={eyeEngagementLevel}
+        eyeEngagementLevel={0}
         showMsgSearch={showMsgSearch}
         msgSearchQuery={msgSearchQuery}
         messages={messages}

@@ -289,9 +289,6 @@ export default function FriendsScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={styles.friendNameRow}>
                         <Text style={styles.friendName}>{name}</Text>
-                        <View style={styles.levelBadge}>
-                          <Text style={styles.levelBadgeText}>Nv {u.level}</Text>
-                        </View>
                       </View>
                       <Text style={styles.friendInterests}>@{u.username}</Text>
                     </View>
@@ -441,12 +438,6 @@ export default function FriendsScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={styles.friendNameRow}>
                     <Text style={styles.friendName}>{name}</Text>
-                    <View style={styles.levelBadge}>
-                      <Text style={styles.levelBadgeText}>Nv {friend.level}</Text>
-                    </View>
-                    {friend.currentStreak > 0 && (
-                      <Text style={styles.streakText}>🔥 {friend.currentStreak}d</Text>
-                    )}
                   </View>
                   {interests.length > 0 && (
                     <Text style={styles.friendInterests} numberOfLines={1}>

@@ -259,10 +259,7 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, 
             <UserAvatar name={authorName} avatarUrl={initialPost.author.avatarUrl} className="w-9 h-9 shadow-sm shrink-0" fallbackClassName="bg-primary text-primary-foreground" />
             <div className="min-w-0">
               <p className="text-sm font-semibold leading-tight truncate hover:underline">{authorName}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                <span className="font-medium text-primary/80">Nv {initialPost.author.level}</span>
-                {" · "}{timeAgo(initialPost.createdAt)}
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">{timeAgo(initialPost.createdAt)}</p>
             </div>
           </button>
           <div className="flex items-center gap-2 shrink-0">

@@ -38,7 +38,7 @@ export function InboxPanel(props: InboxPanelProps) {
           <UserAvatar name={selectedDMUser.displayName || selectedDMUser.username} avatarUrl={selectedDMUser.avatarUrl} className="w-8 h-8" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{selectedDMUser.displayName || selectedDMUser.username}</p>
-            <p className="text-xs text-muted-foreground">Nível {selectedDMUser.level}</p>
+            <p className="text-xs text-muted-foreground">@{selectedDMUser.username}</p>
           </div>
         </div>
 
