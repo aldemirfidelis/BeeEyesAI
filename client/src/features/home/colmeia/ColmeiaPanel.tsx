@@ -7,6 +7,7 @@ import { ptBR } from "date-fns/locale";
 import {
   Calendar, ChevronLeft, ChevronRight, DollarSign, ExternalLink,
   Loader2, MapPin, Plus, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
+  StickyNote, Pin, PinOff, Pencil, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,16 @@ interface FinanceSummary {
   totalExpense: number;
   balance: number;
   byCategory: Record<string, number>;
+}
+
+interface Note {
+  id: string;
+  title?: string | null;
+  content: string;
+  color: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ColmeiaPanelProps {
@@ -506,10 +517,226 @@ function FinanceSection({ authHeaders }: { authHeaders: () => Record<string, str
   );
 }
 
+// ── Notes Section ─────────────────────────────────────────────────────────────
+
+const NOTE_COLORS: Record<string, { bg: string; border: string }> = {
+  default: { bg: "bg-card", border: "border-border" },
+  yellow:  { bg: "bg-yellow-50 dark:bg-yellow-950/30", border: "border-yellow-200 dark:border-yellow-800" },
+  blue:    { bg: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200 dark:border-blue-800" },
+  green:   { bg: "bg-green-50 dark:bg-green-950/30", border: "border-green-200 dark:border-green-800" },
+  pink:    { bg: "bg-pink-50 dark:bg-pink-950/30", border: "border-pink-200 dark:border-pink-800" },
+};
+
+const COLOR_OPTIONS = Object.keys(NOTE_COLORS);
+
+function NotesSection({ authHeaders }: { authHeaders: () => Record<string, string> }) {
+  const [notesList, setNotesList] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newContent, setNewContent] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newColor, setNewColor] = useState("default");
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/colmeia/notes", { headers: authHeaders() });
+      if (res.ok) setNotesList(await res.json());
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [authHeaders]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newContent.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/colmeia/notes", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newContent.trim(), title: newTitle.trim() || null, color: newColor }),
+      });
+      if (res.ok) {
+        const note = await res.json();
+        setNotesList((prev) => [note, ...prev]);
+        setNewContent(""); setNewTitle(""); setNewColor("default"); setShowAdd(false);
+      }
+    } catch { /* ignore */ }
+    finally { setSaving(false); }
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editContent.trim()) return;
+    try {
+      const res = await fetch(`/api/colmeia/notes/${id}`, {
+        method: "PUT",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent.trim(), title: editTitle.trim() || null }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setNotesList((prev) => prev.map((n) => n.id === id ? updated : n));
+        setEditingId(null);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleTogglePin = async (note: Note) => {
+    try {
+      const res = await fetch(`/api/colmeia/notes/${note.id}`, {
+        method: "PUT",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: !note.pinned }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setNotesList((prev) =>
+          [...prev.map((n) => n.id === note.id ? updated : n)]
+            .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        );
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/colmeia/notes/${id}`, { method: "DELETE", headers: authHeaders() });
+      setNotesList((prev) => prev.filter((n) => n.id !== id));
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="p-4 space-y-3">
+      {/* Add button */}
+      {!showAdd && (
+        <button
+          onClick={() => setShowAdd(true)}
+          className="w-full flex items-center gap-2 justify-center py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors text-sm"
+        >
+          <Plus className="w-4 h-4" /> Nova nota
+        </button>
+      )}
+
+      {/* Add form */}
+      {showAdd && (
+        <div className="rounded-xl border border-border bg-card p-3 space-y-2 shadow-sm">
+          <Input
+            placeholder="Título (opcional)"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="h-8 text-sm"
+          />
+          <Textarea
+            placeholder="Escreva sua nota..."
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            className="text-sm resize-none min-h-[80px]"
+            autoFocus
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Cor:</span>
+            {COLOR_OPTIONS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setNewColor(c)}
+                className={`w-5 h-5 rounded-full border-2 transition-transform ${newColor === c ? "scale-125 border-foreground" : "border-transparent"} ${NOTE_COLORS[c].bg}`}
+              />
+            ))}
+            <div className="flex-1" />
+            <button onClick={() => { setShowAdd(false); setNewContent(""); setNewTitle(""); setNewColor("default"); }} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+            <button
+              onClick={handleAdd}
+              disabled={!newContent.trim() || saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+              Salvar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notes list */}
+      {loading ? (
+        <div className="flex justify-center pt-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : notesList.length === 0 ? (
+        <div className="text-center text-sm text-muted-foreground py-10">
+          <StickyNote className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p>Nenhuma nota ainda</p>
+          <p className="text-xs mt-1">Diga à Bee "anota isso" no chat ou crie manualmente</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2">
+          {notesList.map((note) => {
+            const colors = NOTE_COLORS[note.color] ?? NOTE_COLORS.default;
+            const isEditing = editingId === note.id;
+            return (
+              <div key={note.id} className={`rounded-xl border p-3 ${colors.bg} ${colors.border}`}>
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="Título"
+                      className="h-7 text-sm"
+                    />
+                    <Textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="text-sm resize-none min-h-[60px]"
+                      autoFocus
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setEditingId(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+                      <button
+                        onClick={() => handleSaveEdit(note.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-semibold"
+                      >
+                        <Check className="w-3 h-3" /> Salvar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex-1 min-w-0">
+                        {note.title && <p className="text-xs font-semibold truncate">{note.title}</p>}
+                        <p className="text-sm whitespace-pre-wrap break-words">{note.content}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                        <button onClick={() => handleTogglePin(note)} className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors" title={note.pinned ? "Desafixar" : "Fixar"}>
+                          {note.pinned ? <Pin className="w-3.5 h-3.5 text-primary" /> : <PinOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                        </button>
+                        <button onClick={() => { setEditingId(note.id); setEditContent(note.content); setEditTitle(note.title ?? ""); }} className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+                          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                        <button onClick={() => handleDelete(note.id)} className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {new Date(note.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
 export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
-  const [activeTab, setActiveTab] = useState<"calendar" | "finance">("calendar");
+  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "notes">("calendar");
 
   return (
     <div className="flex flex-col h-full">
@@ -530,11 +757,17 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "finance" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
             <DollarSign className="w-3.5 h-3.5" /> Finanças
           </button>
+          <button onClick={() => setActiveTab("notes")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "notes" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+            <StickyNote className="w-3.5 h-3.5" /> Notas
+          </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        {activeTab === "calendar" ? <CalendarSection authHeaders={authHeaders} /> : <FinanceSection authHeaders={authHeaders} />}
+        {activeTab === "calendar" && <CalendarSection authHeaders={authHeaders} />}
+        {activeTab === "finance" && <FinanceSection authHeaders={authHeaders} />}
+        {activeTab === "notes" && <NotesSection authHeaders={authHeaders} />}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
 import { db } from "../db";
-import { calendarEvents, financeTransactions } from "../../shared/schema";
+import { calendarEvents, financeTransactions, notes } from "../../shared/schema";
 import {
   buildIntelligentNotifications,
   buildScoreSnapshot,
@@ -394,7 +394,7 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return;
     }
 
-    const { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance } = parseAIActions(fullResponse);
+    const { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
 
     const missionDraft = suggestedMission && shouldCreateMissionFromChat(content, suggestedMission) ? suggestedMission : null;
@@ -483,6 +483,17 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
           date: new Date(),
         }).returning();
         if (transaction) res.write(`data: ${JSON.stringify({ type: "finance_logged", transaction })}\n\n`);
+      } catch { /* ignore */ }
+    }
+
+    if (saveNote?.content?.trim()) {
+      try {
+        const [note] = await db.insert(notes).values({
+          userId,
+          content: saveNote.content.trim(),
+          title: saveNote.title?.trim() ?? null,
+        }).returning();
+        if (note) res.write(`data: ${JSON.stringify({ type: "note_saved", note })}\n\n`);
       } catch { /* ignore */ }
     }
 

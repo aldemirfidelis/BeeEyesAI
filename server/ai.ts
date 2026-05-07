@@ -206,6 +206,9 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
      {"log_finance": {"type": "expense|income", "amount": 0.00, "category": "categoria", "description": "descrição opcional"}}
      Categorias de despesa: Alimentação, Transporte, Saúde, Lazer, Educação, Moradia, Compras, Outros
      Categorias de receita: Salário, Freelance, Investimentos, Outros
+   - Salvar/anotar/guardar nota, ideia, lembrete de texto ou recado → inclua ao FINAL:
+     {"save_note": {"content": "texto completo da nota", "title": "título curto opcional"}}
+     Use quando o usuário disser: "anota isso", "salva essa ideia", "guarda esse lembrete", "cria uma nota", "registra isso" ou similar.
    Nunca mencione esses JSONs ao usuário. Responda normalmente e inclua o JSON discretamente ao final.`.trim();
 }
 
@@ -1822,6 +1825,7 @@ export function parseAIActions(response: string): {
   fetchNews?: { query: string };
   createEvent?: { title: string; startAt: string; endAt?: string; description?: string; location?: string };
   logFinance?: { type: "income" | "expense"; amount: number; category: string; description?: string };
+  saveNote?: { content: string; title?: string };
 } {
   let cleanText = response;
   let suggestedMission: { title: string; description: string; xp_reward: number } | undefined;
@@ -1829,6 +1833,7 @@ export function parseAIActions(response: string): {
   let fetchNews: { query: string } | undefined;
   let createEvent: { title: string; startAt: string; endAt?: string; description?: string; location?: string } | undefined;
   let logFinance: { type: "income" | "expense"; amount: number; category: string; description?: string } | undefined;
+  let saveNote: { content: string; title?: string } | undefined;
 
   const missionMatch = response.match(/\{"suggest_mission":\s*(\{[^}]+\})\}/);
   if (missionMatch) {
@@ -1881,7 +1886,16 @@ export function parseAIActions(response: string): {
     } catch { /* ignore */ }
   }
 
-  return { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance };
+  const noteMatch = response.match(/\{"save_note":\s*(\{[\s\S]*?\})\}/);
+  if (noteMatch) {
+    try {
+      const parsed = JSON.parse(noteMatch[0]);
+      saveNote = parsed.save_note;
+      cleanText = cleanText.replace(noteMatch[0], "").trim();
+    } catch { /* ignore */ }
+  }
+
+  return { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance, saveNote };
 }
 
 const TRANSCRIBE_PROMPT =

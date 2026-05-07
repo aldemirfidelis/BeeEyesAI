@@ -38,6 +38,16 @@ interface FinanceSummary {
   byCategory: Record<string, number>;
 }
 
+interface Note {
+  id: string;
+  title?: string | null;
+  content: string;
+  color: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatCurrency(cents: number) {
@@ -628,6 +638,244 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
   );
 }
 
+// ── Notes Section ────────────────────────────────────────────────────────────
+
+function NotesSection({ colors }: { colors: any }) {
+  const [notesList, setNotesList] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newContent, setNewContent] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get("/api/colmeia/notes");
+      setNotesList(res.data ?? []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newContent.trim()) return;
+    setSaving(true);
+    try {
+      const res = await api.post("/api/colmeia/notes", {
+        content: newContent.trim(),
+        title: newTitle.trim() || null,
+      });
+      setNotesList((prev) => [res.data, ...prev]);
+      setNewContent(""); setNewTitle(""); setShowAdd(false);
+    } catch {
+      Alert.alert("Erro", "Não foi possível salvar a nota.");
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editContent.trim()) return;
+    try {
+      const res = await api.put(`/api/colmeia/notes/${id}`, {
+        content: editContent.trim(),
+        title: editTitle.trim() || null,
+      });
+      setNotesList((prev) => prev.map((n) => n.id === id ? res.data : n));
+      setEditingId(null);
+    } catch { Alert.alert("Erro", "Não foi possível editar a nota."); }
+  };
+
+  const handleTogglePin = async (note: Note) => {
+    try {
+      const res = await api.put(`/api/colmeia/notes/${note.id}`, { pinned: !note.pinned });
+      setNotesList((prev) =>
+        [...prev.map((n) => n.id === note.id ? res.data : n)]
+          .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      );
+    } catch { /* ignore */ }
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert("Apagar nota", "Tem certeza?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Apagar", style: "destructive",
+        onPress: async () => {
+          await api.delete(`/api/colmeia/notes/${id}`).catch(() => {});
+          setNotesList((prev) => prev.filter((n) => n.id !== id));
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View>
+      {/* Add button */}
+      {!showAdd && (
+        <TouchableOpacity
+          style={[noteStyles.addBtn, { borderColor: colors.border }]}
+          onPress={() => setShowAdd(true)}
+        >
+          <Feather name="plus" size={16} color={colors.muted} />
+          <Text style={[noteStyles.addBtnText, { color: colors.muted }]}>Nova nota</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Add form */}
+      {showAdd && (
+        <View style={[noteStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TextInput
+            style={[noteStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            placeholder="Título (opcional)"
+            placeholderTextColor={colors.muted}
+            value={newTitle}
+            onChangeText={setNewTitle}
+          />
+          <TextInput
+            style={[noteStyles.input, noteStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+            placeholder="Escreva sua nota..."
+            placeholderTextColor={colors.muted}
+            value={newContent}
+            onChangeText={setNewContent}
+            multiline
+            numberOfLines={4}
+            autoFocus
+          />
+          <View style={noteStyles.formActions}>
+            <TouchableOpacity onPress={() => { setShowAdd(false); setNewContent(""); setNewTitle(""); }}>
+              <Text style={[noteStyles.cancelText, { color: colors.muted }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[noteStyles.saveBtn, { backgroundColor: colors.primaryDark }]}
+              onPress={handleAdd}
+              disabled={!newContent.trim() || saving}
+            >
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={noteStyles.saveBtnText}>Salvar</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.primaryDark} style={{ marginTop: 24 }} />
+      ) : notesList.length === 0 ? (
+        <View style={noteStyles.empty}>
+          <Feather name="file-text" size={32} color={colors.border} />
+          <Text style={[noteStyles.emptyTitle, { color: colors.muted }]}>Nenhuma nota ainda</Text>
+          <Text style={[noteStyles.emptyHint, { color: colors.muted }]}>Diga à Bee "anota isso" no chat{"\n"}ou crie manualmente</Text>
+        </View>
+      ) : (
+        notesList.map((note) => {
+          const isEditing = editingId === note.id;
+          return (
+            <View key={note.id} style={[noteStyles.card, { backgroundColor: colors.card, borderColor: note.pinned ? colors.primaryDark : colors.border }]}>
+              {isEditing ? (
+                <View>
+                  <TextInput
+                    style={[noteStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+                    placeholder="Título"
+                    placeholderTextColor={colors.muted}
+                    value={editTitle}
+                    onChangeText={setEditTitle}
+                  />
+                  <TextInput
+                    style={[noteStyles.input, noteStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+                    value={editContent}
+                    onChangeText={setEditContent}
+                    multiline
+                    numberOfLines={4}
+                    autoFocus
+                  />
+                  <View style={noteStyles.formActions}>
+                    <TouchableOpacity onPress={() => setEditingId(null)}>
+                      <Text style={[noteStyles.cancelText, { color: colors.muted }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[noteStyles.saveBtn, { backgroundColor: colors.primaryDark }]}
+                      onPress={() => handleSaveEdit(note.id)}
+                    >
+                      <Text style={noteStyles.saveBtnText}>Salvar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View>
+                  <View style={noteStyles.noteHeader}>
+                    <View style={{ flex: 1 }}>
+                      {note.title ? <Text style={[noteStyles.noteTitle, { color: colors.foreground }]}>{note.title}</Text> : null}
+                      <Text style={[noteStyles.noteContent, { color: colors.foreground }]}>{note.content}</Text>
+                    </View>
+                    <View style={noteStyles.noteActions}>
+                      <TouchableOpacity onPress={() => handleTogglePin(note)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Feather name={note.pinned ? "bookmark" : "bookmark"} size={15} color={note.pinned ? colors.primaryDark : colors.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setEditingId(note.id); setEditContent(note.content); setEditTitle(note.title ?? ""); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Feather name="edit-2" size={14} color={colors.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(note.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Feather name="trash-2" size={14} color={colors.muted} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <Text style={[noteStyles.noteMeta, { color: colors.muted }]}>
+                    {new Date(note.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+const noteStyles = StyleSheet.create({
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  addBtnText: { fontSize: 14 },
+  card: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  inputMultiline: { minHeight: 80, textAlignVertical: "top" },
+  formActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 },
+  cancelText: { fontSize: 13 },
+  saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  saveBtnText: { color: "#fff", fontSize: 13, fontFamily: FONTS.semibold },
+  empty: { alignItems: "center", paddingTop: 40, gap: 8 },
+  emptyTitle: { fontSize: 15, fontFamily: FONTS.semibold },
+  emptyHint: { fontSize: 12, textAlign: "center", lineHeight: 18 },
+  noteHeader: { flexDirection: "row", gap: 10 },
+  noteTitle: { fontSize: 14, fontFamily: FONTS.semibold, marginBottom: 4 },
+  noteContent: { fontSize: 14, lineHeight: 20 },
+  noteActions: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  noteMeta: { fontSize: 11, marginTop: 8 },
+});
+
 // ── ColmeiaScreen ─────────────────────────────────────────────────────────────
 
 export default function ColmeiaScreen() {
@@ -635,7 +883,7 @@ export default function ColmeiaScreen() {
   const themeMode = useUIStore((s) => s.themeMode);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [activeTab, setActiveTab] = useState<"calendar" | "finance">("calendar");
+  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "notes">("calendar");
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -665,6 +913,15 @@ export default function ColmeiaScreen() {
             Finanças
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabSwitcherBtn, activeTab === "notes" && { backgroundColor: colors.card }]}
+          onPress={() => setActiveTab("notes")}
+        >
+          <Feather name="file-text" size={14} color={activeTab === "notes" ? colors.primaryDark : colors.muted} />
+          <Text style={[styles.tabSwitcherText, { color: activeTab === "notes" ? colors.primaryDark : colors.muted }]}>
+            Notas
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -673,11 +930,9 @@ export default function ColmeiaScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {activeTab === "calendar" ? (
-          <CalendarSection colors={colors} styles={styles} />
-        ) : (
-          <FinanceSection colors={colors} styles={styles} />
-        )}
+        {activeTab === "calendar" && <CalendarSection colors={colors} styles={styles} />}
+        {activeTab === "finance" && <FinanceSection colors={colors} styles={styles} />}
+        {activeTab === "notes" && <NotesSection colors={colors} />}
       </ScrollView>
     </View>
   );

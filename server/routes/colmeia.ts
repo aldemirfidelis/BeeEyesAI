@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import {
   calendarEvents,
   financeTransactions,
+  notes,
   userIntegrations,
 } from "../../shared/schema";
 
@@ -358,6 +359,64 @@ export function createColmeiaRouter(): Router {
     if (!existing) throw notFound("Transação não encontrada");
 
     await db.delete(financeTransactions).where(eq(financeTransactions.id, req.params.id));
+    return sendOk(res, { deleted: true });
+  }));
+
+  // ── Notes ─────────────────────────────────────────────────────────────────
+
+  router.get("/api/colmeia/notes", requireAuth, asyncHandler(async (req, res) => {
+    const rows = await db
+      .select()
+      .from(notes)
+      .where(eq(notes.userId, req.userId!))
+      .orderBy(desc(notes.pinned), desc(notes.updatedAt));
+    return sendOk(res, rows);
+  }));
+
+  router.post("/api/colmeia/notes", requireAuth, asyncHandler(async (req, res) => {
+    const { title, content, color, pinned } = req.body ?? {};
+    if (!content?.trim()) throw badRequest("content é obrigatório");
+
+    const [note] = await db.insert(notes).values({
+      userId: req.userId!,
+      title: title?.trim() ?? null,
+      content: content.trim(),
+      color: color ?? "default",
+      pinned: !!pinned,
+    }).returning();
+
+    return sendOk(res, note);
+  }));
+
+  router.put("/api/colmeia/notes/:id", requireAuth, asyncHandler(async (req, res) => {
+    const { title, content, color, pinned } = req.body ?? {};
+    const [existing] = await db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.id, req.params.id), eq(notes.userId, req.userId!)))
+      .limit(1);
+    if (!existing) throw notFound("Nota não encontrada");
+
+    const [updated] = await db.update(notes).set({
+      title: title !== undefined ? title?.trim() ?? null : existing.title,
+      content: content?.trim() ?? existing.content,
+      color: color ?? existing.color,
+      pinned: pinned !== undefined ? !!pinned : existing.pinned,
+      updatedAt: new Date(),
+    }).where(eq(notes.id, req.params.id)).returning();
+
+    return sendOk(res, updated);
+  }));
+
+  router.delete("/api/colmeia/notes/:id", requireAuth, asyncHandler(async (req, res) => {
+    const [existing] = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(and(eq(notes.id, req.params.id), eq(notes.userId, req.userId!)))
+      .limit(1);
+    if (!existing) throw notFound("Nota não encontrada");
+
+    await db.delete(notes).where(eq(notes.id, req.params.id));
     return sendOk(res, { deleted: true });
   }));
 

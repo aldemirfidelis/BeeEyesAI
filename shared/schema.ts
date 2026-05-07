@@ -397,14 +397,30 @@ export const userIntegrations = pgTable("user_integrations", {
   uniqueIndex("user_integrations_user_provider_uidx").on(table.userId, table.provider),
 ]);
 
+export const notes = pgTable("notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title"),
+  content: text("content").notNull(),
+  color: varchar("color", { length: 20 }).default("default"),
+  pinned: boolean("pinned").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("notes_user_created_idx").on(table.userId, table.createdAt),
+]);
+
 export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true });
 export const insertFinanceTransactionSchema = createInsertSchema(financeTransactions).omit({ id: true, createdAt: true });
+export const insertNoteSchema = createInsertSchema(notes).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
 export type FinanceTransaction = typeof financeTransactions.$inferSelect;
 export type InsertFinanceTransaction = z.infer<typeof insertFinanceTransactionSchema>;
 export type UserIntegration = typeof userIntegrations.$inferSelect;
+export type Note = typeof notes.$inferSelect;
+export type InsertNote = z.infer<typeof insertNoteSchema>;
 
 // ── Legacy types ──────────────────────────────────────────────────────────────
 

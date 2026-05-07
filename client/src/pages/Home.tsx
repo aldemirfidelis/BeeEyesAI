@@ -1120,6 +1120,11 @@ export default function Home() {
               setAchievementData({ title: `${label} registrada! 💰`, description: [tx?.description, amount].filter(Boolean).join(" — ") });
               setShowAchievement(true);
               setTimeout(() => setShowAchievement(false), 3500);
+            } else if (event.type === "note_saved") {
+              const note = event.note;
+              setAchievementData({ title: "Nota salva! 📝", description: note?.title ?? (note?.content?.slice(0, 60) + (note?.content?.length > 60 ? "…" : "")) });
+              setShowAchievement(true);
+              setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "error") {
               setStreamingText("");
               setMessages((prev) => [...prev, {
