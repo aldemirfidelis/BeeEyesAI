@@ -1,7 +1,10 @@
 import { Router } from "express";
+import { eq } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
+import { db } from "../db";
+import { calendarEvents, financeTransactions } from "../../shared/schema";
 import {
   buildIntelligentNotifications,
   buildScoreSnapshot,
@@ -391,7 +394,7 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return;
     }
 
-    const { cleanText, suggestedMission, achievement, fetchNews } = parseAIActions(fullResponse);
+    const { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance } = parseAIActions(fullResponse);
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
 
     const missionDraft = suggestedMission && shouldCreateMissionFromChat(content, suggestedMission) ? suggestedMission : null;
@@ -453,6 +456,34 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       } catch {
         // ignore
       }
+    }
+
+    if (createEvent?.title && createEvent.startAt) {
+      try {
+        const [event] = await db.insert(calendarEvents).values({
+          userId,
+          title: createEvent.title,
+          description: createEvent.description ?? null,
+          startAt: new Date(createEvent.startAt),
+          endAt: createEvent.endAt ? new Date(createEvent.endAt) : null,
+          location: createEvent.location ?? null,
+        }).returning();
+        if (event) res.write(`data: ${JSON.stringify({ type: "event_created", event })}\n\n`);
+      } catch { /* ignore */ }
+    }
+
+    if (logFinance?.type && logFinance.amount > 0 && logFinance.category) {
+      try {
+        const [transaction] = await db.insert(financeTransactions).values({
+          userId,
+          type: logFinance.type,
+          amountCents: Math.round(logFinance.amount * 100),
+          category: logFinance.category,
+          description: logFinance.description ?? null,
+          date: new Date(),
+        }).returning();
+        if (transaction) res.write(`data: ${JSON.stringify({ type: "finance_logged", transaction })}\n\n`);
+      } catch { /* ignore */ }
     }
 
     storage.updateUserStreak(userId).catch(() => {});

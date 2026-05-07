@@ -18,6 +18,7 @@ const es: Record<TranslationKeys, string> = {
   tab_chat: "Chat",
   tab_feed: "Feed",
   tab_missions: "Misiones",
+  tab_colmeia: "Colmeia",
   tab_inbox: "Mensajes",
   tab_communities: "Comunidades",
   tab_locked_title: "Disponible",

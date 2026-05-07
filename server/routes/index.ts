@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { createAuthRouter } from "./auth";
+import { createColmeiaRouter } from "./colmeia";
 import { createCommunitiesRouter } from "./communities";
 import { createMissionActionTrigger } from "./mission-actions";
 import { createMessagesRouter } from "./messages";
@@ -14,6 +15,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.use(createSystemRouter());
   app.use(createAuthRouter());
+  app.use(createColmeiaRouter());
   app.use(createMessagesRouter(triggerMissionAction));
   app.use(createMissionsRouter(triggerMissionAction));
   app.use(createMoodRouter(triggerMissionAction));

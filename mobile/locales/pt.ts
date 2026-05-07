@@ -16,6 +16,7 @@ const pt = {
   tab_chat: "Chat",
   tab_feed: "Feed",
   tab_missions: "Missões",
+  tab_colmeia: "Colmeia",
   tab_inbox: "Mensagens",
   tab_communities: "Comunidades",
   tab_locked_title: "Disponível",

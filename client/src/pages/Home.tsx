@@ -12,13 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search } from "lucide-react";
+import { Send, Plus, TrendingUp, MessageCircle, Globe, UserPlus, Heart, Users, X, Flame, Trophy, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
 import { AuthScreen } from "@/features/home/auth/AuthScreen";
 import { OnboardingScreen } from "@/features/home/auth/OnboardingScreen";
 import { FeedPanel } from "@/features/home/feed/FeedPanel";
-import { MissionsPanel } from "@/features/home/missions/MissionsPanel";
+import { ColmeiaPanel } from "@/features/home/colmeia/ColmeiaPanel";
 import { FriendsPanel } from "@/features/home/friends/FriendsPanel";
 import { InboxPanel } from "@/features/home/chat/InboxPanel";
 import { CommunitiesPanel } from "@/features/home/communities/CommunitiesPanel";
@@ -77,7 +77,7 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [mobileTab, setMobileTab] = useState<"chat" | "feed" | "missions" | "friends" | "inbox" | "communities">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "feed" | "colmeia" | "friends" | "inbox" | "communities">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
@@ -1109,6 +1109,17 @@ export default function Home() {
               setEyeExpression("excited");
               pulseEyeEvent("mission-complete", 2200);
               setTimeout(() => { setShowAchievement(false); setEyeExpression("happy"); }, 4000);
+            } else if (event.type === "event_created") {
+              setAchievementData({ title: "Evento criado! 📅", description: event.event?.title ?? "Evento adicionado ao calendário." });
+              setShowAchievement(true);
+              setTimeout(() => setShowAchievement(false), 3500);
+            } else if (event.type === "finance_logged") {
+              const tx = event.transaction;
+              const label = tx?.type === "income" ? "Receita" : "Despesa";
+              const amount = tx ? `R$ ${(tx.amountCents / 100).toFixed(2)}` : "";
+              setAchievementData({ title: `${label} registrada! 💰`, description: [tx?.description, amount].filter(Boolean).join(" — ") });
+              setShowAchievement(true);
+              setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "error") {
               setStreamingText("");
               setMessages((prev) => [...prev, {
@@ -1444,8 +1455,7 @@ export default function Home() {
     const active = sys.filter((m) => !m.completed);
     const done = sys.filter((m) => m.completed);
     if (sys.length === 0) {
-      injectAssistantMessage("Abrindo suas missões na aba ao lado! 🎯");
-      setMobileTab("missions");
+      injectAssistantMessage("Você ainda não tem missões ativas. Continue usando o app para ganhar XP! 🎯");
       return;
     }
     const lines = [
@@ -1454,7 +1464,6 @@ export default function Home() {
       ...(active.length > 3 ? [`...e mais ${active.length - 3} missões`] : []),
     ];
     injectAssistantMessage(lines.join("\n"));
-    setMobileTab("missions");
   };
 
   const [showInlinePost, setShowInlinePost] = useState(false);
@@ -1583,14 +1592,15 @@ export default function Home() {
           }
         }}
       >
+
         <TabsList className="mx-2 mt-3 md:flex hidden gap-0.5">
           <TabsTrigger value="feed" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
             <LayoutGrid className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Feed</span>
           </TabsTrigger>
-          <TabsTrigger value="missions" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-[10px] leading-tight">Missões</span>
+          <TabsTrigger value="colmeia" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+            <Hexagon className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Colmeia</span>
           </TabsTrigger>
           <TabsTrigger value="friends" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
             <Users className="w-4 h-4" />
@@ -1638,8 +1648,8 @@ export default function Home() {
           />
         </TabsContent>
 
-        <TabsContent value="missions" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
-          <MissionsPanel user={user} missions={missions} onToggleMission={handleToggleMission} onDeleteMission={handleDeleteMission} />
+        <TabsContent value="colmeia" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
+          <ColmeiaPanel authHeaders={authHeaders} />
         </TabsContent>
 
         <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
@@ -1913,6 +1923,7 @@ export default function Home() {
         onQuickAction={(action) => {
           if (action === "feed") { setMobileTab("feed"); loadFeed(); }
           if (action === "missions") handleMissionsCommand();
+          if (action === "colmeia") { setMobileTab("colmeia"); }
           if (action === "news") handleNewsCommand();
           if (action === "inbox") { setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }
           if (action === "communities") { setMobileTab("communities"); loadCommunities(communitySearch); }
@@ -1933,7 +1944,7 @@ export default function Home() {
         {([
           { tab: "chat",        label: "Chat",        icon: <MessageCircle className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("chat"); } },
           { tab: "feed",        label: "Feed",        icon: <LayoutGrid    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); } },
-          { tab: "missions",    label: "Missões",     icon: <TrendingUp    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("missions"); } },
+          { tab: "colmeia",     label: "Colmeia",     icon: <Hexagon       className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("colmeia"); } },
           { tab: "inbox",       label: "Mensagens",   icon: <MessageSquare className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); } },
           { tab: "communities", label: "Comunidades", icon: <Users2        className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("communities"); loadCommunities(communitySearch); } },
         ] as const).map(({ tab, label, icon, onClick }) => (

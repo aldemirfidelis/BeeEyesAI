@@ -352,6 +352,62 @@ export const insertPostCommentSchema = createInsertSchema(postComments).omit({
   createdAt: true,
 });
 
+// ── Colmeia ───────────────────────────────────────────────────────────────────
+
+export const calendarEvents = pgTable("calendar_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at"),
+  allDay: boolean("all_day").notNull().default(false),
+  location: text("location"),
+  googleEventId: text("google_event_id"),
+  color: varchar("color", { length: 20 }).default("primary"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("calendar_events_user_start_idx").on(table.userId, table.startAt),
+]);
+
+export const financeTransactions = pgTable("finance_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 10 }).notNull(), // "income" | "expense"
+  amountCents: integer("amount_cents").notNull(), // value in cents
+  category: text("category").notNull(),
+  description: text("description"),
+  date: timestamp("date").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("finance_transactions_user_date_idx").on(table.userId, table.date),
+]);
+
+export const userIntegrations = pgTable("user_integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("user_integrations_user_provider_uidx").on(table.userId, table.provider),
+]);
+
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true });
+export const insertFinanceTransactionSchema = createInsertSchema(financeTransactions).omit({ id: true, createdAt: true });
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+export type FinanceTransaction = typeof financeTransactions.$inferSelect;
+export type InsertFinanceTransaction = z.infer<typeof insertFinanceTransactionSchema>;
+export type UserIntegration = typeof userIntegrations.$inferSelect;
+
+// ── Legacy types ──────────────────────────────────────────────────────────────
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type UserPersonality = typeof userPersonality.$inferSelect;

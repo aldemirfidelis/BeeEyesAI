@@ -93,14 +93,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="missions"
+        name="colmeia"
         options={{
-          title: t("tab_missions"),
+          title: t("tab_colmeia"),
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="zap" color={color} focused={focused} />
+            <TabIcon name="grid" color={color} focused={focused} />
           ),
         }}
       />
+      <Tabs.Screen name="missions" options={{ href: null }} />
       <Tabs.Screen
         name="inbox"
         options={{

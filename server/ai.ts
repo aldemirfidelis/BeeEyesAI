@@ -197,7 +197,16 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
    Exemplos: "me dê notícias sobre política" → {"fetch_news": {"query": "política Brasil"}}
              "o que aconteceu no futebol hoje?" → {"fetch_news": {"query": "futebol hoje Brasil"}}
 6. NUNCA invente informações sobre o usuário que não foram mencionadas
-7. Responda SEMPRE em português do Brasil`.trim();
+7. Responda SEMPRE em português do Brasil
+8. COLMEIA — Ferramentas integradas ao app. Quando o usuário pedir explicitamente para:
+   - Marcar/agendar/criar reunião, compromisso, evento, alarme ou lembrete → inclua ao FINAL:
+     {"create_event": {"title": "Título claro do evento", "startAt": "ISO 8601 datetime", "endAt": "ISO 8601 datetime ou null", "description": "opcional", "location": "opcional"}}
+     Use datas/horas absolutas em ISO 8601. Se o usuário disser "amanhã às 15h", converta com base na data atual (${new Date().toISOString().split("T")[0]}).
+   - Registrar gasto/despesa/compra ou receita/renda/salário → inclua ao FINAL:
+     {"log_finance": {"type": "expense|income", "amount": 0.00, "category": "categoria", "description": "descrição opcional"}}
+     Categorias de despesa: Alimentação, Transporte, Saúde, Lazer, Educação, Moradia, Compras, Outros
+     Categorias de receita: Salário, Freelance, Investimentos, Outros
+   Nunca mencione esses JSONs ao usuário. Responda normalmente e inclua o JSON discretamente ao final.`.trim();
 }
 
 // ── Personality Analysis ──────────────────────────────────────────────────────
@@ -1811,11 +1820,15 @@ export function parseAIActions(response: string): {
   suggestedMission?: { title: string; description: string; xp_reward: number };
   achievement?: { type: string; title: string; description: string };
   fetchNews?: { query: string };
+  createEvent?: { title: string; startAt: string; endAt?: string; description?: string; location?: string };
+  logFinance?: { type: "income" | "expense"; amount: number; category: string; description?: string };
 } {
   let cleanText = response;
   let suggestedMission: { title: string; description: string; xp_reward: number } | undefined;
   let achievement: { type: string; title: string; description: string } | undefined;
   let fetchNews: { query: string } | undefined;
+  let createEvent: { title: string; startAt: string; endAt?: string; description?: string; location?: string } | undefined;
+  let logFinance: { type: "income" | "expense"; amount: number; category: string; description?: string } | undefined;
 
   const missionMatch = response.match(/\{"suggest_mission":\s*(\{[^}]+\})\}/);
   if (missionMatch) {
@@ -1850,7 +1863,25 @@ export function parseAIActions(response: string): {
     }
   }
 
-  return { cleanText, suggestedMission, achievement, fetchNews };
+  const eventMatch = response.match(/\{"create_event":\s*(\{[\s\S]*?\})\}/);
+  if (eventMatch) {
+    try {
+      const parsed = JSON.parse(eventMatch[0]);
+      createEvent = parsed.create_event;
+      cleanText = cleanText.replace(eventMatch[0], "").trim();
+    } catch { /* ignore */ }
+  }
+
+  const financeMatch = response.match(/\{"log_finance":\s*(\{[\s\S]*?\})\}/);
+  if (financeMatch) {
+    try {
+      const parsed = JSON.parse(financeMatch[0]);
+      logFinance = parsed.log_finance;
+      cleanText = cleanText.replace(financeMatch[0], "").trim();
+    } catch { /* ignore */ }
+  }
+
+  return { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance };
 }
 
 const TRANSCRIBE_PROMPT =
