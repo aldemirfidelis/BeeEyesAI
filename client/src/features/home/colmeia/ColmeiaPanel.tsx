@@ -100,23 +100,13 @@ function fmtCents(cents: number) {
 
 type ToolId = "calendar" | "finance" | "clock" | "notes";
 
-interface ColmeiaTool { id: ToolId; label: string; icon: React.ReactNode; color: string }
-
-function ColmeiaToolIcon({ src, alt }: { src: string; alt: string }) {
-  return (
-    <img
-      src={src}
-      alt={alt}
-      style={{ width: 36, height: 36, objectFit: "contain", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.25))" }}
-    />
-  );
-}
+interface ColmeiaTool { id: ToolId; label: string; src: string; color: string }
 
 const COLMEIA_TOOLS: ColmeiaTool[] = [
-  { id: "calendar", label: "Calendário", icon: <ColmeiaToolIcon src="/icons-colmeia/calendario.png"  alt="Calendário" />, color: "#FFD940" },
-  { id: "finance",  label: "Finanças",   icon: <ColmeiaToolIcon src="/icons-colmeia/financas.png"    alt="Finanças"   />, color: "#10B981" },
-  { id: "notes",    label: "Notas",      icon: <ColmeiaToolIcon src="/icons-colmeia/notas.png"       alt="Notas"      />, color: "#8B5CF6" },
-  { id: "clock",    label: "Alarmes",    icon: <ColmeiaToolIcon src="/icons-colmeia/alarmes.png"     alt="Alarmes"    />, color: "#F97316" },
+  { id: "calendar", label: "Calendário", src: "/icons-colmeia/calendario.png",  color: "#FFD940" },
+  { id: "finance",  label: "Finanças",   src: "/icons-colmeia/financas.png",    color: "#10B981" },
+  { id: "notes",    label: "Notas",      src: "/icons-colmeia/notas.png",       color: "#8B5CF6" },
+  { id: "clock",    label: "Alarmes",    src: "/icons-colmeia/alarmes.png",     color: "#F97316" },
 ];
 
 // 6 slots around center — null = "em breve"
@@ -147,21 +137,27 @@ function hexXY(angle: number) {
 
 const HEX_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
 
+const PENTAGON_CLIP = "polygon(50% 0%, 98% 35%, 79% 91%, 21% 91%, 2% 35%)";
+
 function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
   return (
     <div className="relative mx-auto" style={{ width: 280, height: 310 }}>
       {/* Center Bee */}
       <div
-        className="bee-hex absolute flex flex-col items-center justify-center"
+        className="absolute"
         style={{
           width: C_CELL, height: C_CELL,
           left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
-          background: "linear-gradient(145deg, hsl(var(--card)), hsl(var(--primary) / 0.14))",
-          border: "2.5px solid #FFD940",
-          boxShadow: "0 16px 34px -20px rgba(89,58,0,0.55), 0 0 22px 4px rgba(255,217,64,0.28)",
+          filter: "drop-shadow(0 0 12px rgba(255,217,64,0.55)) drop-shadow(0 4px 14px rgba(89,58,0,0.45))",
         }}
       >
-        <img src="/icons-colmeia/icone-central.png" alt="Bee" style={{ width: 56, height: 56, objectFit: "contain", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.3))" }} />
+        <div style={{ width: "100%", height: "100%", clipPath: PENTAGON_CLIP, overflow: "hidden" }}>
+          <img
+            src="/icons-colmeia/icone-central.png"
+            alt="Bee"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        </div>
       </div>
 
       {/* Tool cells */}
@@ -173,28 +169,34 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
             key={idx}
             disabled={!tool}
             onClick={() => tool && onSelect(tool.id)}
-            className="bee-hex absolute flex flex-col items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            className="absolute transition-transform hover:scale-105 active:scale-95"
             style={{
               width: CELL, height: CELL,
               left: pos.left, top: pos.top,
-              background: tool ? "linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted) / 0.62))" : "hsl(var(--muted) / 0.55)",
-              border: `1.5px solid ${tool ? tool.color + "99" : "hsl(var(--border))"}`,
-              boxShadow: tool ? `0 16px 26px -22px ${tool.color}, 0 0 14px 2px ${tool.color}26` : "none",
-              opacity: tool ? 1 : 0.28,
+              background: "none",
+              border: "none",
+              padding: 0,
               cursor: tool ? "pointer" : "default",
-               gap: 4,
+              opacity: tool ? 1 : 0.28,
+              filter: tool
+                ? `drop-shadow(0 0 7px ${tool.color}88) drop-shadow(0 3px 8px rgba(0,0,0,0.22))`
+                : "none",
             }}
           >
-            {tool ? (
-              <>
-                <span style={{ color: tool.color }}>{tool.icon}</span>
-                <span style={{ fontSize: 9, color: tool.color, fontWeight: 700, lineHeight: 1.15, textAlign: "center", paddingInline: 4, minHeight: 11 }}>
-                  {tool.label}
-                </span>
-              </>
-            ) : (
-              <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />
-            )}
+            <div style={{
+              width: "100%", height: "100%",
+              clipPath: PENTAGON_CLIP,
+              overflow: "hidden",
+              backgroundColor: tool ? undefined : "hsl(var(--muted) / 0.55)",
+            }}>
+              {tool && (
+                <img
+                  src={tool.src}
+                  alt={tool.label}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              )}
+            </div>
           </button>
         );
       })}

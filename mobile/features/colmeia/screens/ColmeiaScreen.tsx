@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions, Vibration,
   Image,
 } from "react-native";
-import { SvgXml } from "react-native-svg";
+import { Svg, Defs, ClipPath, Polygon, Image as SvgImage } from "react-native-svg";
 import { DrumRollDatePicker } from "@mobile/components/DrumRollDatePicker";
 import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1469,6 +1469,33 @@ function hexPos(angle: number): { left: number; top: number } {
   };
 }
 
+function PentagonCell({ size, imgSource, clipId }: { size: number; imgSource: number; clipId: string }) {
+  const pts = [
+    `${size * 0.50},0`,
+    `${size * 0.98},${size * 0.35}`,
+    `${size * 0.79},${size * 0.91}`,
+    `${size * 0.21},${size * 0.91}`,
+    `${size * 0.02},${size * 0.35}`,
+  ].join(" ");
+  const uri = Image.resolveAssetSource(imgSource).uri;
+  return (
+    <Svg width={size} height={size}>
+      <Defs>
+        <ClipPath id={clipId}>
+          <Polygon points={pts} />
+        </ClipPath>
+      </Defs>
+      <SvgImage
+        href={uri}
+        x={0} y={0}
+        width={size} height={size}
+        preserveAspectRatio="xMidYMid slice"
+        clipPath={`url(#${clipId})`}
+      />
+    </Svg>
+  );
+}
+
 function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) => void }) {
   const cx = HUB_SCREEN_W / 2;
   const cy = HUB_HEIGHT / 2;
@@ -1480,16 +1507,12 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         position: "absolute",
         width: CENTER_SIZE, height: CENTER_SIZE,
         left: cx - CENTER_SIZE / 2, top: cy - CENTER_SIZE / 2,
-        borderRadius: CENTER_SIZE * 0.28,
-        backgroundColor: colors.card,
-        borderWidth: 2.5, borderColor: "#FFD940",
-        alignItems: "center", justifyContent: "center",
-        shadowColor: "#B98005", shadowOpacity: 0.28, shadowRadius: 24, elevation: 14,
+        shadowColor: "#B98005", shadowOpacity: 0.35, shadowRadius: 20, elevation: 12,
       }}>
-        <Image
-          source={require("../../../assets/icons-colmeia/icone-central.png")}
-          style={{ width: 72, height: 72 }}
-          resizeMode="contain"
+        <PentagonCell
+          size={CENTER_SIZE}
+          imgSource={require("../../../assets/icons-colmeia/icone-central.png")}
+          clipId="pent-center"
         />
       </View>
 
@@ -1507,30 +1530,25 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
               position: "absolute",
               width: HEX_SIZE, height: HEX_SIZE,
               left: pos.left, top: pos.top,
-              borderRadius: HEX_SIZE * 0.26,
-              backgroundColor: tool ? colors.card : colors.secondary,
-              borderWidth: 1.5,
-              borderColor: tool ? tool.color + "BB" : colors.border,
-              alignItems: "center", justifyContent: "center",
               shadowColor: tool ? tool.color : "transparent",
-              shadowOpacity: tool ? 0.22 : 0,
-              shadowRadius: 14, elevation: tool ? 8 : 1,
+              shadowOpacity: tool ? 0.35 : 0,
+              shadowRadius: 12, elevation: tool ? 8 : 1,
               opacity: tool ? 1 : 0.3,
             }}
           >
             {tool ? (
-              <>
-                <Image
-                  source={tool.img}
-                  style={{ width: 40, height: 40 }}
-                  resizeMode="contain"
-                />
-                <Text style={{ fontSize: 10, color: tool.color, fontFamily: FONTS.sans, fontWeight: "700", marginTop: 3, textAlign: "center", paddingHorizontal: 4, minHeight: 12 }}>
-                  {tool.label}
-                </Text>
-              </>
+              <PentagonCell
+                size={HEX_SIZE}
+                imgSource={tool.img}
+                clipId={`pent-${tool.id}`}
+              />
             ) : (
-              <View style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }} />
+              <View style={{
+                width: HEX_SIZE, height: HEX_SIZE,
+                borderRadius: HEX_SIZE * 0.26,
+                backgroundColor: colors.secondary,
+                opacity: 0.5,
+              }} />
             )}
           </TouchableOpacity>
         );
