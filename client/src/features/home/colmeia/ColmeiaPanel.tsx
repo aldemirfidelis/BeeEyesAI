@@ -142,20 +142,20 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
     <div className="relative mx-auto" style={{ width: 280, height: 310 }}>
       {/* Center Bee */}
       <div
-        className="absolute flex items-center justify-center"
+        className="absolute"
         style={{
           width: C_CELL, height: C_CELL,
           left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
           borderRadius: 24,
-          background: "linear-gradient(145deg, hsl(var(--card)), hsl(var(--primary) / 0.14))",
           border: "2.5px solid #FFD940",
           boxShadow: "0 16px 34px -20px rgba(89,58,0,0.55), 0 0 22px 4px rgba(255,217,64,0.28)",
+          overflow: "hidden",
         }}
       >
         <img
           src="/icons-colmeia/icone-central.png"
           alt="Bee"
-          style={{ width: 60, height: 60, objectFit: "contain" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       </div>
 
@@ -168,7 +168,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
             key={idx}
             disabled={!tool}
             onClick={() => tool && onSelect(tool.id)}
-            className="absolute flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            className="absolute transition-transform hover:scale-105 active:scale-95"
             style={{
               width: CELL, height: CELL,
               left: pos.left, top: pos.top,
@@ -180,13 +180,14 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
               boxShadow: tool ? `0 16px 26px -22px ${tool.color}, 0 0 14px 2px ${tool.color}26` : "none",
               opacity: tool ? 1 : 0.28,
               cursor: tool ? "pointer" : "default",
+              overflow: "hidden",
             }}
           >
             {tool ? (
               <img
                 src={tool.src}
                 alt={tool.label}
-                style={{ width: 44, height: 44, objectFit: "contain" }}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (
               <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />

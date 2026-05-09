@@ -1482,13 +1482,13 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         borderRadius: CENTER_SIZE * 0.28,
         backgroundColor: colors.card,
         borderWidth: 2.5, borderColor: "#FFD940",
-        alignItems: "center", justifyContent: "center",
+        overflow: "hidden",
         shadowColor: "#B98005", shadowOpacity: 0.28, shadowRadius: 24, elevation: 14,
       }}>
         <Image
           source={require("../../../assets/icons-colmeia/icone-central.png")}
-          style={{ width: 72, height: 72 }}
-          resizeMode="contain"
+          style={{ width: CENTER_SIZE, height: CENTER_SIZE }}
+          resizeMode="cover"
         />
       </View>
 
@@ -1510,7 +1510,7 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
               backgroundColor: tool ? colors.card : colors.secondary,
               borderWidth: 1.5,
               borderColor: tool ? tool.color + "BB" : colors.border,
-              alignItems: "center", justifyContent: "center",
+              overflow: "hidden",
               shadowColor: tool ? tool.color : "transparent",
               shadowOpacity: tool ? 0.22 : 0,
               shadowRadius: 14, elevation: tool ? 8 : 1,
@@ -1520,8 +1520,8 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
             {tool ? (
               <Image
                 source={tool.img}
-                style={{ width: 48, height: 48 }}
-                resizeMode="contain"
+                style={{ width: HEX_SIZE, height: HEX_SIZE }}
+                resizeMode="cover"
               />
             ) : (
               <View style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }} />
