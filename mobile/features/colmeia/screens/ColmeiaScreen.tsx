@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions, Vibration,
 } from "react-native";
+import { DrumRollDatePicker } from "@mobile/components/DrumRollDatePicker";
 import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -65,6 +66,10 @@ interface AlarmReminder {
   localNotificationId?: string | null;
 }
 
+// ── Colmeia Hub types ─────────────────────────────────────────────────────────
+
+type ToolId = "calendar" | "finance" | "clock" | "notes";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const ALARM_WEEK_DAYS = [
@@ -122,6 +127,33 @@ function getCategoryColor(cat: string) {
   return CATEGORY_COLORS[cat.toLowerCase()] ?? "#6B7280";
 }
 
+// ── Colmeia Hub config ────────────────────────────────────────────────────────
+// To add a new tool: (1) add its ToolId to the union above, (2) push to COLMEIA_TOOLS,
+// (3) place its id in HEX_LAYOUT (replace a null slot or extend).
+
+type FeatherName = React.ComponentProps<typeof Feather>["name"];
+
+interface ColmeiaTool { id: ToolId; label: string; icon: FeatherName; color: string }
+
+const COLMEIA_TOOLS: ColmeiaTool[] = [
+  { id: "calendar", label: "Calendário",  icon: "calendar",    color: "#FFD940" },
+  { id: "finance",  label: "Finanças",    icon: "dollar-sign", color: "#10B981" },
+  { id: "notes",    label: "Notas",       icon: "file-text",   color: "#8B5CF6" },
+  { id: "clock",    label: "Alarmes",     icon: "bell",        color: "#F97316" },
+];
+
+// 6 positions around center (degrees, clockwise from top).
+// null = "em breve" placeholder — replace with a ToolId when adding a new tool.
+const HEX_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
+const HEX_LAYOUT: Array<ToolId | null> = [
+  "calendar", // top
+  "clock",    // top-right
+  "finance",  // bottom-right
+  null,       // bottom      — coming soon
+  "notes",    // bottom-left
+  null,       // top-left    — coming soon
+];
+
 // ── Calendar Section ──────────────────────────────────────────────────────────
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -145,6 +177,19 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: "", description: "", startAt: "", endAt: "", location: "" });
+  const [pickerTarget, setPickerTarget] = useState<"startAt" | "endAt" | null>(null);
+
+  const startAtDate = newEvent.startAt ? new Date(newEvent.startAt) : null;
+  const endAtDate = newEvent.endAt ? new Date(newEvent.endAt) : null;
+
+  function formatEventDate(d: Date): string {
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function isoFromDate(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
 
   const loadEvents = useCallback(async () => {
     setLoading(true);
@@ -434,8 +479,18 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
               </TouchableOpacity>
             </View>
             <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Título *" placeholderTextColor={colors.muted} value={newEvent.title} onChangeText={(v) => setNewEvent((p) => ({ ...p, title: v }))} />
-            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Início (AAAA-MM-DD HH:MM) *" placeholderTextColor={colors.muted} value={newEvent.startAt} onChangeText={(v) => setNewEvent((p) => ({ ...p, startAt: v }))} />
-            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Fim (AAAA-MM-DD HH:MM)" placeholderTextColor={colors.muted} value={newEvent.endAt} onChangeText={(v) => setNewEvent((p) => ({ ...p, endAt: v }))} />
+            <TouchableOpacity style={[localStyles.input, localStyles.dateField, { borderColor: colors.border, backgroundColor: colors.background }]} onPress={() => setPickerTarget("startAt")}>
+              {startAtDate
+                ? <Text style={{ color: colors.foreground, fontSize: 15 }}>{formatEventDate(startAtDate)}</Text>
+                : <Text style={{ color: colors.muted, fontSize: 15 }}>Início *</Text>}
+              <Feather name="calendar" size={16} color={colors.muted} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[localStyles.input, localStyles.dateField, { borderColor: colors.border, backgroundColor: colors.background }]} onPress={() => setPickerTarget("endAt")}>
+              {endAtDate
+                ? <Text style={{ color: colors.foreground, fontSize: 15 }}>{formatEventDate(endAtDate)}</Text>
+                : <Text style={{ color: colors.muted, fontSize: 15 }}>Fim (opcional)</Text>}
+              <Feather name="clock" size={16} color={colors.muted} />
+            </TouchableOpacity>
             <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Local" placeholderTextColor={colors.muted} value={newEvent.location} onChangeText={(v) => setNewEvent((p) => ({ ...p, location: v }))} />
             <TextInput style={[localStyles.input, localStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Descrição" placeholderTextColor={colors.muted} value={newEvent.description} onChangeText={(v) => setNewEvent((p) => ({ ...p, description: v }))} multiline numberOfLines={3} />
             <TouchableOpacity style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark, marginTop: 4 }]} onPress={handleAddEvent} disabled={saving}>
@@ -444,6 +499,19 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
           </View>
         </View>
       </Modal>
+
+      <DrumRollDatePicker
+        visible={pickerTarget !== null}
+        value={pickerTarget === "startAt" ? startAtDate : endAtDate}
+        title={pickerTarget === "startAt" ? "Início do evento" : "Fim do evento"}
+        onConfirm={(date) => {
+          setNewEvent((p) => ({ ...p, [pickerTarget!]: isoFromDate(date) }));
+          setPickerTarget(null);
+        }}
+        onCancel={() => setPickerTarget(null)}
+        onClear={pickerTarget === "endAt" ? () => { setNewEvent((p) => ({ ...p, endAt: "" })); setPickerTarget(null); } : undefined}
+        colors={colors}
+      />
     </View>
   );
 }
@@ -1067,6 +1135,7 @@ function ClockSection({ colors }: { colors: any }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showAlarmPicker, setShowAlarmPicker] = useState(false);
   const [form, setForm] = useState({
     title: "",
     message: "",
@@ -1191,7 +1260,15 @@ function ClockSection({ colors }: { colors: any }) {
           </View>
           <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Nome do aviso" placeholderTextColor={colors.muted} value={form.title} onChangeText={(v) => setForm((p) => ({ ...p, title: v }))} />
           <TextInput style={[localStyles.input, localStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Mensagem opcional" placeholderTextColor={colors.muted} value={form.message} onChangeText={(v) => setForm((p) => ({ ...p, message: v }))} multiline />
-          <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Data e hora: 2026-07-10 09:00" placeholderTextColor={colors.muted} value={form.scheduledAt} onChangeText={(v) => setForm((p) => ({ ...p, scheduledAt: v }))} />
+          <TouchableOpacity
+            style={[localStyles.input, localStyles.dateField, { borderColor: colors.border, backgroundColor: colors.background }]}
+            onPress={() => setShowAlarmPicker(true)}
+          >
+            {form.scheduledAt
+              ? <Text style={{ color: colors.foreground, fontSize: 15 }}>{new Date(form.scheduledAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+              : <Text style={{ color: colors.muted, fontSize: 15 }}>Data e hora *</Text>}
+            <Feather name="calendar" size={16} color={colors.muted} />
+          </TouchableOpacity>
           <Text style={[alarmStyles.sectionLabel, { color: colors.muted }]}>Repeticao</Text>
           <View style={alarmStyles.weekdayGrid}>
             {ALARM_WEEK_DAYS.map((day) => {
@@ -1226,6 +1303,20 @@ function ClockSection({ colors }: { colors: any }) {
           </View>
         </View>
       )}
+
+      <DrumRollDatePicker
+        visible={showAlarmPicker}
+        value={form.scheduledAt ? new Date(form.scheduledAt) : null}
+        title="Data e hora do alarme"
+        onConfirm={(date) => {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          const iso = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+          setForm((p) => ({ ...p, scheduledAt: iso }));
+          setShowAlarmPicker(false);
+        }}
+        onCancel={() => setShowAlarmPicker(false)}
+        colors={colors}
+      />
 
       {loading ? (
         <ActivityIndicator color={colors.primaryDark} style={{ marginTop: 24 }} />
@@ -1319,6 +1410,7 @@ const noteStyles = StyleSheet.create({
     marginBottom: 10,
   },
   inputMultiline: { minHeight: 80, textAlignVertical: "top" },
+  dateField: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   formActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 },
   cancelText: { fontSize: 13 },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
@@ -1333,6 +1425,90 @@ const noteStyles = StyleSheet.create({
   noteMeta: { fontSize: 11, marginTop: 8 },
 });
 
+// ── Colmeia Hub ───────────────────────────────────────────────────────────────
+
+const { width: HUB_SCREEN_W } = Dimensions.get("window");
+const HEX_SIZE    = 90;
+const CENTER_SIZE = 112;
+const HUB_RADIUS  = 118;
+const HUB_HEIGHT  = 374;
+
+function toRad(deg: number) { return (deg * Math.PI) / 180; }
+
+function hexPos(angle: number): { left: number; top: number } {
+  const cx = HUB_SCREEN_W / 2;
+  const cy = HUB_HEIGHT / 2;
+  return {
+    left: cx + HUB_RADIUS * Math.cos(toRad(angle)) - HEX_SIZE / 2,
+    top:  cy + HUB_RADIUS * Math.sin(toRad(angle)) - HEX_SIZE / 2,
+  };
+}
+
+function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) => void }) {
+  const cx = HUB_SCREEN_W / 2;
+  const cy = HUB_HEIGHT / 2;
+
+  return (
+    <View style={{ width: HUB_SCREEN_W, height: HUB_HEIGHT }}>
+      {/* Center — Bee */}
+      <View style={{
+        position: "absolute",
+        width: CENTER_SIZE, height: CENTER_SIZE,
+        left: cx - CENTER_SIZE / 2, top: cy - CENTER_SIZE / 2,
+        borderRadius: CENTER_SIZE * 0.24,
+        backgroundColor: colors.card,
+        borderWidth: 2.5, borderColor: "#FFD940",
+        alignItems: "center", justifyContent: "center",
+        shadowColor: "#FFD940", shadowOpacity: 0.9, shadowRadius: 22, elevation: 14,
+      }}>
+        <Text style={{ fontSize: 38 }}>🐝</Text>
+        <Text style={{ fontSize: 10, color: "#FFD940", fontFamily: FONTS.display, fontWeight: "700", letterSpacing: 2, marginTop: 3 }}>
+          BEE
+        </Text>
+      </View>
+
+      {/* Tool cells */}
+      {HEX_LAYOUT.map((toolId, idx) => {
+        const pos = hexPos(HEX_ANGLES[idx]);
+        const tool = toolId ? COLMEIA_TOOLS.find(t => t.id === toolId) : null;
+        return (
+          <TouchableOpacity
+            key={idx}
+            disabled={!tool}
+            activeOpacity={0.72}
+            onPress={() => tool && onSelect(tool.id)}
+            style={{
+              position: "absolute",
+              width: HEX_SIZE, height: HEX_SIZE,
+              left: pos.left, top: pos.top,
+              borderRadius: HEX_SIZE * 0.22,
+              backgroundColor: colors.card,
+              borderWidth: 1.5,
+              borderColor: tool ? tool.color + "BB" : colors.border,
+              alignItems: "center", justifyContent: "center",
+              shadowColor: tool ? tool.color : "transparent",
+              shadowOpacity: tool ? 0.55 : 0,
+              shadowRadius: 12, elevation: tool ? 8 : 1,
+              opacity: tool ? 1 : 0.3,
+            }}
+          >
+            {tool ? (
+              <>
+                <Feather name={tool.icon} size={26} color={tool.color} />
+                <Text style={{ fontSize: 9, color: tool.color, fontFamily: FONTS.sans, fontWeight: "700", marginTop: 5, textAlign: "center", paddingHorizontal: 4 }}>
+                  {tool.label}
+                </Text>
+              </>
+            ) : (
+              <Feather name="plus-circle" size={20} color={colors.muted} />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── ColmeiaScreen ─────────────────────────────────────────────────────────────
 
 export default function ColmeiaScreen() {
@@ -1340,67 +1516,53 @@ export default function ColmeiaScreen() {
   const themeMode = useUIStore((s) => s.themeMode);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "clock" | "notes">("calendar");
+  const [activeSection, setActiveSection] = useState<ToolId | null>(null);
+
+  const activeTool = activeSection ? COLMEIA_TOOLS.find(t => t.id === activeSection) : null;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🍯 Colmeia</Text>
-        <Text style={styles.headerSubtitle}>Seus utilitários pessoais</Text>
+        {activeSection ? (
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            onPress={() => setActiveSection(null)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 20 }}
+          >
+            <Feather name="arrow-left" size={20} color={activeTool?.color ?? colors.primaryDark} />
+            <Text style={[styles.headerTitle, { color: activeTool?.color ?? colors.foreground, fontSize: 20 }]}>
+              {activeTool?.label}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <Text style={styles.headerTitle}>🍯 Colmeia</Text>
+            <Text style={styles.headerSubtitle}>Seus utilitários pessoais</Text>
+          </>
+        )}
       </View>
 
-      {/* Tab Switcher */}
-      <View style={[styles.tabSwitcher, { backgroundColor: colors.secondary }]}>
-        <TouchableOpacity
-          style={[styles.tabSwitcherBtn, activeTab === "calendar" && { backgroundColor: colors.card }]}
-          onPress={() => setActiveTab("calendar")}
-        >
-          <Feather name="calendar" size={14} color={activeTab === "calendar" ? colors.primaryDark : colors.muted} />
-          <Text style={[styles.tabSwitcherText, { color: activeTab === "calendar" ? colors.primaryDark : colors.muted }]}>
-            Calendário
+      {activeSection === null ? (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24, alignItems: "center" }}>
+          <ColmeiaHub colors={colors} onSelect={setActiveSection} />
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: "center" }}>
+            Selecione uma ferramenta
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabSwitcherBtn, activeTab === "finance" && { backgroundColor: colors.card }]}
-          onPress={() => setActiveTab("finance")}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Feather name="dollar-sign" size={14} color={activeTab === "finance" ? colors.primaryDark : colors.muted} />
-          <Text style={[styles.tabSwitcherText, { color: activeTab === "finance" ? colors.primaryDark : colors.muted }]}>
-            Finanças
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabSwitcherBtn, activeTab === "notes" && { backgroundColor: colors.card }]}
-          onPress={() => setActiveTab("notes")}
-        >
-          <Feather name="file-text" size={14} color={activeTab === "notes" ? colors.primaryDark : colors.muted} />
-          <Text style={[styles.tabSwitcherText, { color: activeTab === "notes" ? colors.primaryDark : colors.muted }]}>
-            Notas
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabSwitcherBtn, activeTab === "clock" && { backgroundColor: colors.card }]}
-          onPress={() => setActiveTab("clock")}
-        >
-          <Feather name="clock" size={14} color={activeTab === "clock" ? colors.primaryDark : colors.muted} />
-          <Text style={[styles.tabSwitcherText, { color: activeTab === "clock" ? colors.primaryDark : colors.muted }]}>
-            Relogio
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {activeTab === "calendar" && <CalendarSection colors={colors} styles={styles} />}
-        {activeTab === "finance" && <FinanceSection colors={colors} styles={styles} />}
-        {activeTab === "clock" && <ClockSection colors={colors} />}
-        {activeTab === "notes" && <NotesSection colors={colors} />}
-      </ScrollView>
+          {activeSection === "calendar" && <CalendarSection colors={colors} styles={styles} />}
+          {activeSection === "finance" && <FinanceSection colors={colors} styles={styles} />}
+          {activeSection === "clock" && <ClockSection colors={colors} />}
+          {activeSection === "notes" && <NotesSection colors={colors} />}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -1424,26 +1586,6 @@ function makeStyles(colors: any) {
       fontSize: 13,
       color: colors.muted,
       marginTop: 2,
-    },
-    tabSwitcher: {
-      flexDirection: "row",
-      marginHorizontal: 16,
-      marginBottom: 12,
-      borderRadius: 12,
-      padding: 3,
-    },
-    tabSwitcherBtn: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-      paddingVertical: 8,
-      borderRadius: 10,
-    },
-    tabSwitcherText: {
-      fontSize: 13,
-      fontFamily: FONTS.sans,
     },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 16 },

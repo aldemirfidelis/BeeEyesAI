@@ -94,6 +94,113 @@ function fmtCents(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// ── Colmeia Hub config ────────────────────────────────────────────────────────
+// To add a new tool: (1) add ToolId to the union, (2) push to COLMEIA_TOOLS,
+// (3) place its id in HEX_LAYOUT (replace a null slot or extend).
+
+type ToolId = "calendar" | "finance" | "clock" | "notes";
+
+interface ColmeiaTool { id: ToolId; label: string; icon: React.ReactNode; color: string }
+
+function CalIcon()    { return <Calendar className="w-6 h-6" />; }
+function MoneyIcon()  { return <DollarSign className="w-6 h-6" />; }
+function BellIcon()   { return <BellRing className="w-6 h-6" />; }
+function NoteIcon()   { return <StickyNote className="w-6 h-6" />; }
+function PlusIcon()   { return <Plus className="w-5 h-5 opacity-40" />; }
+
+const COLMEIA_TOOLS: ColmeiaTool[] = [
+  { id: "calendar", label: "Calendário", icon: <CalIcon />,   color: "#FFD940" },
+  { id: "finance",  label: "Finanças",   icon: <MoneyIcon />, color: "#10B981" },
+  { id: "notes",    label: "Notas",      icon: <NoteIcon />,  color: "#8B5CF6" },
+  { id: "clock",    label: "Alarmes",    icon: <BellIcon />,  color: "#F97316" },
+];
+
+// 6 slots around center — null = "em breve"
+const HEX_LAYOUT: Array<ToolId | null> = [
+  "calendar", // top
+  "clock",    // top-right
+  "finance",  // bottom-right
+  null,       // bottom      — coming soon
+  "notes",    // bottom-left
+  null,       // top-left    — coming soon
+];
+
+// Hex geometry (pixel-based, container 280×310)
+const W_CTR = 140; // centerX of hub container
+const H_CTR = 155; // centerY
+const W_RADIUS = 100;
+const CELL = 76;   // hex cell size
+const C_CELL = 96; // center cell size
+
+function degToRad(d: number) { return (d * Math.PI) / 180; }
+
+function hexXY(angle: number) {
+  return {
+    left: W_CTR + W_RADIUS * Math.cos(degToRad(angle)) - CELL / 2,
+    top:  H_CTR + W_RADIUS * Math.sin(degToRad(angle)) - CELL / 2,
+  };
+}
+
+const HEX_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
+
+function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
+  return (
+    <div className="relative mx-auto" style={{ width: 280, height: 310 }}>
+      {/* Center Bee */}
+      <div
+        className="absolute flex flex-col items-center justify-center"
+        style={{
+          width: C_CELL, height: C_CELL,
+          left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
+          borderRadius: C_CELL * 0.24,
+          background: "hsl(var(--card))",
+          border: "2.5px solid #FFD940",
+          boxShadow: "0 0 22px 4px rgba(255,217,64,0.35)",
+        }}
+      >
+        <span style={{ fontSize: 32 }}>🐝</span>
+        <span style={{ fontSize: 9, color: "#FFD940", fontWeight: 800, letterSpacing: 2, marginTop: 2 }}>BEE</span>
+      </div>
+
+      {/* Tool cells */}
+      {HEX_LAYOUT.map((toolId, idx) => {
+        const pos = hexXY(HEX_ANGLES[idx]);
+        const tool = toolId ? COLMEIA_TOOLS.find(t => t.id === toolId) : null;
+        return (
+          <button
+            key={idx}
+            disabled={!tool}
+            onClick={() => tool && onSelect(tool.id)}
+            className="absolute flex flex-col items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            style={{
+              width: CELL, height: CELL,
+              left: pos.left, top: pos.top,
+              borderRadius: CELL * 0.22,
+              background: "hsl(var(--card))",
+              border: `1.5px solid ${tool ? tool.color + "99" : "hsl(var(--border))"}`,
+              boxShadow: tool ? `0 0 14px 2px ${tool.color}33` : "none",
+              opacity: tool ? 1 : 0.28,
+              cursor: tool ? "pointer" : "default",
+              gap: 5,
+            }}
+          >
+            {tool ? (
+              <>
+                <span style={{ color: tool.color }}>{tool.icon}</span>
+                <span style={{ fontSize: 8, color: tool.color, fontWeight: 700, lineHeight: 1.2, textAlign: "center", paddingInline: 4 }}>
+                  {tool.label}
+                </span>
+              </>
+            ) : (
+              <PlusIcon />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Calendar Section ──────────────────────────────────────────────────────────
 
 function CalendarSection({ authHeaders }: { authHeaders: () => Record<string, string> }) {
@@ -1025,43 +1132,48 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
 }
 
 export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
-  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "clock" | "notes">("calendar");
+  const [activeSection, setActiveSection] = useState<ToolId | null>(null);
+  const activeTool = activeSection ? COLMEIA_TOOLS.find(t => t.id === activeSection) : null;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 px-4 pt-4 pb-0">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xl">🍯</span>
-          <div>
-            <h2 className="font-bold text-base leading-tight">Colmeia</h2>
-            <p className="text-[11px] text-muted-foreground">Suas ferramentas integradas à Bee</p>
+      {/* Header */}
+      <div className="shrink-0 px-4 pt-4 pb-3 flex items-center gap-3 border-b border-border/50">
+        {activeSection ? (
+          <button
+            onClick={() => setActiveSection(null)}
+            className="flex items-center gap-2 hover:opacity-75 transition-opacity"
+          >
+            <ChevronLeft className="w-4 h-4" style={{ color: activeTool?.color }} />
+            <span className="font-bold text-sm" style={{ color: activeTool?.color }}>
+              {activeTool?.label}
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🍯</span>
+            <div>
+              <h2 className="font-bold text-base leading-tight">Colmeia</h2>
+              <p className="text-[11px] text-muted-foreground">Seus utilitários pessoais</p>
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-4 gap-1 p-1 bg-muted rounded-xl">
-          <button onClick={() => setActiveTab("calendar")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "calendar" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-            <Calendar className="w-3.5 h-3.5" /> Calendário
-          </button>
-          <button onClick={() => setActiveTab("finance")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "finance" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-            <DollarSign className="w-3.5 h-3.5" /> Finanças
-          </button>
-          <button onClick={() => setActiveTab("clock")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "clock" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-            <Clock className="w-3.5 h-3.5" /> Relogio
-          </button>
-          <button onClick={() => setActiveTab("notes")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "notes" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-            <StickyNote className="w-3.5 h-3.5" /> Notas
-          </button>
-        </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        {activeTab === "calendar" && <CalendarSection authHeaders={authHeaders} />}
-        {activeTab === "finance" && <FinanceSection authHeaders={authHeaders} />}
-        {activeTab === "clock" && <ClockSection authHeaders={authHeaders} />}
-        {activeTab === "notes" && <NotesSection authHeaders={authHeaders} />}
+        {activeSection === null ? (
+          <div className="flex flex-col items-center py-6 gap-3">
+            <ColmeiaHub onSelect={setActiveSection} />
+            <p className="text-[11px] text-muted-foreground">Selecione uma ferramenta</p>
+          </div>
+        ) : (
+          <>
+            {activeSection === "calendar" && <CalendarSection authHeaders={authHeaders} />}
+            {activeSection === "finance" && <FinanceSection authHeaders={authHeaders} />}
+            {activeSection === "clock" && <ClockSection authHeaders={authHeaders} />}
+            {activeSection === "notes" && <NotesSection authHeaders={authHeaders} />}
+          </>
+        )}
       </div>
     </div>
   );

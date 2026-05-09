@@ -22,7 +22,7 @@
         {
           "icon": "./assets/android-icon-monochrome.png",
           "color": "#FFD940",
-          "defaultChannel": "bee-missions",
+          "defaultChannel": "bee-alerts",
           "sounds": []
         }
       ]
