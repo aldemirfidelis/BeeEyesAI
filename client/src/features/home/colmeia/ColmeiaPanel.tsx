@@ -137,27 +137,26 @@ function hexXY(angle: number) {
 
 const HEX_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
 
-const PENTAGON_CLIP = "polygon(50% 0%, 98% 35%, 79% 91%, 21% 91%, 2% 35%)";
-
 function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
   return (
     <div className="relative mx-auto" style={{ width: 280, height: 310 }}>
       {/* Center Bee */}
       <div
-        className="absolute"
+        className="absolute flex items-center justify-center"
         style={{
           width: C_CELL, height: C_CELL,
           left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
-          filter: "drop-shadow(0 0 12px rgba(255,217,64,0.55)) drop-shadow(0 4px 14px rgba(89,58,0,0.45))",
+          borderRadius: 24,
+          background: "linear-gradient(145deg, hsl(var(--card)), hsl(var(--primary) / 0.14))",
+          border: "2.5px solid #FFD940",
+          boxShadow: "0 16px 34px -20px rgba(89,58,0,0.55), 0 0 22px 4px rgba(255,217,64,0.28)",
         }}
       >
-        <div style={{ width: "100%", height: "100%", clipPath: PENTAGON_CLIP, overflow: "hidden" }}>
-          <img
-            src="/icons-colmeia/icone-central.png"
-            alt="Bee"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        </div>
+        <img
+          src="/icons-colmeia/icone-central.png"
+          alt="Bee"
+          style={{ width: 60, height: 60, objectFit: "contain" }}
+        />
       </div>
 
       {/* Tool cells */}
@@ -169,34 +168,29 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
             key={idx}
             disabled={!tool}
             onClick={() => tool && onSelect(tool.id)}
-            className="absolute transition-transform hover:scale-105 active:scale-95"
+            className="absolute flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
             style={{
               width: CELL, height: CELL,
               left: pos.left, top: pos.top,
-              background: "none",
-              border: "none",
-              padding: 0,
-              cursor: tool ? "pointer" : "default",
+              borderRadius: 20,
+              background: tool
+                ? "linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted) / 0.62))"
+                : "hsl(var(--muted) / 0.55)",
+              border: `1.5px solid ${tool ? tool.color + "99" : "hsl(var(--border))"}`,
+              boxShadow: tool ? `0 16px 26px -22px ${tool.color}, 0 0 14px 2px ${tool.color}26` : "none",
               opacity: tool ? 1 : 0.28,
-              filter: tool
-                ? `drop-shadow(0 0 7px ${tool.color}88) drop-shadow(0 3px 8px rgba(0,0,0,0.22))`
-                : "none",
+              cursor: tool ? "pointer" : "default",
             }}
           >
-            <div style={{
-              width: "100%", height: "100%",
-              clipPath: PENTAGON_CLIP,
-              overflow: "hidden",
-              backgroundColor: tool ? undefined : "hsl(var(--muted) / 0.55)",
-            }}>
-              {tool && (
-                <img
-                  src={tool.src}
-                  alt={tool.label}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              )}
-            </div>
+            {tool ? (
+              <img
+                src={tool.src}
+                alt={tool.label}
+                style={{ width: 44, height: 44, objectFit: "contain" }}
+              />
+            ) : (
+              <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />
+            )}
           </button>
         );
       })}
