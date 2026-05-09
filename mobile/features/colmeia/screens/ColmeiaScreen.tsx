@@ -1454,8 +1454,8 @@ const BEE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 const { width: HUB_SCREEN_W } = Dimensions.get("window");
 const HEX_SIZE    = 104;
 const CENTER_SIZE = 124;
-const HUB_RADIUS  = 126;
-const HUB_HEIGHT  = 404;
+const HUB_RADIUS  = 108;
+const HUB_HEIGHT  = 380;
 const ICON_ZOOM   = 1.18;
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }

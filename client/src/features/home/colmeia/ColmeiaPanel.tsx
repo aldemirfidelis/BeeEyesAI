@@ -120,13 +120,13 @@ const HEX_LAYOUT: Array<ToolId | null> = [
 ];
 
 // Hub geometry for full-bleed Colmeia artwork.
-const HUB_W = 326;
-const HUB_H = 350;
+const HUB_W = 316;
+const HUB_H = 336;
 const W_CTR = HUB_W / 2;
 const H_CTR = HUB_H / 2;
-const W_RADIUS = 115;
-const CELL = 102;
-const C_CELL = 116;
+const W_RADIUS = 92;
+const CELL = 96;
+const C_CELL = 122;
 const ICON_ZOOM = 1.18;
 
 function degToRad(d: number) { return (d * Math.PI) / 180; }
