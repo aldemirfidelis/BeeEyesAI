@@ -139,12 +139,14 @@ export function SettingsScreen(props: SettingsScreenProps) {
   return (
     <AnimatePresence>
       {show && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-background">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bee-app-shell fixed inset-0 z-50 bg-background">
           <div className="h-full overflow-y-auto">
-            <div className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur-sm">
+            <div className="sticky top-0 z-10 border-b border-border/60 bg-card/82 backdrop-blur-xl">
               <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-primary" />
+                  <span className="bee-hex flex h-9 w-9 items-center justify-center bg-primary/18 text-primary">
+                    <Settings className="w-5 h-5" />
+                  </span>
                   <h2 className="font-display text-lg font-semibold">Perfil e configuracoes</h2>
                 </div>
                 <Button variant="outline" onClick={onClose}>Fechar</Button>
@@ -152,13 +154,13 @@ export function SettingsScreen(props: SettingsScreenProps) {
             </div>
 
             <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
-              <Card className="p-4 space-y-4">
+              <Card className="bee-honeycomb p-4 space-y-4 overflow-hidden">
                 <div className="flex items-center gap-2">
                   <UserRound className="w-4 h-4 text-primary" />
                   <p className="text-sm font-semibold">Perfil</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  {profilePhotoUrl ? <img src={profilePhotoUrl} alt="Foto de perfil" className="w-16 h-16 rounded-full object-cover border" /> : <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-lg font-black text-primary-foreground">{(user?.username || "?")[0].toUpperCase()}</div>}
+                  {profilePhotoUrl ? <img src={profilePhotoUrl} alt="Foto de perfil" className="w-16 h-16 rounded-full object-cover border-2 border-primary/30 shadow-md" /> : <div className="bee-hex w-16 h-16 bg-primary flex items-center justify-center text-lg font-black text-primary-foreground shadow-md">{(user?.username || "?")[0].toUpperCase()}</div>}
                   <div className="flex-1 min-w-0">
                     <p className="font-black truncate">{user?.displayName || user?.username}</p>
                     <p className="text-xs text-muted-foreground truncate">@{user?.username}</p>
@@ -199,7 +201,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   {themeMode === "dark" ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
                   <p className="text-sm font-semibold">Aparencia</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 bg-muted/45 p-1">
                   <Button variant={themeMode === "light" ? "default" : "outline"} onClick={() => onThemeSelect("light")}>Modo claro</Button>
                   <Button variant={themeMode === "dark" ? "default" : "outline"} onClick={() => onThemeSelect("dark")}>Modo escuro</Button>
                 </div>

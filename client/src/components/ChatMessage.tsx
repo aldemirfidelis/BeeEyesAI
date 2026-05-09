@@ -21,8 +21,8 @@ export default function ChatMessage({ role, content, timestamp, actions, profile
     >
       {/* Avatar */}
       <div
-        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center overflow-hidden shadow-sm ${
-          isUser ? "bg-primary" : "bg-secondary"
+        className={`flex-shrink-0 w-8 h-8 flex items-center justify-center overflow-hidden shadow-sm ring-1 ring-border/60 ${
+          isUser ? "rounded-full bg-primary" : "bee-hex bg-secondary"
         }`}
       >
         {isUser ? (
@@ -37,12 +37,12 @@ export default function ChatMessage({ role, content, timestamp, actions, profile
       </div>
 
       {/* Bubble + extras */}
-      <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[78%]`}>
+      <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[82%] md:max-w-[70%]`}>
         <div
-          className={`rounded-3xl px-4 py-2.5 shadow-sm ${
+          className={`rounded-2xl px-4 py-2.5 shadow-sm ring-1 ${
             isUser
-              ? "bg-primary text-primary-foreground rounded-tr-md"
-              : "bg-secondary text-secondary-foreground rounded-tl-md"
+              ? "bg-primary text-primary-foreground rounded-tr-md ring-primary/20"
+              : "bg-card/90 text-card-foreground rounded-tl-md ring-border/70 backdrop-blur"
           }`}
         >
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>

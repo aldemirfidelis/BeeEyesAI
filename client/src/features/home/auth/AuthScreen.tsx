@@ -57,12 +57,13 @@ export function AuthScreen(props: AuthScreenProps) {
   const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="bee-app-shell flex h-[100dvh] overflow-hidden bg-background">
       {/* Left panel — decorative, always amber */}
       <div
-        className="hidden md:flex md:w-[42%] flex-col items-center justify-center relative overflow-hidden"
-        style={{ background: "linear-gradient(160deg, #FFF8E7 0%, #FFE566 50%, #F5C842 100%)" }}
+        className="bee-honeycomb hidden md:flex md:w-[44%] flex-col items-center justify-center relative overflow-hidden border-r border-amber-900/10"
+        style={{ backgroundColor: "#FFE8A3" }}
       >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_34%,rgba(255,255,255,0.58),transparent_34%),linear-gradient(160deg,rgba(255,248,231,0.92)_0%,rgba(255,229,102,0.76)_52%,rgba(245,200,66,0.92)_100%)]" />
         <svg className="absolute top-0 right-0 opacity-10" width={200} height={200} viewBox="0 0 200 200">
           <path d="M50 10 L90 10 L110 45 L90 80 L50 80 L30 45 Z" fill="#D4A017" />
           <path d="M110 60 L150 60 L170 95 L150 130 L110 130 L90 95 Z" fill="#D4A017" />
@@ -73,20 +74,20 @@ export function AuthScreen(props: AuthScreenProps) {
           <path d="M10 70 L50 70 L70 105 L50 140 L10 140 L-10 105 Z" fill="#D4A017" />
         </svg>
 
-        <motion.div animate={{ y: [-12, 0, -12] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}>
+        <motion.div className="relative z-10 rounded-[2rem] border border-white/55 bg-white/30 p-8 shadow-2xl shadow-amber-900/10 backdrop-blur-xl" animate={{ y: [-12, 0, -12] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}>
           <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
         </motion.div>
 
-        <motion.div className="text-center mt-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div className="relative z-10 text-center mt-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <h1 className="text-4xl font-black text-gray-900 tracking-tight">bee-eyes</h1>
           <p className="text-sm mt-2 font-medium" style={{ color: "#7A5500" }}>
             {authMode === "register" ? "Comece sua jornada hoje" : "Sua melhor amiga com IA"}
           </p>
         </motion.div>
 
-        <motion.div className="flex gap-2 mt-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+        <motion.div className="relative z-10 flex flex-wrap justify-center gap-2 mt-10 px-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
           {["Chat inteligente", "Feed social", "Missões diárias"].map((feature) => (
-            <span key={feature} className="text-xs px-3 py-1 rounded-full bg-black/10 text-gray-800 font-medium">
+            <span key={feature} className="text-xs px-3 py-1.5 rounded-full border border-amber-950/10 bg-white/45 text-gray-900 font-bold shadow-sm backdrop-blur">
               {feature}
             </span>
           ))}
@@ -94,13 +95,13 @@ export function AuthScreen(props: AuthScreenProps) {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-y-auto bg-background">
+      <div className="flex-1 flex flex-col items-center justify-center px-5 py-8 overflow-y-auto">
         <motion.div className="md:hidden mb-6" animate={{ y: [-8, 0, -8] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
           <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
           <p className="text-center text-lg font-black text-foreground mt-3">bee-eyes</p>
         </motion.div>
 
-        <motion.div key={authMode} className="w-full max-w-sm" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
+        <motion.div key={authMode} className="bee-surface w-full max-w-[420px] rounded-2xl p-5 md:p-7" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
           <div className="mb-7">
             <h2 className="text-2xl font-black text-foreground">{authMode === "login" ? "Olá de novo!" : "Criar conta"}</h2>
             <p className="text-sm text-muted-foreground mt-1">
@@ -111,7 +112,7 @@ export function AuthScreen(props: AuthScreenProps) {
           <div className="grid grid-cols-1 gap-3 mb-6">
             <button
               disabled={googleLoading}
-              className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-card text-sm font-semibold text-foreground hover:bg-secondary active:scale-95 transition-all disabled:opacity-60"
+              className="flex items-center justify-center gap-2 py-3 rounded-lg border border-border bg-card/80 text-sm font-bold text-foreground shadow-xs hover:bg-secondary active:scale-[0.98] transition-all disabled:opacity-60"
               onClick={onGoogleLogin}
             >
               {googleLoading ? (
@@ -146,7 +147,7 @@ export function AuthScreen(props: AuthScreenProps) {
                     placeholder="Como você quer ser chamado?"
                     value={authDisplayName}
                     onChange={(event) => onDisplayNameChange(event.target.value)}
-                    className="h-12 rounded-xl border-2 focus:border-yellow-400"
+                    className="h-12 rounded-lg"
                   />
                 </div>
                 <div>
@@ -154,7 +155,7 @@ export function AuthScreen(props: AuthScreenProps) {
                   <select
                     value={authGender}
                     onChange={(event) => onGenderChange(event.target.value)}
-                    className="w-full h-12 px-3 rounded-xl border-2 border-border focus:border-yellow-400 bg-background text-foreground text-base outline-none focus:ring-0"
+                    className="w-full h-12 px-3 rounded-lg border border-input bg-card/75 text-foreground text-base outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="">Prefiro não informar</option>
                     <option value="masculino">Masculino</option>
@@ -173,7 +174,7 @@ export function AuthScreen(props: AuthScreenProps) {
                 value={authUsername}
                 onChange={(event) => onUsernameChange(event.target.value)}
                 onKeyDown={(event) => event.key === "Enter" && onSubmit()}
-                className="h-12 rounded-xl border-2 focus:border-yellow-400"
+                className="h-12 rounded-lg"
                 autoCapitalize="none"
               />
             </div>
@@ -187,7 +188,7 @@ export function AuthScreen(props: AuthScreenProps) {
                   value={authPassword}
                   onChange={(event) => onPasswordChange(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && onSubmit()}
-                  className="h-12 rounded-xl border-2 focus:border-yellow-400 pr-20"
+                  className="h-12 rounded-lg pr-20"
                 />
                 <button
                   type="button"
@@ -217,7 +218,7 @@ export function AuthScreen(props: AuthScreenProps) {
           <button
             onClick={onSubmit}
             disabled={authLoading}
-            className="w-full py-4 rounded-xl font-black text-gray-900 text-base transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 shadow-lg shadow-yellow-200/50"
+            className="w-full py-4 rounded-lg font-black text-gray-900 text-base transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60 shadow-lg shadow-yellow-200/50"
             style={{ background: "linear-gradient(90deg, #FFD700, #F5C842, #E8B800)" }}
             data-testid={authMode === "login" ? "auth-login-submit" : "auth-register-submit"}
           >

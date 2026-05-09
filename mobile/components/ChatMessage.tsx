@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { COLORS, FONTS } from "../lib/theme";
+import { FONTS, getThemeColors } from "../lib/theme";
+import { useUIStore } from "../stores/uiStore";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -10,6 +11,9 @@ interface ChatMessageProps {
 
 export default function ChatMessage({ role, content, createdAt }: ChatMessageProps) {
   const isUser = role === "user";
+  const themeMode = useUIStore((state) => state.themeMode);
+  const colors = getThemeColors(themeMode);
+  const styles = makeStyles(colors);
 
   return (
     <Animated.View
@@ -30,10 +34,11 @@ export default function ChatMessage({ role, content, createdAt }: ChatMessagePro
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ReturnType<typeof getThemeColors>) {
+  return StyleSheet.create({
   container: {
     marginVertical: 4,
-    maxWidth: "80%",
+    maxWidth: "84%",
   },
   userContainer: {
     alignSelf: "flex-end",
@@ -44,16 +49,24 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   bubble: {
-    borderRadius: 20,
+    borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#4B3508",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
   userBubble: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark + "33",
     borderBottomRightRadius: 4,
   },
   assistantBubble: {
-    backgroundColor: COLORS.secondary,
+    backgroundColor: colors.card,
     borderBottomLeftRadius: 4,
   },
   text: {
@@ -65,12 +78,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sans,
   },
   assistantText: {
-    color: COLORS.foreground,
+    color: colors.foreground,
     fontFamily: FONTS.sans,
   },
   timestamp: {
     fontSize: 11,
-    color: COLORS.muted,
+    color: colors.muted,
     marginTop: 2,
     paddingHorizontal: 4,
   },
@@ -80,4 +93,5 @@ const styles = StyleSheet.create({
   assistantTimestamp: {
     textAlign: "left",
   },
-});
+  });
+}

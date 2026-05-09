@@ -63,7 +63,7 @@ function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { 
   }, [onClose]);
 
   return (
-    <div ref={ref} className="absolute right-0 top-12 w-80 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden">
+    <div ref={ref} className="bee-surface absolute right-0 top-12 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl z-50 overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <span className="font-bold text-sm">Alertas</span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
@@ -228,19 +228,24 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
   return (
     <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : ""}`}>
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-        <div className="flex items-center justify-between px-4 py-3">
+      <header className="sticky top-0 z-10 shrink-0 border-b border-border/60 bg-card/78 backdrop-blur-xl">
+        <div className="flex items-center justify-between px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
-            <img src="/bee-logo.svg" alt="bee-eyes" className="w-8 h-8 shrink-0" />
-            <h1 className="font-display text-xl font-bold text-primary">bee-eyes</h1>
+            <span className="bee-hex flex h-10 w-10 shrink-0 items-center justify-center bg-primary/18">
+              <img src="/bee-logo.svg" alt="bee-eyes" className="w-7 h-7" />
+            </span>
+            <div>
+              <h1 className="font-display text-xl font-black text-foreground leading-none">bee-eyes</h1>
+              <p className="hidden sm:block text-[11px] font-bold uppercase text-muted-foreground">Assistente pessoal inteligente</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 relative">
+          <div className="flex items-center gap-2 relative">
             {/* Alertas */}
             <button
               type="button"
               onClick={() => setShowNotifications((v) => !v)}
-              className="flex flex-col items-center gap-0.5 text-muted-foreground relative"
+              className="flex h-10 min-w-10 flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground relative"
             >
               <div className="relative">
                 <Bell className="w-5 h-5" />
@@ -270,7 +275,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={onGoToFriends}
-              className="flex flex-col items-center gap-0.5 text-muted-foreground"
+              className="hidden sm:flex h-10 min-w-10 flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
             >
               <Users className="w-5 h-5" />
               <span className="text-[10px] font-semibold leading-none">Amigos</span>
@@ -280,10 +285,10 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={onToggleSettings}
-              className="flex flex-col items-center gap-0.5 text-muted-foreground"
+              className="flex h-10 min-w-10 flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
             >
               {profilePhotoUrl ? (
-                <img src={profilePhotoUrl} alt="Foto" className="w-5 h-5 rounded-full object-cover" />
+                <img src={profilePhotoUrl} alt="Foto" className="w-6 h-6 rounded-full object-cover ring-2 ring-primary/25" />
               ) : (
                 <User className="w-5 h-5" />
               )}
@@ -294,7 +299,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="flex items-center justify-center border-b bg-gradient-to-b from-primary/5 to-transparent shrink-0 relative overflow-hidden" style={{ height: 56 }}>
+        <div className="bee-honeycomb flex items-center justify-center border-b border-border/60 bg-gradient-to-b from-primary/10 to-transparent shrink-0 relative overflow-hidden" style={{ height: 70 }}>
           <div style={{ transform: "scale(0.6)", transformOrigin: "center center", marginTop: -8 }}>
             <BeeEyes
               expression={eyeExpression}
@@ -305,13 +310,13 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
               engagementLevel={eyeEngagementLevel}
             />
           </div>
-          <button type="button" onClick={onToggleSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-muted transition-colors" aria-label="Buscar mensagens">
+          <button type="button" onClick={onToggleSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-card/70 shadow-xs hover:bg-muted transition-colors" aria-label="Buscar mensagens">
             <Search size={18} className="text-muted-foreground" />
           </button>
         </div>
 
         {showMsgSearch && (
-          <div className="shrink-0 px-4 py-2 border-b bg-card/50 flex items-center gap-2">
+          <div className="shrink-0 px-4 py-2 border-b border-border/60 bg-card/70 backdrop-blur flex items-center gap-2">
             <Search size={16} className="text-muted-foreground shrink-0" />
             <input autoFocus type="text" value={msgSearchQuery} onChange={(event) => onSearchQueryChange(event.target.value)} placeholder="Buscar nas mensagens..." className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
             {msgSearchQuery && <button type="button" onClick={() => onSearchQueryChange("")} className="text-muted-foreground hover:text-foreground">Limpar</button>}
@@ -319,7 +324,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           </div>
         )}
 
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3" onScroll={onScrollStateChange}>
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3" onScroll={onScrollStateChange}>
           <AnimatePresence mode="popLayout">
             {visibleMessages.map((message) => (
               <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} />
@@ -329,13 +334,13 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           <div ref={chatEndRef} />
         </div>
 
-        <div className="border-t p-3 md:p-4 bg-card/50 backdrop-blur-sm shrink-0 pb-safe">
+        <div className="border-t border-border/60 p-3 md:p-4 bg-card/78 backdrop-blur-xl shrink-0 pb-safe">
           {transcriptionError && (
             <p className="max-w-4xl mx-auto mb-2 text-xs text-destructive">
               Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.
             </p>
           )}
-          <div className="flex gap-2 max-w-4xl mx-auto">
+          <div className="bee-surface flex gap-2 max-w-4xl mx-auto rounded-2xl p-2">
             <Input
               ref={inputRef}
               value={inputValue}
@@ -344,7 +349,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
               onBlur={() => onInputFocusChange(false)}
               onKeyDown={(event) => event.key === "Enter" && onSendMessage()}
               placeholder="Digite sua mensagem..."
-              className="flex-1"
+              className="flex-1 border-transparent bg-transparent shadow-none focus-visible:bg-card/80"
               disabled={isLoading}
               autoFocus
               data-testid="input-chat-message"

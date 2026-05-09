@@ -251,7 +251,7 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, 
   const sentimentClass = SENTIMENT_COLOR[initialPost.sentiment ?? "neutral"] ?? SENTIMENT_COLOR.neutral;
 
   return (
-    <div className="relative rounded-2xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div className="bee-lift relative rounded-xl border border-border/70 bg-card/88 overflow-hidden shadow-sm backdrop-blur-sm">
       {/* Header */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start justify-between gap-2">
@@ -288,14 +288,14 @@ export default function FeedPostCard({ post: initialPost, authHeaders, timeAgo, 
           <img
             src={initialPost.imageUrl}
             alt="Imagem da publicacao"
-            className="mt-3 w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/50"
+            className="mt-3 w-full max-h-[480px] rounded-lg object-contain bg-black/5 border border-border/50"
             loading="lazy"
           />
         )}
 
         {/* AI comment */}
         {initialPost.aiComment && (
-          <div className="mt-3 rounded-xl bg-primary/8 border border-primary/20 px-3 py-2.5">
+          <div className="mt-3 rounded-lg bg-primary/10 border border-primary/25 px-3 py-2.5">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-base leading-none">🐝</span>
               <p className="text-xs font-bold text-primary">BeeEyes</p>

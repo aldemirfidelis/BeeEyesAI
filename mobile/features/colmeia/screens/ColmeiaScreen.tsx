@@ -1481,11 +1481,11 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         position: "absolute",
         width: CENTER_SIZE, height: CENTER_SIZE,
         left: cx - CENTER_SIZE / 2, top: cy - CENTER_SIZE / 2,
-        borderRadius: CENTER_SIZE * 0.24,
+        borderRadius: CENTER_SIZE * 0.28,
         backgroundColor: colors.card,
         borderWidth: 2.5, borderColor: "#FFD940",
         alignItems: "center", justifyContent: "center",
-        shadowColor: "#FFD940", shadowOpacity: 0.9, shadowRadius: 22, elevation: 14,
+        shadowColor: "#B98005", shadowOpacity: 0.28, shadowRadius: 24, elevation: 14,
       }}>
         <SvgXml xml={BEE_SVG} width={72} height={72} />
       </View>
@@ -1504,14 +1504,14 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
               position: "absolute",
               width: HEX_SIZE, height: HEX_SIZE,
               left: pos.left, top: pos.top,
-              borderRadius: HEX_SIZE * 0.22,
-              backgroundColor: colors.card,
+              borderRadius: HEX_SIZE * 0.26,
+              backgroundColor: tool ? colors.card : colors.secondary,
               borderWidth: 1.5,
               borderColor: tool ? tool.color + "BB" : colors.border,
               alignItems: "center", justifyContent: "center",
               shadowColor: tool ? tool.color : "transparent",
-              shadowOpacity: tool ? 0.55 : 0,
-              shadowRadius: 12, elevation: tool ? 8 : 1,
+              shadowOpacity: tool ? 0.22 : 0,
+              shadowRadius: 14, elevation: tool ? 8 : 1,
               opacity: tool ? 1 : 0.3,
             }}
           >
@@ -1571,7 +1571,7 @@ export default function ColmeiaScreen() {
       {activeSection === null ? (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24, alignItems: "center" }}>
           <ColmeiaHub colors={colors} onSelect={setActiveSection} />
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: "center" }}>
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: "center", fontFamily: FONTS.sans, fontWeight: "700" }}>
             Selecione uma ferramenta
           </Text>
         </ScrollView>
@@ -1600,12 +1600,21 @@ function makeStyles(colors: any) {
     header: {
       paddingHorizontal: 20,
       paddingTop: 16,
-      paddingBottom: 12,
+      paddingBottom: 14,
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      shadowColor: "#4B3508",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.06,
+      shadowRadius: 18,
+      elevation: 8,
     },
     headerTitle: {
       fontSize: 24,
       fontFamily: FONTS.display,
       color: colors.foreground,
+      fontWeight: "800",
     },
     headerSubtitle: {
       fontSize: 13,

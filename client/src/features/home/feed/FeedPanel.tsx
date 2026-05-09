@@ -78,11 +78,11 @@ export function FeedPanel(props: FeedPanelProps) {
 
   return (
     <>
-      <div className="p-4 border-b flex items-center justify-between gap-3">
+      <div className="bee-honeycomb p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-card/55">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-semibold">Feed</h2>
-            <div className="flex rounded-xl bg-secondary p-0.5">
+            <div className="flex rounded-lg border border-border/60 bg-secondary/70 p-0.5 shadow-xs">
               {([
                 ["friends", "Amigos"],
                 ["for-you", "Para Você"],
@@ -91,7 +91,7 @@ export function FeedPanel(props: FeedPanelProps) {
                   key={mode}
                   type="button"
                   onClick={() => onFeedModeChange(mode)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+                  className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
                     feedMode === mode ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -103,7 +103,7 @@ export function FeedPanel(props: FeedPanelProps) {
           <p className="text-xs text-muted-foreground mt-1">Atualizações da sua rede e gatilhos sociais importantes.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={onLoadFeed} className="text-muted-foreground hover:text-foreground transition-colors" title="Atualizar" aria-label="Atualizar feed">
+          <button onClick={onLoadFeed} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Atualizar" aria-label="Atualizar feed">
             <RefreshCw className="w-4 h-4" />
           </button>
           <Button size="sm" variant="outline" onClick={onTogglePostInput} data-testid="feed-open-create-post">
@@ -114,7 +114,7 @@ export function FeedPanel(props: FeedPanelProps) {
       </div>
 
       {showPostInput && (
-        <div className="border-b bg-card">
+        <div className="border-b border-border/60 bg-card/72 backdrop-blur">
           <Textarea
             value={postText}
             onChange={(event) => onPostTextChange(event.target.value)}
@@ -125,13 +125,13 @@ export function FeedPanel(props: FeedPanelProps) {
           />
 
           {(postImagePreviewUrl || postImageUrl) && (
-            <div className="relative mx-4 mb-2 overflow-hidden rounded-xl border border-border">
+            <div className="relative mx-4 mb-2 overflow-hidden rounded-lg border border-border shadow-sm">
               <img src={postImagePreviewUrl || postImageUrl} alt="Prévia da foto" className="w-full max-h-80 object-contain bg-black/5" />
               <button type="button" onClick={onRemovePostImage}
                 className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80 transition-colors">
                 <X className="h-4 w-4" />
               </button>
-              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1">
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/55 rounded-lg px-2 py-1 backdrop-blur">
                 <Image className="w-3 h-3 text-white" />
                 <span className="text-white text-[10px] font-semibold">Foto anexada</span>
               </div>
@@ -167,7 +167,7 @@ export function FeedPanel(props: FeedPanelProps) {
       )}
 
       {suggestions.length > 0 && (
-        <div className="px-4 pt-4 pb-3 border-b bg-gradient-to-r from-primary/5 to-transparent">
+        <div className="px-4 pt-4 pb-3 border-b border-border/60 bg-gradient-to-r from-primary/10 to-transparent">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-muted-foreground">REDE EM EXPANSÃO</p>
             <span className="text-[11px] text-muted-foreground">Sugestões relevantes</span>
@@ -176,7 +176,7 @@ export function FeedPanel(props: FeedPanelProps) {
             {suggestions.slice(0, 3).map((suggestion) => {
               const name = suggestion.displayName || suggestion.username;
               return (
-                <div key={suggestion.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/80 px-3 py-2">
+                <div key={suggestion.id} className="bee-lift flex items-center gap-3 rounded-lg border border-border/60 bg-card/82 px-3 py-2 shadow-xs">
                   <button type="button" onClick={() => onOpenFriendProfile(suggestion.id)} className="shrink-0">
                     <UserAvatar name={name} avatarUrl={suggestion.avatarUrl} className="w-9 h-9" />
                   </button>
@@ -200,7 +200,7 @@ export function FeedPanel(props: FeedPanelProps) {
       <div className="p-4 space-y-3">
         {feedLoading && <p className="text-sm text-muted-foreground text-center py-8">Carregando feed...</p>}
         {!feedLoading && feed.length === 0 && (
-          <div className="text-center py-10 space-y-2">
+          <div className="bee-surface mx-auto max-w-sm rounded-2xl px-5 py-10 text-center space-y-2">
             <p className="text-3xl">📰</p>
             <p className="text-sm font-semibold">Seu feed ainda está silencioso</p>
             <p className="text-xs text-muted-foreground">Conecte-se com pessoas ou publique algo para começar o movimento.</p>

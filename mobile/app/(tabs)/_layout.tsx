@@ -21,10 +21,12 @@ function TabIcon({
       style={{
         alignItems: "center",
         justifyContent: "center",
-        width: 44,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: focused ? color + "22" : "transparent",
+        width: 46,
+        height: 34,
+        borderRadius: 12,
+        backgroundColor: focused ? color + "24" : "transparent",
+        borderWidth: focused ? 1 : 0,
+        borderColor: focused ? color + "33" : "transparent",
       }}
     >
       <Feather name={name} size={focused ? 22 : 20} color={color} />
@@ -39,7 +41,7 @@ export default function TabsLayout() {
   const isDark = themeMode === "dark";
 
   const tabBarBackground = isDark
-    ? "rgba(20,20,20,0.95)"
+    ? "rgba(32,26,16,0.96)"
     : "rgba(255,255,255,0.96)";
 
   return (
@@ -49,16 +51,21 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: tabBarBackground,
           borderTopColor: colors.border,
-          borderTopWidth: 0.5,
-          height: Platform.OS === "ios" ? 82 : 72,
+          borderTopWidth: 1,
+          height: Platform.OS === "ios" ? 86 : 76,
           paddingBottom: Platform.OS === "ios" ? 22 : 10,
           paddingTop: 8,
+          marginHorizontal: 12,
+          marginBottom: Platform.OS === "ios" ? 6 : 10,
+          borderRadius: 24,
+          position: "absolute",
+          overflow: "hidden",
           // Subtle top shadow line for depth
-          shadowColor: isDark ? "#000" : "#1A1A1A",
+          shadowColor: isDark ? "#000" : "#4B3508",
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: isDark ? 0.4 : 0.06,
-          shadowRadius: 12,
-          elevation: 12,
+          shadowOpacity: isDark ? 0.45 : 0.12,
+          shadowRadius: 18,
+          elevation: 18,
         },
         tabBarActiveTintColor: colors.primaryDark,
         tabBarInactiveTintColor: colors.muted,

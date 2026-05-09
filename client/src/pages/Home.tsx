@@ -1517,24 +1517,24 @@ export default function Home() {
         }}
       >
 
-        <TabsList className="mx-2 mt-3 md:flex hidden gap-0.5">
-          <TabsTrigger value="feed" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+        <TabsList className="mx-3 mt-3 md:flex hidden gap-1 h-auto p-1.5">
+          <TabsTrigger value="feed" className="flex-1 flex-col gap-1 py-2 px-1 h-auto">
             <LayoutGrid className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Feed</span>
           </TabsTrigger>
-          <TabsTrigger value="colmeia" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+          <TabsTrigger value="colmeia" className="flex-1 flex-col gap-1 py-2 px-1 h-auto">
             <Hexagon className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Colmeia</span>
           </TabsTrigger>
-          <TabsTrigger value="friends" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+          <TabsTrigger value="friends" className="flex-1 flex-col gap-1 py-2 px-1 h-auto">
             <Users className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Amigos</span>
           </TabsTrigger>
-          <TabsTrigger value="inbox" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+          <TabsTrigger value="inbox" className="flex-1 flex-col gap-1 py-2 px-1 h-auto">
             <MessageSquare className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Mensagens</span>
           </TabsTrigger>
-          <TabsTrigger value="communities" className="flex-1 flex-col gap-0.5 py-2 px-1 h-auto">
+          <TabsTrigger value="communities" className="flex-1 flex-col gap-1 py-2 px-1 h-auto">
             <Users2 className="w-4 h-4" />
             <span className="text-[10px] leading-tight">Comunidades</span>
           </TabsTrigger>
@@ -1703,7 +1703,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-background">
+    <div className="bee-app-shell flex flex-col md:flex-row h-[100dvh] bg-background text-foreground overflow-hidden">
 
       <ChatWorkspace
         mobileTab={mobileTab}
@@ -1803,16 +1803,16 @@ export default function Home() {
       />
 
       {/* ── Sidebar — sempre visível no desktop (384px), full-screen em outras tabs no mobile ── */}
-      <aside className={`bg-card/30 backdrop-blur-sm min-h-0 ${
+      <aside className={`bee-surface min-h-0 md:m-3 md:ml-0 md:rounded-2xl overflow-hidden ${
         mobileTab !== "chat"
-          ? "flex flex-col flex-1 min-h-0 md:w-96 md:flex-none md:border-l"
-          : "hidden md:flex md:w-96 md:border-l md:flex-col"
+          ? "flex flex-col flex-1 min-h-0 md:w-[420px] md:flex-none"
+          : "hidden md:flex md:w-[420px] md:flex-col"
       }`}>
         {sidebarContent}
       </aside>
 
       {/* ── Bottom nav (mobile only) ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-card/95 backdrop-blur-sm z-20 flex">
+      <nav className="md:hidden fixed bottom-3 left-3 right-3 rounded-2xl border border-border/70 bg-card/92 shadow-2xl backdrop-blur-xl z-20 flex overflow-hidden">
         {([
           { tab: "chat",        label: "Chat",        icon: <MessageCircle className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("chat"); } },
           { tab: "feed",        label: "Feed",        icon: <LayoutGrid    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); } },
@@ -1823,16 +1823,18 @@ export default function Home() {
           <button
             key={tab}
             onClick={onClick}
-            className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 py-3 transition-colors ${mobileTab === tab ? "text-primary" : "text-muted-foreground"}`}
+            className={`relative flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${mobileTab === tab ? "text-foreground" : "text-muted-foreground"}`}
           >
-            {icon}
+            <span className={`flex h-8 w-10 items-center justify-center rounded-lg transition-all ${mobileTab === tab ? "bg-primary text-primary-foreground shadow-sm" : ""}`}>
+              {icon}
+            </span>
             <span className="text-[10px] leading-tight w-full text-center truncate px-0.5">{label}</span>
           </button>
         ))}
       </nav>
 
       {/* Spacer so content doesn't hide behind bottom nav on mobile */}
-      <div className="md:hidden h-16 shrink-0" />
+      <div className="md:hidden h-20 shrink-0" />
 
       <input
         ref={photoFileInputRef}

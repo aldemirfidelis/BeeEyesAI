@@ -151,14 +151,13 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
     <div className="relative mx-auto" style={{ width: 280, height: 310 }}>
       {/* Center Bee */}
       <div
-        className="absolute flex flex-col items-center justify-center"
+        className="bee-hex absolute flex flex-col items-center justify-center"
         style={{
           width: C_CELL, height: C_CELL,
           left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
-          borderRadius: C_CELL * 0.24,
-          background: "hsl(var(--card))",
+          background: "linear-gradient(145deg, hsl(var(--card)), hsl(var(--primary) / 0.14))",
           border: "2.5px solid #FFD940",
-          boxShadow: "0 0 22px 4px rgba(255,217,64,0.35)",
+          boxShadow: "0 16px 34px -20px rgba(89,58,0,0.55), 0 0 22px 4px rgba(255,217,64,0.28)",
         }}
       >
         <img src="/bee-logo.svg" alt="Bee" style={{ width: 56, height: 56, objectFit: "contain" }} />
@@ -173,14 +172,13 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
             key={idx}
             disabled={!tool}
             onClick={() => tool && onSelect(tool.id)}
-            className="absolute flex flex-col items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            className="bee-hex absolute flex flex-col items-center justify-center transition-transform hover:scale-105 active:scale-95"
             style={{
               width: CELL, height: CELL,
               left: pos.left, top: pos.top,
-              borderRadius: CELL * 0.22,
-              background: "hsl(var(--card))",
+              background: tool ? "linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted) / 0.62))" : "hsl(var(--muted) / 0.55)",
               border: `1.5px solid ${tool ? tool.color + "99" : "hsl(var(--border))"}`,
-              boxShadow: tool ? `0 0 14px 2px ${tool.color}33` : "none",
+              boxShadow: tool ? `0 16px 26px -22px ${tool.color}, 0 0 14px 2px ${tool.color}26` : "none",
               opacity: tool ? 1 : 0.28,
               cursor: tool ? "pointer" : "default",
                gap: 4,
@@ -1140,7 +1138,7 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="shrink-0 px-4 pt-4 pb-3 flex items-center gap-3 border-b border-border/50">
+      <div className="bee-honeycomb shrink-0 px-4 pt-4 pb-3 flex items-center gap-3 border-b border-border/50 bg-card/55">
         {activeSection ? (
           <button
             onClick={() => setActiveSection(null)}
@@ -1164,9 +1162,9 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {activeSection === null ? (
-          <div className="flex flex-col items-center py-6 gap-3">
+          <div className="flex flex-col items-center py-7 gap-3">
             <ColmeiaHub onSelect={setActiveSection} />
-            <p className="text-[11px] text-muted-foreground">Selecione uma ferramenta</p>
+            <p className="rounded-full border border-border/60 bg-card/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-xs">Selecione uma ferramenta</p>
           </div>
         ) : (
           <>
