@@ -9,7 +9,7 @@ export interface ScoreSnapshot {
 
 export interface IntelligentNotification {
   id: string;
-  type: "streak_risk" | "mission_pending" | "discipline_push" | "celebration" | "comeback";
+  type: "streak_risk" | "discipline_push" | "celebration" | "comeback";
   title: string;
   body: string;
   tone: "danger" | "warning" | "positive";

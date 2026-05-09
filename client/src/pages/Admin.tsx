@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Users, MessageSquare, FileText, Calendar, DollarSign, TrendingUp,
-  Activity, Target, Award, Heart, Globe, Zap, Shield, RefreshCw,
+  Activity, Award, Heart, Globe, Zap, Shield, RefreshCw,
   ChevronRight, Clock, BarChart2, UserCheck, Flame,
 } from "lucide-react";
 
@@ -22,7 +22,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 interface Dashboard {
   users: { total: number; newToday: number; newThisWeek: number; newThisMonth: number; active24h: number; active7d: number; active30d: number; onboarded: number; onboardingRate: number; retentionRate: number };
   messages: { total: number; today: number; thisWeek: number; avgPerUser: number };
-  content: { posts: number; communities: number; connections: number; missions: number; achievements: number; moods: number };
+  content: { posts: number; communities: number; connections: number; achievements: number; moods: number };
   colmeia: { notes: number; events: number; transactions: number };
 }
 interface GrowthRow { day: string; count: number }
@@ -316,7 +316,6 @@ export default function AdminPage() {
                     <StatCard icon={Globe}         label="Posts"        value={dash.content.posts}        color="text-sky-500" />
                     <StatCard icon={Users}          label="Comunidades"  value={dash.content.communities}  color="text-violet-500" />
                     <StatCard icon={ChevronRight}   label="Conexões"     value={dash.content.connections}  color="text-pink-500" />
-                    <StatCard icon={Target}         label="Missões"      value={dash.content.missions}     color="text-orange-500" />
                     <StatCard icon={Award}          label="Conquistas"   value={dash.content.achievements} color="text-amber-500" />
                     <StatCard icon={Heart}          label="Humores"      value={dash.content.moods}        color="text-red-500" />
                   </div>
@@ -437,7 +436,6 @@ export default function AdminPage() {
                 <StatCard icon={Globe}    label="Posts no feed"    value={dash.content.posts}        color="text-sky-500" />
                 <StatCard icon={Users}    label="Comunidades"      value={dash.content.communities}  color="text-violet-500" />
                 <StatCard icon={ChevronRight} label="Amizades"     value={dash.content.connections}  color="text-pink-500" />
-                <StatCard icon={Target}   label="Missões criadas"  value={dash.content.missions}     color="text-orange-500" />
                 <StatCard icon={Award}    label="Conquistas"       value={dash.content.achievements} color="text-amber-500" />
                 <StatCard icon={Heart}    label="Entradas de humor" value={dash.content.moods}       color="text-red-500" />
                 <StatCard icon={FileText} label="Notas (Colmeia)"  value={dash.colmeia.notes}        color="text-yellow-500" />

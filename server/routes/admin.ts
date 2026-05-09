@@ -5,7 +5,7 @@ import { sendOk } from "../api/response";
 import { db } from "../db";
 import {
   users, messages, posts, communities, communityMembers,
-  missions, achievements, notes, calendarEvents, financeTransactions,
+  achievements, notes, calendarEvents, financeTransactions,
   userConnections, moodEntries,
 } from "../../shared/schema";
 import { requireAdmin } from "../middleware/requireAdmin";
@@ -40,7 +40,6 @@ export function createAdminRouter() {
       [totalNotes],
       [totalEvents],
       [totalTransactions],
-      [totalMissions],
       [totalAchievements],
       [totalConnections],
       [totalMoods],
@@ -61,7 +60,6 @@ export function createAdminRouter() {
       db.select({ v: count() }).from(notes),
       db.select({ v: count() }).from(calendarEvents),
       db.select({ v: count() }).from(financeTransactions),
-      db.select({ v: count() }).from(missions),
       db.select({ v: count() }).from(achievements),
       db.select({ v: count() }).from(userConnections).where(eq(userConnections.status, "accepted")),
       db.select({ v: count() }).from(moodEntries),
@@ -106,7 +104,6 @@ export function createAdminRouter() {
         posts: totalPosts.v,
         communities: totalCommunities.v,
         connections: totalConnections.v,
-        missions: totalMissions.v,
         achievements: totalAchievements.v,
         moods: totalMoods.v,
       },
@@ -193,7 +190,7 @@ export function createAdminRouter() {
 
   // ── Streak distribution ────────────────────────────────────────────────────
   router.get("/api/admin/streaks", requireAdmin, asyncHandler(async (_req, res) => {
-    const [zero, low, mid, high, top] = await Promise.all([
+    const [[zero], [low], [mid], [high], [top]] = await Promise.all([
       db.select({ v: count() }).from(users).where(eq(users.currentStreak, 0)),
       db.select({ v: count() }).from(users).where(and(gte(users.currentStreak, 1),  lt(users.currentStreak, 7))),
       db.select({ v: count() }).from(users).where(and(gte(users.currentStreak, 7),  lt(users.currentStreak, 30))),

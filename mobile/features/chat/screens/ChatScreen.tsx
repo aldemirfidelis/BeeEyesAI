@@ -24,11 +24,36 @@ import { type ChatFeedSummaryPost, type ConnectionRequestMeta, type NetworkDiges
 import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
 
-type AppRoute = "/feed" | "/missions" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
+type AppRoute = "/feed" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
+
+// Optimized for Whisper: mono reduces noise and file size by 50%, MAX quality preserves speech clarity
+const SPEECH_RECORDING_OPTIONS: Audio.RecordingOptions = {
+  isMeteringEnabled: true,
+  android: {
+    extension: '.m4a',
+    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+    audioEncoder: Audio.AndroidAudioEncoder.AAC,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+    audioQuality: Audio.IOSAudioQuality.MAX,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
+};
 
 export default function ChatScreen() {
   const { t } = useTranslation();
@@ -37,7 +62,6 @@ export default function ChatScreen() {
     { label: t("chat_quick_evolve"), kind: "prompt", value: "Quero evoluir hoje. Me diga a acao mais importante agora." },
     { label: t("chat_quick_hold_me"), kind: "prompt", value: "Ative modo cobranca. Quero disciplina hoje." },
     { label: t("chat_quick_set_goal"), kind: "prompt", value: "Quero transformar minha prioridade em uma meta clara para hoje." },
-    { label: t("chat_quick_missions"), kind: "route", value: "/missions" as AppRoute },
     { label: t("chat_quick_news"), kind: "news", value: "news" },
   ] as const;
 
@@ -49,6 +73,7 @@ export default function ChatScreen() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordingStartRef = useRef<number>(0);
+  const meteringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveHeights = useRef(Array.from({ length: 6 }, () => new Animated.Value(4))).current;
   const [showInsight, setShowInsight] = useState(false);
@@ -80,11 +105,11 @@ export default function ChatScreen() {
   useEffect(() => () => {
     if (eyeResetTimeoutRef.current) clearTimeout(eyeResetTimeoutRef.current);
     if (attentionResetTimeoutRef.current) clearTimeout(attentionResetTimeoutRef.current);
+    if (meteringIntervalRef.current) clearInterval(meteringIntervalRef.current);
   }, []);
 
   const { data: initialMessages } = useQuery({ queryKey: ["messages"], queryFn: () => api.get("/api/messages?limit=50").then((r) => r.data), staleTime: Infinity });
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: () => api.get("/api/me").then((r) => r.data), staleTime: 30000 });
-  const { data: missions = [] } = useQuery({ queryKey: ["missions"], queryFn: () => api.get("/api/missions").then((r) => r.data), staleTime: 30000 });
   const { data: score } = useQuery<ScoreSnapshot>({
     queryKey: ["score"],
     queryFn: () => api.get("/api/score").then((r) => r.data),
@@ -104,7 +129,6 @@ export default function ChatScreen() {
     refetchInterval: 90000,
   });
   const chatMessages = Array.isArray(messages) ? messages : [];
-  const missionList = Array.isArray(missions) ? missions : [];
   const intelligentNotifications = Array.isArray(notifications) ? notifications : [];
   const notificationItems = Array.isArray(notificationCenter) ? notificationCenter : [];
   const unreadNotificationCount = notificationItems.filter((item) => !item.read).length;
@@ -232,32 +256,23 @@ export default function ChatScreen() {
     return () => clearInterval(interval);
   }, [eyeExpression, inputValue, isTyping, lastInteractionAt, chatMessages.length, setEyeExpression]);
 
-  const missionStats = useMemo(() => {
-    const total = missionList.length;
-    const completed = missionList.filter((mission: any) => mission.completed).length;
-    return { total, completed, pending: Math.max(total - completed, 0), completionRate: total > 0 ? completed / total : 0 };
-  }, [missionList]);
-
   const lastActiveHours = me?.lastActiveAt ? Math.max(0, (Date.now() - new Date(me.lastActiveAt).getTime()) / 3600000) : null;
-  const fallbackFocusScore = useMemo(() => Math.round(missionStats.completionRate * 100), [missionStats.completionRate]);
-  const focusScore = score?.focusScore ?? fallbackFocusScore;
-  const consistencyScore = score?.consistencyScore ?? Math.round(missionStats.completionRate * 100);
-  const disciplineScore = score?.disciplineScore ?? Math.round(missionStats.completionRate * 100);
+  const focusScore = score?.focusScore ?? 0;
+  const consistencyScore = score?.consistencyScore ?? 0;
+  const disciplineScore = score?.disciplineScore ?? 0;
   const scoreColor = focusScore < 40 ? colors.destructive : focusScore < 70 ? colors.primaryDark : colors.success;
   const scoreTone = score?.scoreTone ?? (focusScore < 40 ? "Risco" : focusScore < 70 ? "Ritmo" : "Progresso");
 
   const fallbackInsightText = useMemo(() => {
     if (lastActiveHours !== null && lastActiveHours >= 20) return `Voce ficou ${Math.round(lastActiveHours)}h longe. Retome com uma acao simples antes de perder ritmo.`;
-    if (missionStats.pending > 0 && missionStats.completionRate < 0.34) return `Voce esta ${100 - Math.round(missionStats.completionRate * 100)}% abaixo do ritmo de missoes de hoje.`;
-    if (missionStats.completed > 0) return "Bom. Hoje ja existe evidencia de progresso, nao so intencao.";
     if ((me?.currentStreak ?? 0) === 0) return "Sua sequencia ainda nao comecou. Uma acao concluida hoje muda esse estado.";
     return "Se quiser, eu transformo sua prioridade atual em uma acao objetiva agora.";
-  }, [lastActiveHours, me?.currentStreak, missionStats.completed, missionStats.completionRate, missionStats.pending]);
+  }, [lastActiveHours, me?.currentStreak]);
   const insightText = score?.insight ?? fallbackInsightText;
 
   const presenceLabel = useMemo(() => {
     if (eyeExpression === "sleepy") return t("chat_mode_sleepy");
-    if (eyeExpression === "celebrating") return t("chat_mode_mission_done");
+    if (eyeExpression === "celebrating") return t("chat_mode_high_attention");
     if (eyeExpression === "excited") return t("chat_mode_high_attention");
     if (eyeExpression === "curious") return t("chat_mode_reading");
     return focusScore >= 70 ? t("chat_mode_engaged") : t("chat_mode_observing");
@@ -276,11 +291,18 @@ export default function ChatScreen() {
       const elapsed = Date.now() - recordingStartRef.current;
       if (elapsed < 1000) return;
 
+      if (meteringIntervalRef.current) {
+        clearInterval(meteringIntervalRef.current);
+        meteringIntervalRef.current = null;
+      }
+
       try {
         await recordingRef.current?.stopAndUnloadAsync();
         const uri = recordingRef.current?.getURI() ?? null;
         recordingRef.current = null;
         setIsRecording(false);
+        // Restore audio mode so other app audio works normally on iOS
+        Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
 
         if (!uri) return;
         setIsTranscribing(true);
@@ -319,14 +341,32 @@ export default function ChatScreen() {
     try {
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
+      const { recording } = await Audio.Recording.createAsync(SPEECH_RECORDING_OPTIONS);
       recordingRef.current = recording;
       recordingStartRef.current = Date.now();
       setIsRecording(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Drive waveform bars from real mic metering (dBFS: -50..0 → 0..1)
+      meteringIntervalRef.current = setInterval(async () => {
+        if (!recordingRef.current) return;
+        try {
+          const status = await recordingRef.current.getStatusAsync();
+          if (status.isRecording && status.metering != null) {
+            const normalized = Math.max(0, Math.min(1, (status.metering + 50) / 50));
+            waveHeights.forEach((h) => {
+              h.setValue(4 + normalized * (0.7 + Math.random() * 0.6) * 22);
+            });
+          }
+        } catch {}
+      }, 80);
     } catch {
       setIsRecording(false);
     }
@@ -352,25 +392,20 @@ export default function ChatScreen() {
     return () => anim.stop();
   }, [isRecording]);
 
-  // Waveform bars
+  // Waveform bars — reset to idle when not recording; updated by metering polling during recording
   useEffect(() => {
-    if (!isRecording) { waveHeights.forEach(h => h.setValue(4)); return; }
-    const anims = waveHeights.map((h, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(h, { toValue: 6 + Math.random() * 18, duration: 120 + i * 40, useNativeDriver: false }),
-          Animated.timing(h, { toValue: 3 + Math.random() * 8,  duration: 120 + i * 40, useNativeDriver: false }),
-        ])
-      )
-    );
-    anims.forEach(a => a.start());
-    return () => anims.forEach(a => a.stop());
-  }, [isRecording]);
+    if (!isRecording) waveHeights.forEach(h => h.setValue(4));
+  }, [isRecording, waveHeights]);
 
   async function handleCancelRecording() {
+    if (meteringIntervalRef.current) {
+      clearInterval(meteringIntervalRef.current);
+      meteringIntervalRef.current = null;
+    }
     try { await recordingRef.current?.stopAndUnloadAsync(); } catch {}
     recordingRef.current = null;
     setIsRecording(false);
+    Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true }).catch(() => {});
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
@@ -393,17 +428,12 @@ export default function ChatScreen() {
       await sendMessage(action.value);
       return;
     }
-    if (action.kind === "route") {
-      router.push(action.value);
-      return;
-    }
     await handleNewsCommand();
   }
 
   async function handleSlashCommand(raw: string) {
     const command = raw.toLowerCase();
     if (command === "/feed") return injectAssistantShortcut("Abrindo o feed da comunidade para voce.", "/feed");
-    if (command === "/missoes" || command === "/missÃµes") return injectAssistantShortcut("Levando voce para suas missoes ativas.", "/missions");
     if (command === "/compartilhar") return injectAssistantShortcut("O atalho de compartilhar abre o feed para voce criar um novo post.", "/feed");
     if (command === "/comunidades") return injectAssistantShortcut("Abrindo as comunidades.", "/communities");
     if (command === "/mensagens" || command === "/inbox") return injectAssistantShortcut("Abrindo sua inbox.", "/inbox");
@@ -468,7 +498,7 @@ export default function ChatScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>{t("chat_insight_modal")}</Text>
               <View style={styles.progressMetaRow}>
-                <View style={styles.metricBadge}><Text style={styles.metricLabel}>{t("chat_missions")}</Text><Text style={styles.metricValue}>{missionStats.completed}/{Math.max(missionStats.total, 1)}</Text></View>
+                <View style={styles.metricBadge}><Text style={styles.metricLabel}>{t("chat_mode_observing")}</Text><Text style={styles.metricValue}>{focusScore}%</Text></View>
               </View>
               <View style={[styles.scoreTrack, { marginTop: 12 }]}><View style={[styles.scoreFill, { width: `${focusScore}%`, backgroundColor: scoreColor }]} /></View>
               <View style={[styles.secondaryScoreRow, { marginTop: 8 }]}>

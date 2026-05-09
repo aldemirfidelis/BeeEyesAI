@@ -101,7 +101,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="missions" options={{ href: null }} />
       <Tabs.Screen
         name="inbox"
         options={{

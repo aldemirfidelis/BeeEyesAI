@@ -50,7 +50,7 @@ interface ChatWorkspaceProps {
   onInputFocusChange: (focused: boolean) => void;
   onSendMessage: () => void;
   onSendVoiceMessage: (text: string) => void;
-  onQuickAction: (action: "feed" | "missions" | "colmeia" | "news" | "inbox" | "communities") => void;
+  onQuickAction: (action: "feed" | "colmeia" | "news" | "inbox" | "communities") => void;
 }
 
 function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { authHeaders: () => Record<string, string>; onClose: () => void; onNotificationClick: (item: any) => void }) {

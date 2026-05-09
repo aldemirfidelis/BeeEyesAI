@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
 import ChatMessage from "@/components/ChatMessage";
-import MissionCard from "@/components/MissionCard";
 import MoodSelector from "@/components/MoodSelector";
 import AchievementPopup from "@/components/AchievementPopup";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -28,7 +27,7 @@ import { fileToCompressedDataUrl, fileToDataUrl, FEED_IMAGE_ACCEPT, isAcceptedFe
 import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
-import type { Message, Mission, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ChatFeedSummaryPost, NetworkDigestMeta } from "@/features/home/types";
+import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ChatFeedSummaryPost, NetworkDigestMeta } from "@/features/home/types";
 import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
 
 const SENTIMENT_EMOJI: Record<string, string> = {
@@ -63,7 +62,6 @@ export default function Home() {
   const [token, setTokenState] = useState<string | null>(getToken);
   const [user, setUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [missions, setMissions] = useState<Mission[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [eyeExpression, setEyeExpression] = useState<BeeEyesExpression>("neutral");
   const [eyeEvent, setEyeEvent] = useState<BeeEyesEvent | null>(null);
@@ -255,25 +253,6 @@ export default function Home() {
         setMessages(normalized);
       });
 
-    apiFetch<Mission[]>("/api/missions/seed", { method: "POST", headers: authHeaders() })
-      .then(setMissions)
-      .catch(() =>
-        apiFetch<Mission[]>("/api/missions", { headers: authHeaders() })
-          .then(setMissions)
-      );
-  }, [token]);
-
-  // Refresh missions + user XP (called after any action that may trigger a mission)
-  const loadMissions = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [missionsData, meData] = await Promise.all([
-        apiFetch<Mission[]>("/api/missions", { headers: authHeaders() }),
-        apiFetch<User>("/api/me", { headers: authHeaders() }),
-      ]);
-      setMissions(missionsData);
-      setUser(meData);
-    } catch { /* ignore */ }
   }, [token]);
 
   // Load friends list
@@ -328,13 +307,12 @@ export default function Home() {
       });
       setDmMessages((prev) => [...prev, created]);
       loadDMConversations();
-      setTimeout(loadMissions, 1000);
     } catch {
       setDmInput(content);
     } finally {
       setDmSending(false);
     }
-  }, [selectedDMUser, dmInput, dmSending, loadDMConversations, loadMissions]);
+  }, [selectedDMUser, dmInput, dmSending, loadDMConversations]);
 
   const isFriendUser = useCallback((targetUserId: string) => {
     return friends.some((f) => f.id === targetUserId);
@@ -357,10 +335,10 @@ export default function Home() {
         fetch(`/api/users/${friendId}/visit`, { method: "POST", headers: authHeaders() }).catch(() => {});
       } else {
         // mantém modal aberto com estado vazio para não fechar abruptamente
-        setSelectedFriend({ user: { id: friendId, username: "—", displayName: null, level: 1, xp: 0, currentStreak: 0, lastActiveAt: null }, recentPosts: [], interests: [], activeMissionsCount: 0 });
+        setSelectedFriend({ user: { id: friendId, username: "—", displayName: null, level: 1, xp: 0, currentStreak: 0, lastActiveAt: null }, recentPosts: [], interests: [] });
       }
     } catch {
-      setSelectedFriend({ user: { id: friendId, username: "—", displayName: null, level: 1, xp: 0, currentStreak: 0, lastActiveAt: null }, recentPosts: [], interests: [], activeMissionsCount: 0 });
+      setSelectedFriend({ user: { id: friendId, username: "—", displayName: null, level: 1, xp: 0, currentStreak: 0, lastActiveAt: null }, recentPosts: [], interests: [] });
     } finally {
       setFriendProfileLoading(false);
     }
@@ -424,7 +402,6 @@ export default function Home() {
         setSearchResults((prev) =>
           prev.map((u) => u.id === targetUserId ? { ...u, connectionStatus: "pending" as const } : u)
         );
-        setTimeout(loadMissions, 1000);
         // Re-fetch search to get accurate server-side status
         if (friendSearch.trim()) {
           setTimeout(async () => {
@@ -545,7 +522,6 @@ export default function Home() {
       if (decision === "accept") {
         loadFriends();
         refreshSearchResults();
-        setTimeout(loadMissions, 1000);
         // Re-fetch messages so the "X aceitou sua solicitação" message appears for the requester
         setTimeout(() => {
           fetch("/api/messages?limit=50", { headers: authHeaders() })
@@ -632,7 +608,6 @@ export default function Home() {
         } else {
           setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isMember: true, membersCount: c.membersCount + 1 } : c));
           if (selectedCommunity?.id === communityId) setSelectedCommunity((prev) => prev ? { ...prev, isMember: true, memberRole: "member" } : prev);
-          setTimeout(loadMissions, 1000);
         }
       }
     } finally {
@@ -685,7 +660,6 @@ export default function Home() {
         setCommunityPosts((prev) => [post, ...prev]);
         setCommunityPostInput("");
         setCommunityPostImageUrl("");
-        setTimeout(loadMissions, 1000);
       }
     } finally {
       setCommunityPostSending(false);
@@ -706,7 +680,6 @@ export default function Home() {
         setCommunities((prev) => [{ ...community, isMember: true }, ...prev]);
         setShowCreateCommunity(false);
         setNewCommunity({ name: "", description: "", category: "geral", emoji: "🐝", imageUrl: "", isPrivate: false });
-        setTimeout(loadMissions, 1000);
       }
     } finally {
       setCreatingCommunity(false);
@@ -862,13 +835,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [token, loadFriends, refreshSearchResults]);
 
-  // Poll missions every 8s so auto-completed ones appear quickly
-  useEffect(() => {
-    if (!token) return;
-    const interval = setInterval(loadMissions, 8000);
-    return () => clearInterval(interval);
-  }, [token, loadMissions]);
-
   // Proactive messages polling
   useEffect(() => {
     if (!token) return;
@@ -1010,10 +976,6 @@ export default function Home() {
       injectAssistantMessage("Abrindo o feed para você. 📣");
       return;
     }
-    if (slashCommand === "/missões" || slashCommand === "/missoes") {
-      handleMissionsCommand();
-      return;
-    }
     if (slashCommand === "/notícias" || slashCommand === "/noticias") {
       handleNewsCommand();
       return;
@@ -1068,18 +1030,18 @@ export default function Home() {
       const decoder = new TextDecoder();
       let accumulated = "";
       let assistantMsgId = (Date.now() + 1).toString();
+      // Buffer for incomplete SSE lines split across TCP chunks
+      let lineBuffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      const processLine = (line: string) => {
+        if (!line.startsWith("data: ")) return;
+        try {
+          const event = JSON.parse(line.slice(6));
+          handleSseEvent(event);
+        } catch { /* skip malformed */ }
+      };
 
-        const text = decoder.decode(value);
-        const lines = text.split("\n");
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
+      const handleSseEvent = (event: any) => {
 
             if (event.type === "chunk") {
               const isFirstChunk = accumulated.length === 0;
@@ -1099,13 +1061,11 @@ export default function Home() {
               pulseEyeEvent("message-received", 1800);
               fetch("/api/me", { headers: authHeaders() })
                 .then((r) => r.json()).then(setUser).catch(() => {});
-            } else if (event.type === "mission_created") {
-              setMissions((prev) => [...prev, event.mission]);
             } else if (event.type === "achievement_unlocked") {
               setAchievementData({ title: event.achievement.title, description: event.achievement.description });
               setShowAchievement(true);
               setEyeExpression("excited");
-              pulseEyeEvent("mission-complete", 2200);
+              pulseEyeEvent("message-received", 2200);
               setTimeout(() => { setShowAchievement(false); setEyeExpression("happy"); }, 4000);
             } else if (event.type === "event_created") {
               setAchievementData({ title: "Evento criado! 📅", description: event.event?.title ?? "Evento adicionado ao calendário." });
@@ -1132,7 +1092,24 @@ export default function Home() {
                 timestamp: new Date(),
               }]);
             }
-          } catch { /* skip malformed lines */ }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Flush any remaining buffered content
+          if (lineBuffer) processLine(lineBuffer);
+          break;
+        }
+
+        const text = decoder.decode(value, { stream: true });
+        // Append new bytes to the buffer and split on newlines
+        lineBuffer += text;
+        const lines = lineBuffer.split("\n");
+        // The last element may be an incomplete line — keep it in the buffer
+        lineBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          processLine(line);
         }
       }
     } catch {
@@ -1275,80 +1252,6 @@ export default function Home() {
     }
   };
 
-  const handleToggleMission = async (id: string) => {
-    const mission = missions.find((m) => m.id === id);
-    if (!mission || mission.completed) return;
-    try {
-      const res = await fetch(`/api/missions/${id}/complete`, {
-        method: "PUT",
-        headers: authHeaders(),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setMissions((prev) => prev.map((m) => m.id === id ? { ...m, completed: true } : m));
-      if (data.user) setUser(data.user);
-      setEyeExpression("excited");
-      pulseEyeEvent("mission-complete", 2200);
-      setAchievementData({ title: "Missão Completa! 🎯", description: mission.title });
-      setShowAchievement(true);
-      setTimeout(() => { setEyeExpression("happy"); setShowAchievement(false); }, 4000);
-    } catch { /* ignore */ }
-  };
-
-  const handleDeleteMission = async (id: string, title: string) => {
-    try {
-      const res = await fetch(`/api/missions/${id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      if (!res.ok) return;
-      setMissions((prev) => prev.filter((m) => m.id !== id));
-
-      setEyeExpression("thinking");
-      pulseEyeEvent("thinking", 1800);
-      setIsLoading(true);
-      setStreamingText("");
-
-      const chatRes = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: `[SISTEMA] O usuário acabou de desistir e deletar a missão "${title}". Faça uma piada curta e bem-humorada sobre ele ter desistido, sem julgá-lo de verdade. Tom leve e carinhoso.`, isSystem: true }),
-      });
-
-      if (!chatRes.ok) { setIsLoading(false); return; }
-
-      const reader = chatRes.body!.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      const msgId = Date.now().toString();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of decoder.decode(value).split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(line.slice(6));
-            if (event.type === "chunk") {
-              const isFirstChunk = accumulated.length === 0;
-              accumulated += event.text;
-              setStreamingText(accumulated);
-              setEyeExpression("attentive");
-              if (isFirstChunk) pulseEyeEvent("message-received", 1300);
-            }
-            else if (event.type === "done") {
-              setMessages((prev) => [...prev, { id: msgId, role: "assistant", content: event.cleanText ?? accumulated, timestamp: new Date() }]);
-              setStreamingText("");
-              setEyeExpression("happy");
-              pulseEyeEvent("message-received", 1700);
-            }
-          } catch { /* skip */ }
-        }
-      }
-    } catch { /* ignore */ }
-    finally { setIsLoading(false); }
-  };
-
   const handleMoodSelect = (mood: number) => {
     setSelectedMood(mood);
     if (mood >= 4) setEyeExpression("excited");
@@ -1381,9 +1284,8 @@ export default function Home() {
       setPostText("");
       clearPostImage();
       setShowPostInput(false);
-      // Reload in background to get AI comment + mission progress
+      // Reload in background to get AI comment
       setTimeout(loadFeed, 3000);
-      setTimeout(loadMissions, 1000);
     } catch (err) {
       setSettingsMessage(err instanceof Error ? err.message : "Erro ao publicar. Tente novamente.");
     }
@@ -1418,7 +1320,6 @@ export default function Home() {
       if (!res.ok) return;
       const data = await res.json();
       setFeed((prev) => prev.map((p) => p.id === postId ? { ...p, liked: data.liked, likesCount: data.likesCount } : p));
-      if (data.liked) setTimeout(loadMissions, 1000);
     } catch { /* ignore */ }
   };
 
@@ -1451,22 +1352,6 @@ export default function Home() {
     } catch {
       injectAssistantMessage("Não consegui buscar notícias agora. Tente novamente.");
     }
-  };
-
-  const handleMissionsCommand = () => {
-    const sys = missions.filter((m) => m.type === "system");
-    const active = sys.filter((m) => !m.completed);
-    const done = sys.filter((m) => m.completed);
-    if (sys.length === 0) {
-      injectAssistantMessage("Você ainda não tem missões ativas. Continue usando o app! 🎯");
-      return;
-    }
-    const lines = [
-      `🎯 Progresso das missões: ${done.length}/${sys.length} concluídas`,
-      ...active.slice(0, 3).map((m) => `▸ ${m.title}`),
-      ...(active.length > 3 ? [`...e mais ${active.length - 3} missões`] : []),
-    ];
-    injectAssistantMessage(lines.join("\n"));
   };
 
   const [showInlinePost, setShowInlinePost] = useState(false);
@@ -1916,7 +1801,6 @@ export default function Home() {
         onSendVoiceMessage={(text) => handleSendMessage(text)}
         onQuickAction={(action) => {
           if (action === "feed") { setMobileTab("feed"); loadFeed(); }
-          if (action === "missions") handleMissionsCommand();
           if (action === "colmeia") { setMobileTab("colmeia"); }
           if (action === "news") handleNewsCommand();
           if (action === "inbox") { setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }

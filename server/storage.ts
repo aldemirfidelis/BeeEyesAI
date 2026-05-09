@@ -1,7 +1,7 @@
 import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, userPersonality, messages, notificationReads, missions, moodEntries, achievements, testimonials,
+  users, userPersonality, messages, notificationReads, moodEntries, achievements, testimonials,
   posts, postLikes, userConnections, directMessages,
   communities, communityMembers, communityPosts,
   communityPostLikes, communityPostComments, communityPostCommentLikes,
@@ -10,7 +10,6 @@ import {
   type UserPersonality, type InsertUserPersonality,
   type Message, type InsertMessage,
   type NotificationRead, type InsertNotificationRead,
-  type Mission, type InsertMission,
   type MoodEntry, type InsertMoodEntry,
   type Achievement, type InsertAchievement,
   type Post, type InsertPost,
@@ -22,7 +21,6 @@ import {
   type CommunityPostComment, type InsertCommunityPostComment,
   type PostComment, type InsertPostComment,
   xpForLevel,
-  PREDEFINED_MISSIONS,
 } from "../shared/schema";
 
 export interface IStorage {
@@ -51,14 +49,6 @@ export interface IStorage {
   updateMessageMetadata(id: string, userId: string, data: { content: string; metadata: string }): Promise<Message | undefined>;
   getNotificationReadsByUser(userId: string): Promise<NotificationRead[]>;
   markNotificationsAsRead(data: InsertNotificationRead[]): Promise<void>;
-
-  // Missions
-  getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]>;
-  createMission(mission: InsertMission): Promise<Mission>;
-  completeMission(id: string, userId: string): Promise<Mission | undefined>;
-  completeMissionByAction(userId: string, actionType: string): Promise<Mission | undefined>;
-  seedPredefinedMissions(userId: string): Promise<void>;
-  deleteMission(id: string, userId: string): Promise<void>;
 
   // Mood
   getMoodEntriesByUser(userId: string, days?: number): Promise<MoodEntry[]>;
@@ -104,7 +94,6 @@ export interface IStorage {
     user: Omit<User, "password">;
     recentPosts: Post[];
     interests: string[];
-    activeMissionsCount: number;
   } | null>;
 
   // Direct messages
@@ -351,97 +340,6 @@ export class DrizzleStorage implements IStorage {
       .onConflictDoNothing({
         target: [notificationReads.userId, notificationReads.notificationId],
       });
-  }
-
-  async getMissionsByUser(userId: string, completed?: boolean): Promise<Mission[]> {
-    const conditions = [eq(missions.userId, userId)];
-    if (completed !== undefined) {
-      conditions.push(eq(missions.completed, completed));
-    }
-    return db
-      .select()
-      .from(missions)
-      .where(and(...conditions))
-      .orderBy(desc(missions.createdAt));
-  }
-
-  async createMission(mission: InsertMission): Promise<Mission> {
-    const [created] = await db.insert(missions).values(mission).returning();
-    return created;
-  }
-
-  async completeMission(id: string, userId: string): Promise<Mission | undefined> {
-    const [mission] = await db
-      .update(missions)
-      .set({ completed: true, completedAt: new Date() })
-      .where(and(eq(missions.id, id), eq(missions.userId, userId)))
-      .returning();
-    return mission;
-  }
-
-  async completeMissionByAction(userId: string, actionType: string): Promise<Mission | undefined> {
-    // Find the first pending system mission with this actionType for the user
-    const [pending] = await db
-      .select()
-      .from(missions)
-      .where(
-        and(
-          eq(missions.userId, userId),
-          eq(missions.actionType, actionType),
-          eq(missions.type, "system"),
-          eq(missions.completed, false),
-        )
-      )
-      .limit(1);
-    if (!pending) return undefined;
-    const [completed] = await db
-      .update(missions)
-      .set({ completed: true, completedAt: new Date() })
-      .where(eq(missions.id, pending.id))
-      .returning();
-    return completed;
-  }
-
-  async seedPredefinedMissions(userId: string): Promise<void> {
-    const validActionTypes = new Set(PREDEFINED_MISSIONS.map((pm) => pm.actionType));
-
-    // Get existing system missions for this user
-    const existing = await db
-      .select()
-      .from(missions)
-      .where(and(eq(missions.userId, userId), eq(missions.type, "system")));
-
-    // Remove any system missions whose actionType is no longer in the predefined list (cleanup obsolete)
-    const toDelete = existing.filter((m) => m.actionType && !validActionTypes.has(m.actionType));
-    if (toDelete.length > 0) {
-      await db.delete(missions).where(
-        and(
-          eq(missions.userId, userId),
-          inArray(missions.id, toDelete.map((m) => m.id))
-        )
-      );
-    }
-
-    // Insert missing predefined missions
-    const existingTypes = new Set(existing.map((m) => m.actionType));
-    const toInsert = PREDEFINED_MISSIONS
-      .filter((pm) => !existingTypes.has(pm.actionType))
-      .map((pm) => ({
-        userId,
-        title: pm.title,
-        description: pm.description,
-        xpReward: pm.xpReward,
-        type: "system" as const,
-        actionType: pm.actionType,
-        tier: pm.tier,
-      }));
-    if (toInsert.length > 0) {
-      await db.insert(missions).values(toInsert);
-    }
-  }
-
-  async deleteMission(id: string, userId: string): Promise<void> {
-    await db.delete(missions).where(and(eq(missions.id, id), eq(missions.userId, userId)));
   }
 
   async getMoodEntriesByUser(userId: string, days = 30): Promise<MoodEntry[]> {
@@ -871,15 +769,13 @@ export class DrizzleStorage implements IStorage {
     user: Omit<User, "password">;
     recentPosts: Post[];
     interests: string[];
-    activeMissionsCount: number;
   } | null> {
     const user = await this.getUser(userId);
     if (!user) return null;
 
-    const [recentPosts, personality, activeMissions] = await Promise.all([
+    const [recentPosts, personality] = await Promise.all([
       this.getPostsByUser(userId, 5),
       this.getPersonality(userId),
-      this.getMissionsByUser(userId, false),
     ]);
 
     const { password: _pw, ...safeUser } = user;
@@ -888,7 +784,6 @@ export class DrizzleStorage implements IStorage {
       user: safeUser,
       recentPosts,
       interests: JSON.parse(personality?.interests || "[]"),
-      activeMissionsCount: activeMissions.length,
     };
   }
 

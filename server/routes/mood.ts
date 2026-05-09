@@ -7,7 +7,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { insertMoodEntrySchema } from "../../shared/schema";
 
-export function createMoodRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
+export function createMoodRouter() {
   const router = Router();
 
   router.get("/api/mood", requireAuth, asyncHandler(async (req, res) => {
@@ -23,7 +23,6 @@ export function createMoodRouter(triggerMissionAction: (userId: string, actionTy
 
     const entry = await storage.createMoodEntry(parsed.data);
     storage.updateUserStreak(req.userId!).catch(() => {});
-    triggerMissionAction(req.userId!, "set_mood").catch(() => {});
     storage.ensureAchievement(req.userId!, {
       type: "mood_first_log",
       title: "Autoconsciência",

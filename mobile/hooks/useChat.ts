@@ -7,7 +7,6 @@ import { NewsDigestMeta } from "../lib/social";
 
 function cleanAIText(text: string): string {
   return text
-    .replace(/\{"suggest_mission":\s*\{[^}]+\}\}/g, "")
     .replace(/\{"achievement":\s*\{[^}]+\}\}/g, "")
     .replace(/\{"fetch_news":\s*\{[^}]+\}\}/g, "")
     .replace(/\{"create_event":\s*\{[\s\S]*?\}\}/g, "")
@@ -89,8 +88,6 @@ export function useChat() {
               reactedToResponse = true;
               setEyeExpression("excited");
             }
-          } else if (event.type === "mission_created") {
-            queryClient.invalidateQueries({ queryKey: ["missions"] });
           } else if (event.type === "achievement_unlocked") {
             showAchievement(event.achievement);
             setEyeExpression("celebrating");
@@ -100,13 +97,16 @@ export function useChat() {
             setEyeExpression("excited");
           } else if (event.type === "note_saved") {
             queryClient.invalidateQueries({ queryKey: ["colmeia-notes"] });
-            showAchievement({ title: "Nota salva!", description: event.note?.title || "Adicionada à Colmeia" });
+            showAchievement({ id: "note_saved", type: "note_saved", title: "Nota salva!", description: event.note?.title || event.note?.content?.slice(0, 50) || "Adicionada à Colmeia" });
           } else if (event.type === "event_created") {
             queryClient.invalidateQueries({ queryKey: ["colmeia-events"] });
-            showAchievement({ title: "Evento criado!", description: event.event?.title || "Adicionado ao Calendário" });
+            showAchievement({ id: "event_created", type: "event_created", title: "Evento criado!", description: event.event?.title || "Adicionado ao Calendário" });
           } else if (event.type === "finance_logged") {
             queryClient.invalidateQueries({ queryKey: ["colmeia-finance"] });
-            showAchievement({ title: "Transação registrada!", description: event.transaction?.description || event.transaction?.category || "Adicionada às Finanças" });
+            const tx = event.transaction;
+            const label = tx?.type === "income" ? "Receita" : "Despesa";
+            const amount = tx ? ` R$ ${(tx.amountCents / 100).toFixed(2)}` : "";
+            showAchievement({ id: "finance_logged", type: "finance_logged", title: `${label} registrada!`, description: (tx?.description || tx?.category || "Finanças") + amount });
           }
         } catch { /* skip malformed */ }
       }

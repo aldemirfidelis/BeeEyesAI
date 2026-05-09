@@ -20,7 +20,6 @@ type Profile = {
   };
   recentPosts: Array<{ id: string; content: string; createdAt: string; sentimentLabel?: string | null; aiComment?: string | null }>;
   interests: string[];
-  activeMissionsCount: number;
 };
 
 export function UserProfileModal({ userId, onClose }: { userId: string | null; onClose: () => void }) {

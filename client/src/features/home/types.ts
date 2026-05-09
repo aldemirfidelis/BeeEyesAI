@@ -6,17 +6,6 @@ export interface Message {
   metadata?: string | null;
 }
 
-export interface Mission {
-  id: string;
-  title: string;
-  description: string | null;
-  xpReward: number;
-  completed: boolean;
-  type: "system" | "user";
-  actionType: string | null;
-  tier: number;
-}
-
 export interface User {
   id: string;
   username: string;
@@ -91,7 +80,6 @@ export interface FriendProfile {
   };
   recentPosts: FeedPost[];
   interests: string[];
-  activeMissionsCount: number;
 }
 
 export interface Community {

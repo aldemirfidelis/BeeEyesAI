@@ -69,23 +69,6 @@ export const notificationReads = pgTable("notification_reads", {
   uniqueIndex("notification_reads_user_notification_uidx").on(table.userId, table.notificationId),
 ]);
 
-export const missions = pgTable("missions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description"),
-  completed: boolean("completed").notNull().default(false),
-  xpReward: integer("xp_reward").notNull().default(10),
-  type: varchar("type", { length: 50 }).notNull().default("user"),
-  actionType: varchar("action_type", { length: 100 }),
-  tier: integer("tier").notNull().default(1),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  completedAt: timestamp("completed_at"),
-}, (table) => [
-  index("missions_user_completed_idx").on(table.userId, table.completed, table.createdAt),
-  index("missions_user_action_idx").on(table.userId, table.actionType),
-]);
-
 export const moodEntries = pgTable("mood_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -285,13 +268,6 @@ export const insertNotificationReadSchema = createInsertSchema(notificationReads
   readAt: true,
 });
 
-export const insertMissionSchema = createInsertSchema(missions).omit({
-  id: true,
-  completed: true,
-  createdAt: true,
-  completedAt: true,
-});
-
 export const insertMoodEntrySchema = createInsertSchema(moodEntries).omit({
   id: true,
   createdAt: true,
@@ -433,8 +409,6 @@ export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type NotificationRead = typeof notificationReads.$inferSelect;
 export type InsertNotificationRead = z.infer<typeof insertNotificationReadSchema>;
-export type Mission = typeof missions.$inferSelect;
-export type InsertMission = z.infer<typeof insertMissionSchema>;
 export type MoodEntry = typeof moodEntries.$inferSelect;
 export type InsertMoodEntry = z.infer<typeof insertMoodEntrySchema>;
 export type Achievement = typeof achievements.$inferSelect;
@@ -461,24 +435,6 @@ export type InsertCommunityPostComment = typeof communityPostComments.$inferInse
 export function xpForLevel(level: number): number {
   return level * 100 + (level - 1) * 50;
 }
-
-export const PREDEFINED_MISSIONS: Array<{
-  actionType: string;
-  title: string;
-  description: string;
-  xpReward: number;
-  tier: number;
-}> = [
-  { actionType: "send_message", title: "Diga olá para a Bee", description: "Envie sua primeira mensagem no chat", xpReward: 10, tier: 1 },
-  { actionType: "like_post", title: "Mostre carinho", description: "Curta uma publicação no feed", xpReward: 15, tier: 1 },
-  { actionType: "create_post", title: "Compartilhe algo", description: "Faça sua primeira publicação no feed", xpReward: 20, tier: 2 },
-  { actionType: "add_friend", title: "Faça uma conexão", description: "Envie um pedido de amizade para alguém", xpReward: 20, tier: 2 },
-  { actionType: "accept_friend", title: "Aceite um amigo", description: "Aceite um pedido de conexão recebido", xpReward: 20, tier: 2 },
-  { actionType: "comment_post", title: "Participe da conversa", description: "Comente em uma publicação do feed", xpReward: 25, tier: 2 },
-  { actionType: "join_community", title: "Entre em uma comunidade", description: "Participe de uma comunidade", xpReward: 40, tier: 3 },
-  { actionType: "post_in_community", title: "Voz na comunidade", description: "Publique algo em uma comunidade que você participa", xpReward: 30, tier: 4 },
-  { actionType: "create_community", title: "Funde sua comunidade", description: "Crie sua própria comunidade", xpReward: 50, tier: 4 },
-];
 
 export const LEVEL_UNLOCKS: Record<number, string> = {
   2: "Conexões sociais em destaque",

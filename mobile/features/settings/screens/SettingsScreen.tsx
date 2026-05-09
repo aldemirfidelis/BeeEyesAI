@@ -35,6 +35,9 @@ type MeResponse = {
   bio?: string | null;
   language?: string;
   anonymousProfileVisitsEnabled?: boolean;
+  level?: number;
+  xp?: number;
+  currentStreak?: number;
 };
 
 
@@ -77,7 +80,7 @@ export default function SettingsScreen() {
       api.patch("/api/me/preferences", payload).then((response) => response.data as MeResponse),
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["me"], updatedUser);
-      setAuthUser(updatedUser);
+      if (authUser) setAuthUser({ ...authUser, ...updatedUser, level: updatedUser.level ?? authUser.level, xp: updatedUser.xp ?? authUser.xp, currentStreak: updatedUser.currentStreak ?? authUser.currentStreak });
       setFeedback(t("settings_preferences_updated"));
     },
     onError: (error: unknown) => setFeedback(getApiErrorMessage(error, t("settings_update_error"))),

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
-  ActivityIndicator, Alert, Linking, Modal, Platform,
+  ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -73,80 +73,129 @@ const EVENT_COLORS: Record<string, string> = {
   orange: "#F97316",
 };
 
-const EXPENSE_CATEGORIES = ["alimentação", "transporte", "lazer", "saúde", "moradia", "educação", "outros"];
-const INCOME_CATEGORIES = ["salário", "freelance", "investimento", "presente", "outros"];
+const EXPENSE_CATEGORIES = ["Alimentação", "Transporte", "Lazer", "Saúde", "Moradia", "Educação", "Compras", "Outros"];
+const INCOME_CATEGORIES = ["Salário", "Freelance", "Investimentos", "Presente", "Outros"];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "alimentação": "#F59E0B",
+  "transporte": "#3B82F6",
+  "saúde": "#10B981",
+  "lazer": "#8B5CF6",
+  "educação": "#06B6D4",
+  "moradia": "#EF4444",
+  "compras": "#EC4899",
+  "salário": "#10B981",
+  "freelance": "#3B82F6",
+  "investimentos": "#06B6D4",
+  "presente": "#F97316",
+  "outros": "#6B7280",
+};
+
+function getCategoryColor(cat: string) {
+  return CATEGORY_COLORS[cat.toLowerCase()] ?? "#6B7280";
+}
 
 // ── Calendar Section ──────────────────────────────────────────────────────────
 
+const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const { width: SCREEN_W } = Dimensions.get("window");
+// Cell width: screen - scroll padding(32) - card padding(28) - card border(2) — divided by 7
+const CAL_CELL_W = Math.floor((SCREEN_W - 62) / 7);
+
+function padDate(n: number) {
+  return String(n).padStart(2, "0");
+}
+
 function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
+  const today = new Date();
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [selectedDay, setSelectedDay] = useState<number | null>(today.getDate());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleConnecting, setGoogleConnecting] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    description: "",
-    startAt: "",
-    endAt: "",
-    location: "",
-    allDay: false,
-  });
+  const [newEvent, setNewEvent] = useState({ title: "", description: "", startAt: "", endAt: "", location: "" });
 
   const loadEvents = useCallback(async () => {
+    setLoading(true);
     try {
-      const now = new Date();
-      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const to = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString();
+      const from = new Date(viewYear, viewMonth, 1).toISOString();
+      const to = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59).toISOString();
       const res = await api.get(`/api/colmeia/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       setEvents(res.data ?? []);
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [viewMonth, viewYear]);
 
   const loadGoogleStatus = useCallback(async () => {
     try {
       const res = await api.get("/api/colmeia/google/status");
       setGoogleConnected(res.data?.connected ?? false);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => {
-    loadEvents();
-    loadGoogleStatus();
-  }, [loadEvents, loadGoogleStatus]);
+  useEffect(() => { loadEvents(); }, [loadEvents]);
+  useEffect(() => { loadGoogleStatus(); }, [loadGoogleStatus]);
+
+  const navigateMonth = (dir: 1 | -1) => {
+    let m = viewMonth + dir;
+    let y = viewYear;
+    if (m > 11) { m = 0; y++; }
+    if (m < 0) { m = 11; y--; }
+    setViewMonth(m);
+    setViewYear(y);
+    setSelectedDay(null);
+  };
+
+  // Build grid cells: pad prev month → current month → pad next month
+  const cells = useMemo(() => {
+    const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const daysInPrev = new Date(viewYear, viewMonth, 0).getDate();
+    const result: Array<{ day: number; current: boolean }> = [];
+    for (let i = firstWeekday - 1; i >= 0; i--) result.push({ day: daysInPrev - i, current: false });
+    for (let d = 1; d <= daysInMonth; d++) result.push({ day: d, current: true });
+    const tail = result.length % 7;
+    if (tail > 0) for (let d = 1; d <= 7 - tail; d++) result.push({ day: d, current: false });
+    return result;
+  }, [viewMonth, viewYear]);
+
+  const daysWithEvents = useMemo(() => {
+    const s = new Set<number>();
+    events.forEach((ev) => {
+      const d = new Date(ev.startAt);
+      if (d.getMonth() === viewMonth && d.getFullYear() === viewYear) s.add(d.getDate());
+    });
+    return s;
+  }, [events, viewMonth, viewYear]);
+
+  const selectedDayEvents = useMemo(() => {
+    if (selectedDay == null) return [];
+    return events.filter((ev) => {
+      const d = new Date(ev.startAt);
+      return d.getDate() === selectedDay && d.getMonth() === viewMonth && d.getFullYear() === viewYear;
+    });
+  }, [events, selectedDay, viewMonth, viewYear]);
 
   const handleConnectGoogle = async () => {
     setGoogleConnecting(true);
     try {
       const res = await api.get("/api/colmeia/google/auth-url");
-      if (res.data?.url) {
-        await Linking.openURL(res.data.url);
-      }
-    } catch {
-      Alert.alert("Erro", "Não foi possível iniciar a conexão com Google.");
-    } finally {
-      setGoogleConnecting(false);
-    }
+      if (res.data?.url) await Linking.openURL(res.data.url);
+    } catch { Alert.alert("Erro", "Não foi possível conectar ao Google."); }
+    finally { setGoogleConnecting(false); }
   };
 
-  const handleDisconnectGoogle = async () => {
-    Alert.alert("Desconectar", "Deseja remover a integração com Google Calendar?", [
+  const handleDisconnectGoogle = () => {
+    Alert.alert("Desconectar", "Remover integração com Google Calendar?", [
       { text: "Cancelar", style: "cancel" },
-      {
-        text: "Desconectar",
-        style: "destructive",
-        onPress: async () => {
-          await api.delete("/api/colmeia/google/disconnect").catch(() => {});
-          setGoogleConnected(false);
-        },
-      },
+      { text: "Desconectar", style: "destructive", onPress: async () => {
+        await api.delete("/api/colmeia/google/disconnect").catch(() => {});
+        setGoogleConnected(false);
+      }},
     ]);
   };
 
@@ -163,48 +212,40 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
         startAt: new Date(newEvent.startAt).toISOString(),
         endAt: newEvent.endAt.trim() ? new Date(newEvent.endAt).toISOString() : null,
         location: newEvent.location.trim() || null,
-        allDay: newEvent.allDay,
       });
       setEvents((prev) => [...prev, res.data].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()));
       setShowAddEvent(false);
-      setNewEvent({ title: "", description: "", startAt: "", endAt: "", location: "", allDay: false });
-    } catch {
-      Alert.alert("Erro", "Não foi possível criar o evento.");
-    } finally {
-      setSaving(false);
-    }
+      setNewEvent({ title: "", description: "", startAt: "", endAt: "", location: "" });
+    } catch { Alert.alert("Erro", "Não foi possível criar o evento."); }
+    finally { setSaving(false); }
   };
 
   const handleDeleteEvent = (id: string, title: string) => {
     Alert.alert("Apagar evento", `Apagar "${title}"?`, [
       { text: "Cancelar", style: "cancel" },
-      {
-        text: "Apagar",
-        style: "destructive",
-        onPress: async () => {
-          await api.delete(`/api/colmeia/events/${id}`).catch(() => {});
-          setEvents((prev) => prev.filter((e) => e.id !== id));
-        },
-      },
+      { text: "Apagar", style: "destructive", onPress: async () => {
+        await api.delete(`/api/colmeia/events/${id}`).catch(() => {});
+        setEvents((prev) => prev.filter((e) => e.id !== id));
+      }},
     ]);
   };
 
-  const upcoming = events.filter((e) => new Date(e.startAt) >= new Date()).slice(0, 10);
-  const past = events.filter((e) => new Date(e.startAt) < new Date()).slice(-5);
+  const monthLabel = new Date(viewYear, viewMonth, 1)
+    .toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+  const isCurrentMonth = viewMonth === today.getMonth() && viewYear === today.getFullYear();
 
   return (
     <View>
       {/* Google Calendar Integration */}
-      <View style={[localStyles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[calStyles.googleCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={localStyles.row}>
-          <Feather name="calendar" size={18} color={colors.primaryDark} />
-          <Text style={[localStyles.sectionTitle, { color: colors.foreground, fontFamily: FONTS.semibold }]}>
-            Google Calendar
-          </Text>
+          <Feather name="calendar" size={16} color={colors.primaryDark} />
+          <Text style={[calStyles.googleTitle, { color: colors.foreground }]}>Google Calendar</Text>
         </View>
         {googleConnected ? (
           <View style={localStyles.row}>
-            <View style={[localStyles.badge, { backgroundColor: "#10B98122" }]}>
+            <View style={[localStyles.badge, { backgroundColor: "#10B98118", flex: 1 }]}>
               <Feather name="check-circle" size={13} color="#10B981" />
               <Text style={[localStyles.badgeText, { color: "#10B981" }]}>Conectado</Text>
             </View>
@@ -213,135 +254,165 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity
-            style={[localStyles.btnOutline, { borderColor: colors.primaryDark }]}
-            onPress={handleConnectGoogle}
-            disabled={googleConnecting}
-          >
-            {googleConnecting ? (
-              <ActivityIndicator size="small" color={colors.primaryDark} />
-            ) : (
-              <>
-                <Feather name="link" size={14} color={colors.primaryDark} />
-                <Text style={[localStyles.btnOutlineText, { color: colors.primaryDark }]}>Conectar Google Calendar</Text>
-              </>
-            )}
+          <TouchableOpacity style={[localStyles.btnOutline, { borderColor: colors.primaryDark }]} onPress={handleConnectGoogle} disabled={googleConnecting}>
+            {googleConnecting
+              ? <ActivityIndicator size="small" color={colors.primaryDark} />
+              : <><Feather name="link" size={14} color={colors.primaryDark} /><Text style={[localStyles.btnOutlineText, { color: colors.primaryDark }]}>Conectar Google Calendar</Text></>}
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Add Event Button */}
-      <TouchableOpacity
-        style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark }]}
-        onPress={() => setShowAddEvent(true)}
-      >
-        <Feather name="plus" size={16} color="#fff" />
-        <Text style={localStyles.btnPrimaryText}>Novo Evento</Text>
-      </TouchableOpacity>
+      {/* Calendar Card */}
+      <View style={[calStyles.calCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Month navigation */}
+        <View style={calStyles.monthNav}>
+          <TouchableOpacity onPress={() => navigateMonth(-1)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="chevron-left" size={20} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[calStyles.monthLabel, { color: colors.foreground }]}>
+            {monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}
+          </Text>
+          <TouchableOpacity onPress={() => navigateMonth(1)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="chevron-right" size={20} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
 
-      {/* Upcoming Events */}
-      {loading ? (
-        <ActivityIndicator size="small" color={colors.primaryDark} style={{ marginTop: 20 }} />
-      ) : upcoming.length === 0 ? (
-        <Text style={[localStyles.emptyText, { color: colors.muted }]}>Nenhum evento próximo</Text>
-      ) : (
-        <View>
-          <Text style={[localStyles.listHeader, { color: colors.muted }]}>PRÓXIMOS</Text>
-          {upcoming.map((ev) => (
-            <View key={ev.id} style={[localStyles.eventItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[localStyles.eventDot, { backgroundColor: EVENT_COLORS[ev.color ?? "primary"] ?? EVENT_COLORS.primary }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[localStyles.eventTitle, { color: colors.foreground }]}>{ev.title}</Text>
-                <Text style={[localStyles.eventMeta, { color: colors.muted }]}>
-                  {ev.allDay ? formatDate(ev.startAt) : formatDateTime(ev.startAt)}
-                  {ev.location ? ` · ${ev.location}` : ""}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => handleDeleteEvent(ev.id, ev.title)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="trash-2" size={15} color={colors.muted} />
-              </TouchableOpacity>
-            </View>
+        {/* Week day headers */}
+        <View style={calStyles.weekRow}>
+          {WEEK_DAYS.map((d) => (
+            <Text key={d} style={[calStyles.weekDay, { color: colors.muted, width: CAL_CELL_W }]}>{d}</Text>
           ))}
+        </View>
+
+        {/* Grid */}
+        {loading ? (
+          <ActivityIndicator color={colors.primaryDark} style={{ marginVertical: 20 }} />
+        ) : (
+          <View style={calStyles.grid}>
+            {cells.map((cell, idx) => {
+              const isToday = cell.current && isCurrentMonth && cell.day === today.getDate();
+              const isSelected = cell.current && cell.day === selectedDay;
+              const hasEvt = cell.current && daysWithEvents.has(cell.day);
+              const bg = isSelected ? colors.primaryDark : isToday ? colors.primaryDark + "28" : "transparent";
+              const numColor = isSelected ? "#1A1A1A" : cell.current ? colors.foreground : colors.muted;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[calStyles.dayCell, { width: CAL_CELL_W, backgroundColor: bg }]}
+                  onPress={() => cell.current && setSelectedDay(isSelected ? null : cell.day)}
+                  disabled={!cell.current}
+                  activeOpacity={cell.current ? 0.7 : 1}
+                >
+                  <Text style={[calStyles.dayNum, { color: numColor, opacity: cell.current ? 1 : 0.3 }]}>
+                    {cell.day}
+                  </Text>
+                  {hasEvt && (
+                    <View style={[calStyles.evtDot, { backgroundColor: isSelected ? "#1A1A1A" : colors.primaryDark }]} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* Selected day panel */}
+      {selectedDay != null && (
+        <View style={[calStyles.dayPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={calStyles.dayPanelHeader}>
+            <Text style={[calStyles.dayPanelTitle, { color: colors.foreground }]}>
+              {padDate(selectedDay)} de {new Date(viewYear, viewMonth, 1).toLocaleDateString("pt-BR", { month: "long" })}
+            </Text>
+            <TouchableOpacity
+              style={[calStyles.addDayBtn, { backgroundColor: colors.primaryDark }]}
+              onPress={() => {
+                setNewEvent((p) => ({ ...p, startAt: `${viewYear}-${padDate(viewMonth + 1)}-${padDate(selectedDay)} 09:00` }));
+                setShowAddEvent(true);
+              }}
+            >
+              <Feather name="plus" size={13} color="#1A1A1A" />
+              <Text style={calStyles.addDayBtnText}>Adicionar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {selectedDayEvents.length === 0 ? (
+            <Text style={[calStyles.emptyDay, { color: colors.muted }]}>Nenhum evento neste dia</Text>
+          ) : (
+            selectedDayEvents.map((ev) => (
+              <View key={ev.id} style={[calStyles.evtItem, { borderColor: colors.border }]}>
+                <View style={[calStyles.evtBar, { backgroundColor: EVENT_COLORS[ev.color ?? "primary"] ?? EVENT_COLORS.primary }]} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[calStyles.evtTitle, { color: colors.foreground }]}>{ev.title}</Text>
+                  {!ev.allDay && (
+                    <Text style={[calStyles.evtMeta, { color: colors.muted }]}>
+                      {new Date(ev.startAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      {ev.endAt ? ` – ${new Date(ev.endAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </Text>
+                  )}
+                  {ev.location ? <Text style={[calStyles.evtMeta, { color: colors.muted }]}>📍 {ev.location}</Text> : null}
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteEvent(ev.id, ev.title)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="trash-2" size={14} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
         </View>
       )}
 
-      {past.length > 0 && (
-        <View>
-          <Text style={[localStyles.listHeader, { color: colors.muted }]}>ANTERIORES</Text>
-          {past.map((ev) => (
-            <View key={ev.id} style={[localStyles.eventItem, { backgroundColor: colors.card, borderColor: colors.border, opacity: 0.6 }]}>
-              <View style={[localStyles.eventDot, { backgroundColor: colors.muted }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[localStyles.eventTitle, { color: colors.foreground }]}>{ev.title}</Text>
-                <Text style={[localStyles.eventMeta, { color: colors.muted }]}>
-                  {ev.allDay ? formatDate(ev.startAt) : formatDateTime(ev.startAt)}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => handleDeleteEvent(ev.id, ev.title)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="trash-2" size={15} color={colors.muted} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
+      {/* Add event button (when no day selected) */}
+      {selectedDay == null && (
+        <TouchableOpacity style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark }]} onPress={() => setShowAddEvent(true)}>
+          <Feather name="plus" size={16} color="#fff" />
+          <Text style={localStyles.btnPrimaryText}>Novo Evento</Text>
+        </TouchableOpacity>
       )}
+
+      {/* Upcoming events list when no day is selected */}
+      {selectedDay == null && !loading && (() => {
+        const upcoming = events.filter((e) => new Date(e.startAt) >= today).slice(0, 8);
+        if (upcoming.length === 0) return (
+          <Text style={[localStyles.emptyText, { color: colors.muted }]}>Nenhum evento próximo</Text>
+        );
+        return (
+          <View>
+            <Text style={[localStyles.listHeader, { color: colors.muted }]}>PRÓXIMOS</Text>
+            {upcoming.map((ev) => (
+              <View key={ev.id} style={[localStyles.eventItem, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={[localStyles.eventDot, { backgroundColor: EVENT_COLORS[ev.color ?? "primary"] ?? EVENT_COLORS.primary }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[localStyles.eventTitle, { color: colors.foreground }]}>{ev.title}</Text>
+                  <Text style={[localStyles.eventMeta, { color: colors.muted }]}>
+                    {ev.allDay ? formatDate(ev.startAt) : formatDateTime(ev.startAt)}
+                    {ev.location ? ` · ${ev.location}` : ""}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteEvent(ev.id, ev.title)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="trash-2" size={14} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        );
+      })()}
 
       {/* Add Event Modal */}
-      <Modal visible={showAddEvent} animationType="slide" transparent>
+      <Modal visible={showAddEvent} animationType="slide" transparent presentationStyle="overFullScreen">
         <View style={localStyles.modalOverlay}>
           <View style={[localStyles.modalContent, { backgroundColor: colors.card }]}>
             <View style={localStyles.modalHeader}>
-              <Text style={[localStyles.modalTitle, { color: colors.foreground, fontFamily: FONTS.bold }]}>Novo Evento</Text>
+              <Text style={[localStyles.modalTitle, { color: colors.foreground, fontWeight: "700" }]}>Novo Evento</Text>
               <TouchableOpacity onPress={() => setShowAddEvent(false)}>
                 <Feather name="x" size={20} color={colors.muted} />
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Título *"
-              placeholderTextColor={colors.muted}
-              value={newEvent.title}
-              onChangeText={(v) => setNewEvent((p) => ({ ...p, title: v }))}
-            />
-            <TextInput
-              style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Início (AAAA-MM-DD HH:MM) *"
-              placeholderTextColor={colors.muted}
-              value={newEvent.startAt}
-              onChangeText={(v) => setNewEvent((p) => ({ ...p, startAt: v }))}
-            />
-            <TextInput
-              style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Fim (AAAA-MM-DD HH:MM)"
-              placeholderTextColor={colors.muted}
-              value={newEvent.endAt}
-              onChangeText={(v) => setNewEvent((p) => ({ ...p, endAt: v }))}
-            />
-            <TextInput
-              style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Local"
-              placeholderTextColor={colors.muted}
-              value={newEvent.location}
-              onChangeText={(v) => setNewEvent((p) => ({ ...p, location: v }))}
-            />
-            <TextInput
-              style={[localStyles.input, localStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Descrição"
-              placeholderTextColor={colors.muted}
-              value={newEvent.description}
-              onChangeText={(v) => setNewEvent((p) => ({ ...p, description: v }))}
-              multiline
-              numberOfLines={3}
-            />
-            <TouchableOpacity
-              style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark, marginTop: 4 }]}
-              onPress={handleAddEvent}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={localStyles.btnPrimaryText}>Salvar Evento</Text>
-              )}
+            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Título *" placeholderTextColor={colors.muted} value={newEvent.title} onChangeText={(v) => setNewEvent((p) => ({ ...p, title: v }))} />
+            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Início (AAAA-MM-DD HH:MM) *" placeholderTextColor={colors.muted} value={newEvent.startAt} onChangeText={(v) => setNewEvent((p) => ({ ...p, startAt: v }))} />
+            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Fim (AAAA-MM-DD HH:MM)" placeholderTextColor={colors.muted} value={newEvent.endAt} onChangeText={(v) => setNewEvent((p) => ({ ...p, endAt: v }))} />
+            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Local" placeholderTextColor={colors.muted} value={newEvent.location} onChangeText={(v) => setNewEvent((p) => ({ ...p, location: v }))} />
+            <TextInput style={[localStyles.input, localStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Descrição" placeholderTextColor={colors.muted} value={newEvent.description} onChangeText={(v) => setNewEvent((p) => ({ ...p, description: v }))} multiline numberOfLines={3} />
+            <TouchableOpacity style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark, marginTop: 4 }]} onPress={handleAddEvent} disabled={saving}>
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={localStyles.btnPrimaryText}>Salvar Evento</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -349,6 +420,30 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
     </View>
   );
 }
+
+const calStyles = StyleSheet.create({
+  googleCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10, marginBottom: 12 },
+  googleTitle: { fontSize: 14, fontWeight: "600", marginLeft: 8 },
+  calCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12, overflow: "hidden" },
+  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  monthLabel: { fontSize: 15, fontWeight: "700" },
+  weekRow: { flexDirection: "row", marginBottom: 6 },
+  weekDay: { textAlign: "center", fontSize: 11, fontWeight: "600", paddingVertical: 4 },
+  grid: { flexDirection: "row", flexWrap: "wrap" },
+  dayCell: { height: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, gap: 2 },
+  dayNum: { fontSize: 13, fontWeight: "500" },
+  evtDot: { width: 4, height: 4, borderRadius: 2 },
+  dayPanel: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12, gap: 10 },
+  dayPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dayPanelTitle: { fontSize: 14, fontWeight: "700" },
+  addDayBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  addDayBtnText: { fontSize: 12, fontWeight: "700", color: "#1A1A1A" },
+  emptyDay: { fontSize: 13, textAlign: "center", paddingVertical: 8 },
+  evtItem: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 10, borderTopWidth: 1 },
+  evtBar: { width: 4, height: "100%" as any, borderRadius: 2, marginTop: 2, minHeight: 20 },
+  evtTitle: { fontSize: 14, fontWeight: "600" },
+  evtMeta: { fontSize: 12 },
+});
 
 // ── Finance Section ───────────────────────────────────────────────────────────
 
@@ -457,7 +552,7 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
         <TouchableOpacity onPress={() => navigateMonth(-1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Feather name="chevron-left" size={20} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[localStyles.monthText, { color: colors.foreground, fontFamily: FONTS.semibold }]}>
+        <Text style={[localStyles.monthText, { color: colors.foreground, fontFamily: FONTS.sans }]}>
           {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
         </Text>
         <TouchableOpacity onPress={() => navigateMonth(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -475,14 +570,14 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
               <View style={[localStyles.summaryCard, { backgroundColor: "#10B98115", borderColor: "#10B98133" }]}>
                 <Feather name="arrow-up-circle" size={18} color="#10B981" />
                 <Text style={[localStyles.summaryLabel, { color: "#10B981" }]}>Receitas</Text>
-                <Text style={[localStyles.summaryValue, { color: "#10B981", fontFamily: FONTS.bold }]}>
+                <Text style={[localStyles.summaryValue, { color: "#10B981", fontFamily: FONTS.display }]}>
                   {formatCurrency(summary.totalIncome)}
                 </Text>
               </View>
               <View style={[localStyles.summaryCard, { backgroundColor: "#EF444415", borderColor: "#EF444433" }]}>
                 <Feather name="arrow-down-circle" size={18} color="#EF4444" />
                 <Text style={[localStyles.summaryLabel, { color: "#EF4444" }]}>Despesas</Text>
-                <Text style={[localStyles.summaryValue, { color: "#EF4444", fontFamily: FONTS.bold }]}>
+                <Text style={[localStyles.summaryValue, { color: "#EF4444", fontFamily: FONTS.display }]}>
                   {formatCurrency(summary.totalExpense)}
                 </Text>
               </View>
@@ -492,7 +587,7 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
               }]}>
                 <Feather name="trending-up" size={18} color={summary.balance >= 0 ? "#3B82F6" : "#F97316"} />
                 <Text style={[localStyles.summaryLabel, { color: summary.balance >= 0 ? "#3B82F6" : "#F97316" }]}>Saldo</Text>
-                <Text style={[localStyles.summaryValue, { color: summary.balance >= 0 ? "#3B82F6" : "#F97316", fontFamily: FONTS.bold }]}>
+                <Text style={[localStyles.summaryValue, { color: summary.balance >= 0 ? "#3B82F6" : "#F97316", fontFamily: FONTS.display }]}>
                   {formatCurrency(Math.abs(summary.balance))}
                 </Text>
               </View>
@@ -502,21 +597,23 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
           {/* Category Breakdown */}
           {summary && Object.keys(summary.byCategory).length > 0 && (
             <View style={[localStyles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[localStyles.sectionTitle, { color: colors.foreground, fontFamily: FONTS.semibold }]}>Por categoria</Text>
+              <Text style={[localStyles.sectionTitle, { color: colors.foreground, fontWeight: "600" }]}>Por categoria</Text>
               {Object.entries(summary.byCategory)
                 .sort((a, b) => b[1] - a[1])
-                .map(([cat, cents]) => (
-                  <View key={cat} style={localStyles.categoryRow}>
-                    <Text style={[localStyles.categoryName, { color: colors.foreground }]}>{cat}</Text>
-                    <View style={[localStyles.categoryBarBg, { backgroundColor: colors.border }]}>
-                      <View style={[localStyles.categoryBar, {
-                        backgroundColor: colors.primaryDark,
-                        width: `${Math.min(100, Math.round((cents / summary.totalExpense) * 100))}%`,
-                      }]} />
+                .map(([cat, cents]) => {
+                  const catColor = getCategoryColor(cat);
+                  const pct = summary.totalExpense > 0 ? Math.min(100, Math.round((cents / summary.totalExpense) * 100)) : 0;
+                  return (
+                    <View key={cat} style={localStyles.categoryRow}>
+                      <View style={[finStyles.catDot, { backgroundColor: catColor }]} />
+                      <Text style={[finStyles.catName, { color: colors.foreground }]}>{cat}</Text>
+                      <View style={[localStyles.categoryBarBg, { backgroundColor: colors.border }]}>
+                        <View style={[localStyles.categoryBar, { backgroundColor: catColor, width: `${pct}%` }]} />
+                      </View>
+                      <Text style={[localStyles.categoryAmount, { color: colors.muted }]}>{formatCurrency(cents)}</Text>
                     </View>
-                    <Text style={[localStyles.categoryAmount, { color: colors.muted }]}>{formatCurrency(cents)}</Text>
-                  </View>
-                ))}
+                  );
+                })}
             </View>
           )}
 
@@ -531,33 +628,42 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
 
           {/* Transactions List */}
           {transactions.length === 0 ? (
-            <Text style={[localStyles.emptyText, { color: colors.muted }]}>Nenhuma transação neste mês</Text>
+            <View style={finStyles.emptyTx}>
+              <Feather name="inbox" size={28} color={colors.border} />
+              <Text style={[finStyles.emptyTxText, { color: colors.muted }]}>Nenhuma transação neste mês</Text>
+              <Text style={[finStyles.emptyTxHint, { color: colors.muted }]}>Diga à Bee "registra gasto de R$50 em alimentação"</Text>
+            </View>
           ) : (
             <View>
               <Text style={[localStyles.listHeader, { color: colors.muted }]}>TRANSAÇÕES</Text>
-              {transactions.map((tx) => (
-                <View key={tx.id} style={[localStyles.txItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[localStyles.txDot, { backgroundColor: tx.type === "income" ? "#10B981" : "#EF4444" }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[localStyles.txDescription, { color: colors.foreground }]}>
-                      {tx.description ?? tx.category}
+              {transactions.map((tx) => {
+                const catColor = getCategoryColor(tx.category);
+                const isIncome = tx.type === "income";
+                return (
+                  <View key={tx.id} style={[localStyles.txItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[finStyles.txIcon, { backgroundColor: (isIncome ? "#10B981" : catColor) + "1A" }]}>
+                      <Feather name={isIncome ? "arrow-up" : "arrow-down"} size={13} color={isIncome ? "#10B981" : catColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[localStyles.txDescription, { color: colors.foreground }]} numberOfLines={1}>
+                        {tx.description ?? tx.category}
+                      </Text>
+                      <View style={finStyles.txMetaRow}>
+                        <View style={[finStyles.txCatPill, { backgroundColor: catColor + "22" }]}>
+                          <Text style={[finStyles.txCatText, { color: catColor }]}>{tx.category}</Text>
+                        </View>
+                        <Text style={[localStyles.txMeta, { color: colors.muted }]}>{formatDate(tx.date)}</Text>
+                      </View>
+                    </View>
+                    <Text style={[localStyles.txAmount, { color: isIncome ? "#10B981" : "#EF4444", fontWeight: "600" }]}>
+                      {isIncome ? "+" : "-"}{formatCurrency(tx.amountCents)}
                     </Text>
-                    <Text style={[localStyles.txMeta, { color: colors.muted }]}>
-                      {tx.category} · {formatDate(tx.date)}
-                    </Text>
+                    <TouchableOpacity onPress={() => handleDeleteTransaction(tx.id, tx.description ?? null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
+                      <Feather name="trash-2" size={14} color={colors.muted} />
+                    </TouchableOpacity>
                   </View>
-                  <Text style={[localStyles.txAmount, { color: tx.type === "income" ? "#10B981" : "#EF4444", fontFamily: FONTS.semibold }]}>
-                    {tx.type === "income" ? "+" : "-"}{formatCurrency(tx.amountCents)}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteTransaction(tx.id, tx.description)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ marginLeft: 8 }}
-                  >
-                    <Feather name="trash-2" size={14} color={colors.muted} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </>
@@ -568,7 +674,7 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
         <View style={localStyles.modalOverlay}>
           <View style={[localStyles.modalContent, { backgroundColor: colors.card }]}>
             <View style={localStyles.modalHeader}>
-              <Text style={[localStyles.modalTitle, { color: colors.foreground, fontFamily: FONTS.bold }]}>Nova Transação</Text>
+              <Text style={[localStyles.modalTitle, { color: colors.foreground, fontFamily: FONTS.display }]}>Nova Transação</Text>
               <TouchableOpacity onPress={() => setShowAdd(false)}>
                 <Feather name="x" size={20} color={colors.muted} />
               </TouchableOpacity>
@@ -841,6 +947,18 @@ function NotesSection({ colors }: { colors: any }) {
   );
 }
 
+const finStyles = StyleSheet.create({
+  catDot: { width: 8, height: 8, borderRadius: 4 },
+  catName: { fontSize: 12, width: 80 },
+  txIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  txMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
+  txCatPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  txCatText: { fontSize: 10, fontWeight: "600" },
+  emptyTx: { alignItems: "center", paddingVertical: 28, gap: 6 },
+  emptyTxText: { fontSize: 14, fontWeight: "600" },
+  emptyTxHint: { fontSize: 12, textAlign: "center", lineHeight: 17 },
+});
+
 const noteStyles = StyleSheet.create({
   addBtn: {
     flexDirection: "row",
@@ -872,12 +990,12 @@ const noteStyles = StyleSheet.create({
   formActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 },
   cancelText: { fontSize: 13 },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
-  saveBtnText: { color: "#fff", fontSize: 13, fontFamily: FONTS.semibold },
+  saveBtnText: { color: "#fff", fontSize: 13, fontFamily: FONTS.sans },
   empty: { alignItems: "center", paddingTop: 40, gap: 8 },
-  emptyTitle: { fontSize: 15, fontFamily: FONTS.semibold },
+  emptyTitle: { fontSize: 15, fontFamily: FONTS.sans },
   emptyHint: { fontSize: 12, textAlign: "center", lineHeight: 18 },
   noteHeader: { flexDirection: "row", gap: 10 },
-  noteTitle: { fontSize: 14, fontFamily: FONTS.semibold, marginBottom: 4 },
+  noteTitle: { fontSize: 14, fontFamily: FONTS.sans, marginBottom: 4 },
   noteContent: { fontSize: 14, lineHeight: 20 },
   noteActions: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   noteMeta: { fontSize: 11, marginTop: 8 },
@@ -957,7 +1075,7 @@ function makeStyles(colors: any) {
     },
     headerTitle: {
       fontSize: 24,
-      fontFamily: FONTS.bold,
+      fontFamily: FONTS.display,
       color: colors.foreground,
     },
     headerSubtitle: {
@@ -983,7 +1101,7 @@ function makeStyles(colors: any) {
     },
     tabSwitcherText: {
       fontSize: 13,
-      fontFamily: FONTS.semibold,
+      fontFamily: FONTS.sans,
     },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 16 },
@@ -1016,7 +1134,7 @@ const localStyles = StyleSheet.create({
     borderRadius: 20,
     flex: 1,
   },
-  badgeText: { fontSize: 12, fontFamily: FONTS.semibold },
+  badgeText: { fontSize: 12, fontFamily: FONTS.sans },
   btnSm: {
     borderWidth: 1,
     borderRadius: 8,
@@ -1033,7 +1151,7 @@ const localStyles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
   },
-  btnOutlineText: { fontSize: 14, fontFamily: FONTS.semibold },
+  btnOutlineText: { fontSize: 14, fontFamily: FONTS.sans },
   btnPrimary: {
     flexDirection: "row",
     alignItems: "center",
@@ -1043,11 +1161,11 @@ const localStyles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 16,
   },
-  btnPrimaryText: { color: "#fff", fontSize: 14, fontFamily: FONTS.semibold },
+  btnPrimaryText: { color: "#fff", fontSize: 14, fontFamily: FONTS.sans },
   emptyText: { textAlign: "center", marginTop: 20, marginBottom: 20, fontSize: 14 },
   listHeader: {
     fontSize: 11,
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.sans,
     letterSpacing: 0.8,
     marginBottom: 8,
     marginTop: 4,
@@ -1062,7 +1180,7 @@ const localStyles = StyleSheet.create({
     gap: 10,
   },
   eventDot: { width: 10, height: 10, borderRadius: 5 },
-  eventTitle: { fontSize: 14, fontFamily: FONTS.semibold },
+  eventTitle: { fontSize: 14, fontFamily: FONTS.sans },
   eventMeta: { fontSize: 12, marginTop: 2 },
   monthNav: {
     flexDirection: "row",
@@ -1088,7 +1206,7 @@ const localStyles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  summaryLabel: { fontSize: 10, fontFamily: FONTS.semibold },
+  summaryLabel: { fontSize: 10, fontFamily: FONTS.sans },
   summaryValue: { fontSize: 12 },
   categoryRow: {
     flexDirection: "row",
@@ -1126,7 +1244,7 @@ const localStyles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "transparent",
   },
-  typeBtnText: { fontSize: 14, fontFamily: FONTS.semibold },
+  typeBtnText: { fontSize: 14, fontFamily: FONTS.sans },
   input: {
     borderWidth: 1,
     borderRadius: 10,

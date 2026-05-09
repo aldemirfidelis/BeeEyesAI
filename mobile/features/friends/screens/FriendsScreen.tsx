@@ -52,7 +52,6 @@ interface FriendProfile {
     createdAt: string;
   }>;
   interests: string[];
-  activeMissionsCount: number;
 }
 
 interface Testimonial {
@@ -482,7 +481,7 @@ export default function FriendsScreen() {
             )}
 
             {!profileLoading && profile && (() => {
-              const { user: f, recentPosts, interests, activeMissionsCount } = profile;
+              const { user: f, recentPosts, interests } = profile;
               const name = f.displayName || f.username;
               return (
                 <>
@@ -504,11 +503,6 @@ export default function FriendsScreen() {
                       <Text style={styles.statEmoji}>🔥</Text>
                       <Text style={styles.statValue}>{f.currentStreak}d</Text>
                       <Text style={styles.statLabel}>{t("friends_streak")}</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                      <Text style={styles.statEmoji}>🎯</Text>
-                      <Text style={styles.statValue}>{activeMissionsCount}</Text>
-                      <Text style={styles.statLabel}>{t("friends_missions")}</Text>
                     </View>
                   </View>
 

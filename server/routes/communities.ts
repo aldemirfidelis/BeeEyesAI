@@ -5,7 +5,7 @@ import { sendCreated, sendOk } from "../api/response";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 
-export function createCommunitiesRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
+export function createCommunitiesRouter() {
   const router = Router();
 
   router.get("/api/communities", requireAuth, asyncHandler(async (req, res) => {
@@ -36,7 +36,6 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
       ownerId: req.userId!,
     });
 
-    triggerMissionAction(req.userId!, "create_community").catch(() => {});
     return sendCreated(res, community);
   }));
 
@@ -85,7 +84,6 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
   router.post("/api/communities/:id/join", requireAuth, asyncHandler(async (req, res) => {
     const result = await storage.joinCommunity(req.params.id, req.userId!);
     if (result === "joined") {
-      triggerMissionAction(req.userId!, "join_community").catch(() => {});
       storage.ensureAchievement(req.userId!, {
         type: "community_joined",
         title: "Cidadão do App",
@@ -178,7 +176,6 @@ export function createCommunitiesRouter(triggerMissionAction: (userId: string, a
 
     const post = await storage.createCommunityPost({ communityId: req.params.id, userId: req.userId!, content: content || "Imagem compartilhada", imageUrl });
     const author = await storage.getUser(req.userId!);
-    triggerMissionAction(req.userId!, "post_in_community").catch(() => {});
     storage.ensureAchievement(req.userId!, {
       type: "first_community_post",
       title: "Voz na Comunidade",

@@ -24,7 +24,6 @@ export type BeeEyesExpression = BeeEyesEmotion | BeeEyesLegacyExpression;
 export type BeeEyesEvent =
   | "message-received"
   | "user-typing"
-  | "mission-complete"
   | "thinking"
   | "idle"
   | "input-focus";
@@ -86,7 +85,6 @@ function getEventAdjustments(event: BeeEyesEvent | null) {
   switch (event) {
     case "message-received": return { scaleY: 0.1,  pupilY: -2, glow: 0.08 };
     case "user-typing":      return { scaleY: 0.04, pupilY: 0,  glow: 0.03 };
-    case "mission-complete": return { scaleY: 0.14, pupilY: -3, glow: 0.24 };
     case "thinking":         return { scaleY: -0.1, pupilY: 2,  glow: 0 };
     case "idle":             return { scaleY: -0.2, pupilY: 3,  glow: -0.02 };
     case "input-focus":      return { scaleY: 0.04, pupilY: 4,  glow: 0.02 };
@@ -118,7 +116,7 @@ export default function BeeEyes({
 
   const normalizedEngagement = clamp(engagementLevel, 0, 1);
   const baseEmotion = emotion ?? mapExpressionToEmotion(expression);
-  const shouldIdle = isIdle && !inputFocused && !isTyping && event !== "mission-complete";
+  const shouldIdle = isIdle && !inputFocused && !isTyping;
   const activeEvent = shouldIdle ? "idle" : event;
   const effectiveEmotion: BeeEyesEmotion =
     shouldIdle ? "tired" : activeEvent === "thinking" ? "thinking" : baseEmotion;
@@ -259,41 +257,32 @@ export default function BeeEyes({
 
   // ── Shell / aura animations ──────────────────────────────
   const auraAnimate =
-    activeEvent === "mission-complete"
-      ? { opacity: [0.35, 0.85, 0.35], scale: [1, 1.14, 1] }
-      : activeEvent === "message-received"
-        ? { opacity: [0.2, 0.48, 0.2], scale: [1, 1.05, 1] }
-        : { opacity: [0.12 + glowStrength * 0.5, 0.22 + glowStrength, 0.12 + glowStrength * 0.5], scale: [1, 1.03, 1] };
+    activeEvent === "message-received"
+      ? { opacity: [0.2, 0.48, 0.2], scale: [1, 1.05, 1] }
+      : { opacity: [0.12 + glowStrength * 0.5, 0.22 + glowStrength, 0.12 + glowStrength * 0.5], scale: [1, 1.03, 1] };
 
-  const auraTransition =
-    activeEvent === "mission-complete"
-      ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" }
-      : { duration: 2.8, repeat: Infinity, ease: "easeInOut" };
+  const auraTransition = { duration: 2.8, repeat: Infinity, ease: "easeInOut" };
 
   const shellAnimate =
-    activeEvent === "mission-complete"
-      ? { y: [0, -6, 0], scale: [1, 1.04, 1], rotate: [0, -1.2, 1.2, 0] }
-      : activeEvent === "message-received"
-        ? { y: [0, -2.5, 0], scale: [1, 1.02, 1] }
-        : activeEvent === "user-typing"
-          ? { x: [0, 2, -1.5, 0] }
-          : {};
+    activeEvent === "message-received"
+      ? { y: [0, -2.5, 0], scale: [1, 1.02, 1] }
+      : activeEvent === "user-typing"
+        ? { x: [0, 2, -1.5, 0] }
+        : {};
 
   const shellTransition =
-    activeEvent === "mission-complete"
-      ? { duration: 0.8, ease: "easeInOut" }
-      : activeEvent === "message-received"
-        ? { duration: 0.55, ease: "easeInOut" }
-        : activeEvent === "user-typing"
-          ? { duration: 0.45, ease: "easeInOut" }
-          : { duration: 0.3 };
+    activeEvent === "message-received"
+      ? { duration: 0.55, ease: "easeInOut" }
+      : activeEvent === "user-typing"
+        ? { duration: 0.45, ease: "easeInOut" }
+        : { duration: 0.3 };
 
   const floatAmplitude = shouldIdle ? 1.2 : 2.8 + normalizedEngagement * 1.4;
   const floatDuration  = shouldIdle ? 6.2 : effectiveEmotion === "thinking" ? 5 : 4;
 
   const glowColor  = `rgba(245, 200, 66, ${0.1 + glowStrength * 0.5})`;
 
-  const isCelebrating = effectiveEmotion === "excited" || activeEvent === "mission-complete";
+  const isCelebrating = effectiveEmotion === "excited";
 
   return (
     <div className={cn("relative flex items-center justify-center", className)} aria-hidden="true">
@@ -387,23 +376,6 @@ export default function BeeEyes({
                 </svg>
               </motion.div>
 
-              {/* Mission-complete sparkles */}
-              {activeEvent === "mission-complete" && (
-                <>
-                  <motion.div
-                    className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full blur-[1px]"
-                    style={{ background: "rgba(245,200,66,0.9)" }}
-                    animate={{ opacity: [0, 1, 0], y: [0, -10, -18], scale: [0.8, 1.2, 0.3] }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0 : 0.18 }}
-                  />
-                  <motion.div
-                    className="absolute left-1 top-2 h-2 w-2 rounded-full"
-                    style={{ background: "rgba(255,255,255,0.92)" }}
-                    animate={{ opacity: [0, 1, 0], y: [0, -8, -14], x: [0, side === "left" ? -4 : 4, 0], scale: [0.6, 1.1, 0.2] }}
-                    transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.25 : 0.4 }}
-                  />
-                </>
-              )}
             </motion.div>
           );
         })}

@@ -1,7 +1,7 @@
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI, { toFile } from "openai";
-import { type User, type UserPersonality, type Mission, type MoodEntry } from "../shared/schema";
+import { type User, type UserPersonality } from "../shared/schema";
 import { storage } from "./storage";
 import { personalityCache, memoryCache } from "./cache";
 
@@ -184,21 +184,15 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
 ## Regras operacionais:
 1. **BREVIDADE É OBRIGATÓRIA** — Máximo 2 frases curtas por resposta. Seja direta como uma mensagem de WhatsApp. Nunca use listas, tópicos, títulos ou formatação. Nada de parágrafos longos.
 2. Use memórias naturalmente — referencie detalhes pessoais quando relevante, mas sempre de forma curta.
-3. Sistema de missões — regras absolutas:
-   a) NUNCA crie o JSON \`{"suggest_mission": ...}\` espontaneamente. Conversa casual, menções de hábitos, desejos vagos ("quero estudar", "vou treinar") NÃO viram missão.
-   b) Só gere esse JSON se o usuário EXPLICITAMENTE pedir para criar/registrar uma missão/meta/tarefa. Exemplos que permitem: "cria uma missão pra mim", "pode registrar isso como tarefa?", "transforma em missão". Exemplos que NÃO permitem: "quero ler mais", "preciso dormir melhor", "vou academia hoje".
-   c) Quando autorizado, inclua ao final (sem mencionar para o usuário):
-      {"suggest_mission": {"title": "Verbo + ação curta (max 50 chars)", "description": "Uma frase objetiva do que fazer", "xp_reward": 20}}
-   d) Nunca mencione o sistema de missões nem pergunte se o usuário quer criar uma. Quando identificar objetivo, dê uma dica prática direta.
-4. Quando detectar conquista, inclua ao FINAL:
+3. Quando detectar conquista, inclua ao FINAL:
    {"achievement": {"type": "...", "title": "...", "description": "..."}}
-5. Quando o usuário pedir notícias sobre qualquer assunto, responda normalmente E inclua ao FINAL:
+4. Quando o usuário pedir notícias sobre qualquer assunto, responda normalmente E inclua ao FINAL:
    {"fetch_news": {"query": "termo de busca em português"}}
    Exemplos: "me dê notícias sobre política" → {"fetch_news": {"query": "política Brasil"}}
              "o que aconteceu no futebol hoje?" → {"fetch_news": {"query": "futebol hoje Brasil"}}
-6. NUNCA invente informações sobre o usuário que não foram mencionadas
-7. Responda SEMPRE em português do Brasil
-8. COLMEIA — Ferramentas integradas ao app. Quando o usuário pedir explicitamente para:
+5. NUNCA invente informações sobre o usuário que não foram mencionadas
+6. Responda SEMPRE em português do Brasil
+7. COLMEIA — Ferramentas integradas ao app. Quando o usuário pedir explicitamente para:
    - Marcar/agendar/criar reunião, compromisso, evento, alarme ou lembrete → inclua ao FINAL:
      {"create_event": {"title": "Título claro do evento", "startAt": "ISO 8601 datetime", "endAt": "ISO 8601 datetime ou null", "description": "opcional", "location": "opcional"}}
      Use datas/horas absolutas em ISO 8601. Se o usuário disser "amanhã às 15h", converta com base na data atual (${new Date().toISOString().split("T")[0]}).
@@ -230,16 +224,16 @@ function buildChatSystemPrompt(
   return `${buildSystemPrompt(user, personality)}
 
 ## Camada BeeEyes
-VocÃª nÃ£o Ã© apenas um chat. VocÃª Ã© a consciÃªncia digital do usuÃ¡rio: observa padrÃµes, cobra consistÃªncia, reconhece progresso e ajuda a transformar intenÃ§Ã£o em aÃ§Ã£o.
+Você não é apenas um chat. Você é a consciência digital do usuário: observa padrões, cobra consistência, reconhece progresso e ajuda a transformar intenção em ação.
 ${buildModeOverlay(mode)}
 
 ## Contexto recente
 ${recentUserMessages || "- conversa iniciando"}
 
 ## Regras extras
-- Evite respostas genÃ©ricas.
+- Evite respostas genéricas.
 - Se houver autossabotagem, nomeie isso com respeito.
-- Termine com uma direÃ§Ã£o curta e concreta.`.trim();
+- Termine com uma direção curta e concreta.`.trim();
 }
 
 const PERSONALITY_PROMPT = (userMessage: string, currentStyle: string) =>
@@ -500,7 +494,7 @@ async function streamChatOpenAI(
 
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [
       { role: "system", content: systemPrompt },
       ...allMessages,
@@ -532,7 +526,7 @@ async function streamChatGroq(
 
   const stream = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [
       { role: "system", content: systemPrompt },
       ...allMessages,
@@ -597,7 +591,7 @@ async function streamChatCerebras(
 
   const stream = await cerebras.chat.completions.create({
     model: "llama-3.3-70b",
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [
       { role: "system", content: systemPrompt },
       ...allMessages,
@@ -890,7 +884,6 @@ function fmtReais(cents: number): string {
 function buildProactivePrompt(
   user: User,
   facts: string[],
-  missionsText: string,
   upcomingEvents: Array<{ title: string; startAt: Date; location?: string | null }>,
   financeSummary: { balance: number; totalExpense: number; topCategory?: string; topCategoryAmount?: number } | null,
 ): string {
@@ -927,18 +920,15 @@ Você é a BeeEyes 🐝, assistente pessoal e companheira de evolução de ${use
 2. SAÚDE: identificou padrão de cansaço, falta de descanso ou treino? Mencione com cuidado
 3. SOCIAL: sugira que interaja com amigos, compartilhe no feed, ou explore as comunidades
 4. EVOLUÇÃO: referencie um objetivo ou meta pessoal e encoraje o progresso
+
 5. MEMÓRIA: referencie algo específico que ${user.username} mencionou antes de forma carinhosa
-6. MISSÃO: lembre gentilmente de missão pendente — "Você queria... ainda dá tempo hoje!"
-7. SCORE: comente o progresso, sequência ou nível de forma motivadora
-8. CHECK-IN: mensagem carinhosa perguntando como está o dia
-9. AGENDA: avise sobre evento próximo de forma natural — "Ei, não esquece que você tem X em Y!"
-10. FINANÇAS: dica financeira prática se o saldo estiver negativo ou um gasto estiver muito alto — "Vi que suas despesas em X estão altas, que tal..."
+6. SCORE: comente o progresso, sequência ou nível de forma motivadora
+7. CHECK-IN: mensagem carinhosa perguntando como está o dia
+8. AGENDA: avise sobre evento próximo de forma natural — "Ei, não esquece que você tem X em Y!"
+9. FINANÇAS: dica financeira prática se o saldo estiver negativo ou um gasto estiver muito alto — "Vi que suas despesas em X estão altas, que tal..."
 ${urgentBlock}
 Memórias sobre ${user.username}:
 ${factsText}
-
-Missões pendentes:
-${missionsText}
 
 Regras:
 - Máximo 2 frases curtas e naturais
@@ -951,18 +941,14 @@ Regras:
 export async function generateProactiveMessage(
   user: User,
   personality: UserPersonality,
-  incompleteMissions: Mission[],
+  _incompleteMissions: unknown[],
   upcomingEvents: Array<{ title: string; startAt: Date; location?: string | null }> = [],
   financeSummary: { balance: number; totalExpense: number; topCategory?: string; topCategoryAmount?: number } | null = null,
 ): Promise<string | null> {
   const facts = parseFacts(personality.traits);
-  const missionsText =
-    incompleteMissions.length > 0
-      ? incompleteMissions.map((m) => `- "${m.title}"`).join("\n")
-      : "Nenhuma missão pendente";
 
   const systemPrompt = buildSystemPrompt(user, personality);
-  const userPrompt = buildProactivePrompt(user, facts, missionsText, upcomingEvents, financeSummary);
+  const userPrompt = buildProactivePrompt(user, facts, upcomingEvents, financeSummary);
 
   return callWithFallback(
     [
@@ -1012,80 +998,6 @@ export async function generateProactiveMessage(
   );
 }
 
-// ── Mission Celebration ───────────────────────────────────────────────────────
-
-export async function generateMissionCelebration(
-  user: User,
-  personality: UserPersonality,
-  missionTitle: string,
-  xpEarned: number
-): Promise<string> {
-  const systemPrompt = buildSystemPrompt(user, personality);
-  const prompt = `[SISTEMA - missão concluída]
-${user.username} acabou de concluir a missão: "${missionTitle}" e ganhou ${xpEarned} XP!
-
-Gere uma mensagem de comemoração genuína e empolgante, como uma amiga que ficou muito feliz com a conquista. Mencione o nome da missão e os XP ganhos de forma natural. Use 1 ou 2 emojis no máximo. Máximo 3 frases. Responda em português do Brasil.`;
-
-  return callWithFallback(
-    [
-      async () => {
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          max_tokens: 200,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-        });
-        return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
-      },
-      async () => {
-        const response = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: 200,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-        });
-        return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
-      },
-      async () => {
-        const model = geminiAI.getGenerativeModel({
-          model: "gemini-2.0-flash",
-          systemInstruction: systemPrompt,
-        });
-        const result = await model.generateContent(prompt);
-        return result.response.text().trim() || fallbackCelebration(missionTitle, xpEarned);
-      },
-      async () => {
-        const response = await cerebras.chat.completions.create({
-          model: "llama-3.3-70b",
-          max_tokens: 200,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-        });
-        return response.choices[0]?.message?.content?.trim() ?? fallbackCelebration(missionTitle, xpEarned);
-      },
-    ],
-    fallbackCelebration(missionTitle, xpEarned)
-  );
-}
-
-function fallbackCelebration(missionTitle: string, xpEarned: number): string {
-  return `Uau, você completou "${missionTitle}"! 🎉 Isso é incrível — você ganhou ${xpEarned} XP e merece muito esse reconhecimento. Fico tão feliz por você!`;
-}
-
-export interface DailyMissionDraft {
-  title: string;
-  description: string;
-  xpReward: number;
-  tier: number;
-  type: "ai_daily" | "ai_bonus";
-}
-
 export interface WeeklyReport {
   summary: string;
   positive: string;
@@ -1110,7 +1022,7 @@ export interface ScoreSnapshot {
 
 export interface IntelligentNotification {
   id: string;
-  type: "streak_risk" | "mission_pending" | "discipline_push" | "celebration" | "comeback";
+  type: "streak_risk" | "discipline_push" | "celebration" | "comeback";
   title: string;
   body: string;
   tone: "danger" | "warning" | "positive";
@@ -1131,330 +1043,10 @@ function pickPrimaryFocus(personality: UserPersonality, history: ChatMessage[]):
   return "consistencia";
 }
 
-export function generateDailyMissionPlan(
-  user: User,
-  personality: UserPersonality,
-  history: ChatMessage[],
-  pendingSystemMissions: Mission[]
-): DailyMissionDraft[] {
-  const focus = pickPrimaryFocus(personality, history);
-  const incompleteSystemCount = pendingSystemMissions.filter((mission) => !mission.completed).length;
-
-  const focusMission =
-    focus === "saude"
-      ? {
-          title: "Cuidar do corpo hoje",
-          description: "Faça 10 minutos de movimento ou organize um momento real de descanso.",
-          xpReward: 18,
-          tier: 2,
-          type: "ai_daily" as const,
-        }
-      : focus === "estudos"
-      ? {
-          title: "Estudo com prova de foco",
-          description: "Estude por 20 minutos sem trocar de tarefa no meio.",
-          xpReward: 22,
-          tier: 2,
-          type: "ai_daily" as const,
-        }
-      : focus === "trabalho"
-      ? {
-          title: "Entregar algo visível",
-          description: "Feche uma entrega pequena do seu projeto antes de abrir outra frente.",
-          xpReward: 24,
-          tier: 3,
-          type: "ai_daily" as const,
-        }
-      : {
-          title: "Uma ação sem desculpa",
-          description: "Conclua uma tarefa simples agora para tirar o dia da inércia.",
-          xpReward: 16,
-          tier: 1,
-          type: "ai_daily" as const,
-        };
-
-  const consistencyMission =
-    user.currentStreak === 0
-      ? {
-          title: "Reativar sua sequência",
-          description: "Marque uma vitória concreta hoje para voltar ao ritmo.",
-          xpReward: 16,
-          tier: 1,
-          type: "ai_daily" as const,
-        }
-      : {
-          title: "Proteger o ritmo do dia",
-          description: `Sua sequência está em ${user.currentStreak} dia${user.currentStreak > 1 ? "s" : ""}. Não deixe hoje passar em branco.`,
-          xpReward: 14,
-          tier: 1,
-          type: "ai_daily" as const,
-        };
-
-  const productMission =
-    incompleteSystemCount > 0
-      ? {
-          title: "Fechar pendência do app",
-          description: "Conclua uma missão pendente antes de buscar novidade.",
-          xpReward: 20,
-          tier: 2,
-          type: "ai_daily" as const,
-        }
-      : {
-          title: "Gerar evidência de evolução",
-          description: "Compartilhe um progresso no feed ou registre uma decisão importante no chat.",
-          xpReward: 18,
-          tier: 2,
-          type: "ai_daily" as const,
-        };
-
-  return [consistencyMission, focusMission, productMission];
-}
-
 export interface PersonalizedFeedInsight {
   relevanceScore: number;
   forYouReason: string;
   actionHint: string;
-}
-
-function deriveAdaptiveMissionSignals(
-  user: User,
-  personality: UserPersonality,
-  history: ChatMessage[],
-  pendingSystemMissions: Mission[],
-  recentMoods: MoodEntry[] = []
-) {
-  const focus = pickPrimaryFocus(personality, history);
-  const recentUserMessages = history
-    .filter((message) => message.role === "user")
-    .slice(-6)
-    .map((message) => message.content.toLowerCase());
-  const joined = recentUserMessages.join(" ");
-  const lastActiveHours = user.lastActiveAt
-    ? (Date.now() - new Date(user.lastActiveAt).getTime()) / 3600000
-    : null;
-
-  // Humor: média dos últimos 3 dias (mood 1-5)
-  const avgMood = recentMoods.length > 0
-    ? recentMoods.reduce((sum, m) => sum + m.mood, 0) / recentMoods.length
-    : null;
-  const lowMood    = avgMood !== null && avgMood <= 2;
-  const highMood   = avgMood !== null && avgMood >= 4;
-  const moodTrend  = recentMoods.length >= 2
-    ? recentMoods[0].mood - recentMoods[recentMoods.length - 1].mood
-    : 0;
-  const moodDropping = moodTrend < -1;
-
-  const overwhelmedByText = /(cansado|cansada|sobrecarregado|sobrecarregada|exausto|exausta|ansioso|ansiosa|travado|travada)/.test(joined);
-
-  return {
-    focus,
-    dormant:        (lastActiveHours ?? 0) >= 18 || user.currentStreak === 0,
-    scattered:      /(muitas ideias|muita coisa|sem foco|perdido|perdida|confuso|confusa|desorganizado|desorganizada|outra frente|troquei de tarefa)/.test(joined),
-    overwhelmed:    overwhelmedByText || lowMood || pendingSystemMissions.length >= 5,
-    socialCold:     pendingSystemMissions.some((m) => m.actionType === "add_friend" || m.actionType === "create_post"),
-    needsMomentum:  user.currentStreak <= 1 || /(parei|nao fiz|não fiz|desanimei|voltei agora)/.test(joined),
-    lowMood,
-    highMood,
-    moodDropping,
-    avgMood,
-  };
-}
-
-export function buildDailyContext(
-  user: User,
-  personality: UserPersonality,
-  history: ChatMessage[],
-  pendingSystemMissions: Mission[],
-  recentMoods: MoodEntry[]
-): { label: string; reason: string; tip: string; moodAvg: number | null } {
-  const s = deriveAdaptiveMissionSignals(user, personality, history, pendingSystemMissions, recentMoods);
-
-  let label = "Dia normal";
-  let reason = "Sem sinais de desequilíbrio detectados.";
-  let tip    = "Foque nas missões do dia e mantenha o ritmo.";
-
-  if (s.dormant) {
-    label  = "Retomada";
-    reason = "Você ficou longe ou zerou a sequência.";
-    tip    = "Uma vitória pequena hoje já reativa o ciclo.";
-  } else if (s.overwhelmed || s.moodDropping) {
-    label  = "Dia leve";
-    reason = s.lowMood
-      ? `Seu humor médio nos últimos dias foi baixo (${s.avgMood?.toFixed(1)}/5).`
-      : "Sinais de sobrecarga detectados nas suas mensagens.";
-    tip    = "Escolha só 1 missão para fechar hoje. Menos é mais agora.";
-  } else if (s.highMood && !s.scattered) {
-    label  = "Dia de impulso";
-    reason = `Humor elevado (${s.avgMood?.toFixed(1)}/5) e foco estável.`;
-    tip    = "Bom momento para avançar mais do que o mínimo.";
-  } else if (s.scattered) {
-    label  = "Foco necessário";
-    reason = "Você mencionou muitas frentes abertas.";
-    tip    = "Escolha uma tarefa e termine antes de abrir outra.";
-  } else if (s.needsMomentum) {
-    label  = "Retomada de ritmo";
-    reason = "Sequência baixa ou pausa recente detectada.";
-    tip    = "Marque uma missão hoje para sair da inércia.";
-  }
-
-  return { label, reason, tip, moodAvg: s.avgMood };
-}
-
-export function generateAdaptiveDailyMissionPlan(
-  user: User,
-  personality: UserPersonality,
-  history: ChatMessage[],
-  pendingSystemMissions: Mission[],
-  recentMoods: MoodEntry[] = []
-): DailyMissionDraft[] {
-  const signals = deriveAdaptiveMissionSignals(user, personality, history, pendingSystemMissions, recentMoods);
-  const incompleteSystemCount = pendingSystemMissions.filter((mission) => !mission.completed).length;
-
-  const consistencyMission: DailyMissionDraft = signals.needsMomentum
-    ? {
-        title: "Reativar sua sequencia",
-        description: signals.dormant
-          ? "Voce ficou longe ou rompeu ritmo. Marque uma vitoria concreta hoje para voltar ao jogo."
-          : "Marque uma vitoria concreta hoje para voltar ao ritmo.",
-        xpReward: 16,
-        tier: 1,
-        type: "ai_daily",
-      }
-    : {
-        title: "Proteger o ritmo do dia",
-        description: `Sua sequencia esta em ${user.currentStreak} dia${user.currentStreak > 1 ? "s" : ""}. Nao deixe hoje virar um dia sem evidencia.`,
-        xpReward: 14,
-        tier: 1,
-        type: "ai_daily",
-      };
-
-  const focusMission: DailyMissionDraft =
-    signals.focus === "saude"
-      ? {
-          title: "Cuidar do corpo hoje",
-          description: signals.overwhelmed
-            ? "Seu ritmo parece pesado. Faca 10 minutos de movimento leve ou recupere um bloco real de descanso."
-            : "Faca 10 minutos de movimento ou organize um momento real de descanso.",
-          xpReward: 18,
-          tier: 2,
-          type: "ai_daily",
-        }
-      : signals.focus === "estudos"
-      ? {
-          title: "Estudo com prova de foco",
-          description: signals.scattered
-            ? "Voce abriu frentes demais. Estude por 20 minutos sem trocar de assunto no meio."
-            : "Estude por 20 minutos sem trocar de tarefa no meio.",
-          xpReward: 22,
-          tier: 2,
-          type: "ai_daily",
-        }
-      : signals.focus === "trabalho"
-      ? {
-          title: "Entregar algo visivel",
-          description: signals.scattered
-            ? "Voce tende a abrir novas frentes cedo demais. Feche uma entrega pequena antes de comecar outra."
-            : "Feche uma entrega pequena do seu projeto antes de abrir outra frente.",
-          xpReward: 24,
-          tier: 3,
-          type: "ai_daily",
-        }
-      : {
-          title: "Uma acao sem desculpa",
-          description: signals.dormant
-            ? "Seu ritmo caiu. Conclua uma tarefa simples agora para tirar o dia da inercia."
-            : "Conclua uma tarefa simples agora para tirar o dia da inercia.",
-          xpReward: 16,
-          tier: 1,
-          type: "ai_daily",
-        };
-
-  const leverageMission: DailyMissionDraft =
-    signals.socialCold
-      ? {
-          title: "Gerar presenca na rede",
-          description: "Voce esfriou no social do app. Poste um progresso ou puxe uma conexao util hoje.",
-          xpReward: 20,
-          tier: 2,
-          type: "ai_daily",
-        }
-      : incompleteSystemCount > 0
-      ? {
-          title: "Fechar pendencia do app",
-          description: signals.overwhelmed
-            ? "Tem pendencia demais aberta. Feche uma antes de buscar novidade."
-            : "Conclua uma missao pendente antes de buscar novidade.",
-          xpReward: 20,
-          tier: 2,
-          type: "ai_daily",
-        }
-      : {
-          title: "Gerar evidencia de evolucao",
-          description: signals.scattered
-            ? "Registre no chat ou no feed a unica entrega que realmente moveu seu dia."
-            : "Compartilhe um progresso no feed ou registre uma decisao importante no chat.",
-          xpReward: 18,
-          tier: 2,
-          type: "ai_daily",
-        };
-
-  // Humor baixo: reduz XP exigido e suaviza as missões para não sobrecarregar
-  if (signals.lowMood || signals.moodDropping) {
-    for (const mission of [consistencyMission, focusMission, leverageMission]) {
-      mission.xpReward = Math.max(10, Math.round(mission.xpReward * 0.75));
-      mission.description = `[Dia leve] ${mission.description}`;
-    }
-  }
-
-  return [consistencyMission, focusMission, leverageMission];
-}
-
-// ── Bonus Missions Pool ────────────────────────────────────────────────────────
-
-const BONUS_MISSION_POOL: DailyMissionDraft[] = [
-  // 🧠 Reflexão / Mentalidade
-  { title: "Defina sua prioridade do dia",       description: "Escreva no chat qual e a coisa mais importante que voce quer concluir hoje.", xpReward: 18, tier: 1, type: "ai_bonus" },
-  { title: "Liste 3 vitórias desta semana",       description: "Anote no chat 3 coisas que voce fez bem essa semana, mesmo que pequenas.", xpReward: 15, tier: 1, type: "ai_bonus" },
-  { title: "Identifique um habito a melhorar",    description: "Escolha UM habito que quer mudar e escreva qual sera o primeiro passo concreto.", xpReward: 20, tier: 2, type: "ai_bonus" },
-  { title: "Reflita sobre seu ritmo atual",       description: "Diga para a Bee como voce esta se sentindo com seu ritmo de vida. Ela vai ajudar.", xpReward: 14, tier: 1, type: "ai_bonus" },
-  { title: "Defina sua meta da proxima semana",   description: "Escreva uma meta objetiva para a semana que vem. Seja especifico.", xpReward: 22, tier: 2, type: "ai_bonus" },
-  { title: "Escreva uma intencao de manha",       description: "Amanha cedo, antes de abrir o celular, defina uma intencao do dia no chat.", xpReward: 16, tier: 1, type: "ai_bonus" },
-  // 💪 Ação direta
-  { title: "Conclua uma tarefa adiada",           description: "Escolha uma tarefa que voce vem adiando e conclua ela hoje. Depois registre aqui.", xpReward: 28, tier: 3, type: "ai_bonus" },
-  { title: "Elimine uma distracao do dia",        description: "Identifique o que mais rouba seu foco e elimine ou reduza por hoje.", xpReward: 20, tier: 2, type: "ai_bonus" },
-  { title: "Trabalhe 25 min sem interrupcao",     description: "Coloque o celular no silencioso e foque em UMA coisa por 25 minutos.", xpReward: 24, tier: 2, type: "ai_bonus" },
-  { title: "Planeje as tarefas de amanha agora",  description: "Separe 5 minutos agora para listar o que voce quer fazer amanha.", xpReward: 16, tier: 1, type: "ai_bonus" },
-  { title: "Acorde 30 min mais cedo amanha",      description: "Use esse tempo para algo que nao e trabalho: caminhar, ler ou tomar cafe com calma.", xpReward: 20, tier: 2, type: "ai_bonus" },
-  { title: "Faca uma pausa ativa hoje",           description: "Levante, se mova por 10 minutos. Pode ser caminhar, se alongar ou fazer algo leve.", xpReward: 15, tier: 1, type: "ai_bonus" },
-  // 🌐 Social / Conexão
-  { title: "Mande mensagem para um amigo",        description: "Fale com alguem que voce nao conversa ha alguns dias. Uma mensagem simples conta.", xpReward: 18, tier: 2, type: "ai_bonus" },
-  { title: "Comente em um post do feed",          description: "Entre no Feed e deixe um comentario genuino em um post de alguem.", xpReward: 14, tier: 1, type: "ai_bonus" },
-  { title: "Publique um progresso no feed",       description: "Compartilhe algo que voce concluiu ou aprendeu recentemente no Feed.", xpReward: 20, tier: 2, type: "ai_bonus" },
-  { title: "Explore uma nova comunidade",         description: "Acesse Comunidades, descubra uma nova e leia o que os membros estao falando.", xpReward: 16, tier: 1, type: "ai_bonus" },
-  { title: "Faca uma conexao intencional",        description: "Conecte-se com alguem no app que tenha interesses parecidos com os seus.", xpReward: 22, tier: 2, type: "ai_bonus" },
-  // 📈 Evolução pessoal
-  { title: "Registre seu humor por 3 dias",       description: "Abra o Humor e registre como voce esta se sentindo hoje. Repita nos proximos 2 dias.", xpReward: 18, tier: 2, type: "ai_bonus" },
-  { title: "Atualize sua bio no perfil",          description: "Acesse seu perfil e escreva uma bio que represente quem voce e agora.", xpReward: 15, tier: 1, type: "ai_bonus" },
-  { title: "Leia uma noticia e reflita",          description: "Acesse Noticias, leia um artigo relevante e escreva no chat o que achou.", xpReward: 18, tier: 2, type: "ai_bonus" },
-  { title: "Reduza o tempo de tela hoje",         description: "Escolha UM periodo do dia para ficar longe do celular por pelo menos 1 hora.", xpReward: 20, tier: 2, type: "ai_bonus" },
-  { title: "Aprenda algo novo em 10 minutos",     description: "Pesquise sobre um assunto que voce tem curiosidade mas nunca aprofundou.", xpReward: 22, tier: 2, type: "ai_bonus" },
-  // 🎯 Desafio extra
-  { title: "Conclua 2 missoes em sequencia",      description: "Complete duas missoes em um intervalo de 30 minutos. Foco total.", xpReward: 30, tier: 3, type: "ai_bonus" },
-  { title: "Zero distracoes por 1 hora",          description: "Escolha uma hora do dia, feche redes sociais e foque em sua atividade principal.", xpReward: 28, tier: 3, type: "ai_bonus" },
-  { title: "Beba 2 litros de agua hoje",          description: "Hidratacao e parte da performance. Registre quando concluir.", xpReward: 14, tier: 1, type: "ai_bonus" },
-  { title: "Durma antes da meia-noite",           description: "Estabeleca um horario de dormir hoje. Descanso e produtividade andam juntos.", xpReward: 16, tier: 1, type: "ai_bonus" },
-  { title: "Organize seu espaco de trabalho",     description: "Dedique 10 minutos para deixar seu ambiente mais limpo e organizado.", xpReward: 18, tier: 1, type: "ai_bonus" },
-];
-
-export function generateBonusMissions(existingTitles: Set<string>): DailyMissionDraft[] {
-  // Embaralha o pool e pega 3 que ainda nao existem
-  const shuffled = [...BONUS_MISSION_POOL].sort(() => Math.random() - 0.5);
-  const result: DailyMissionDraft[] = [];
-  for (const mission of shuffled) {
-    if (result.length >= 3) break;
-    if (!existingTitles.has(mission.title)) result.push(mission);
-  }
-  return result;
 }
 
 export function buildPersonalizedFeedInsight(input: {
@@ -1579,7 +1171,6 @@ export function buildScoreSnapshot(input: {
   level: number;
   xp: number;
   lastActiveHours: number | null;
-  pendingMissions: number;
 }): ScoreSnapshot {
   const consistencyScore = Math.round((input.activeDays / 7) * 100);
   const disciplineScore = input.totalMissionsTouched > 0
@@ -1617,8 +1208,6 @@ export function buildScoreSnapshot(input: {
   const insight =
     input.lastActiveHours !== null && input.lastActiveHours >= 20
       ? `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Retome antes de normalizar essa distancia.`
-      : input.pendingMissions >= 2 && disciplineScore < 60
-      ? `Voce ainda deixou ${input.pendingMissions} missoes em aberto. Feche uma antes de abrir outra frente.`
       : consistencyScore >= 70 && disciplineScore >= 60
       ? "Bom. Seu progresso ja parece comportamento, nao so intencao."
       : input.streak === 0
@@ -1639,8 +1228,6 @@ export function buildIntelligentNotifications(input: {
   focusScore: number;
   consistencyScore: number;
   disciplineScore: number;
-  completedMissions: number;
-  pendingMissions: number;
   streak: number;
   lastActiveHours: number | null;
 }): IntelligentNotification[] {
@@ -1658,16 +1245,6 @@ export function buildIntelligentNotifications(input: {
     });
   }
 
-  if (input.pendingMissions >= 2 && input.disciplineScore < 65) {
-    notifications.push({
-      id: `mission-pending-${input.pendingMissions}`,
-      type: "mission_pending",
-      title: "Hoje ainda esta em aberto",
-      body: `Voce deixou ${input.pendingMissions} missoes pendentes. Feche uma agora e recupere o dia.`,
-      tone: "warning",
-    });
-  }
-
   if (input.focusScore < 45) {
     notifications.push({
       id: `discipline-${input.focusScore}`,
@@ -1678,12 +1255,12 @@ export function buildIntelligentNotifications(input: {
     });
   }
 
-  if (input.focusScore >= 72 && input.consistencyScore >= 57 && input.completedMissions >= 2) {
+  if (input.focusScore >= 72 && input.consistencyScore >= 57) {
     notifications.push({
-      id: `celebration-${input.completedMissions}-${input.focusScore}`,
+      id: `celebration-${input.focusScore}-${input.consistencyScore}`,
       type: "celebration",
       title: "Existe progresso real aqui",
-      body: `Voce concluiu ${input.completedMissions} missoes e sustentou sua semana. Agora proteja esse padrao.`,
+      body: "Voce manteve consistencia real esta semana. Agora proteja esse padrao.",
       tone: "positive",
     });
   }
@@ -1865,7 +1442,6 @@ Faça um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principais
 
 export function parseAIActions(response: string): {
   cleanText: string;
-  suggestedMission?: { title: string; description: string; xp_reward: number };
   achievement?: { type: string; title: string; description: string };
   fetchNews?: { query: string };
   createEvent?: { title: string; startAt: string; endAt?: string; description?: string; location?: string };
@@ -1873,23 +1449,14 @@ export function parseAIActions(response: string): {
   saveNote?: { content: string; title?: string };
 } {
   let cleanText = response;
-  let suggestedMission: { title: string; description: string; xp_reward: number } | undefined;
   let achievement: { type: string; title: string; description: string } | undefined;
   let fetchNews: { query: string } | undefined;
   let createEvent: { title: string; startAt: string; endAt?: string; description?: string; location?: string } | undefined;
   let logFinance: { type: "income" | "expense"; amount: number; category: string; description?: string } | undefined;
   let saveNote: { content: string; title?: string } | undefined;
 
-  const missionMatch = response.match(/\{"suggest_mission":\s*(\{[^}]+\})\}/);
-  if (missionMatch) {
-    try {
-      const parsed = JSON.parse(missionMatch[0]);
-      suggestedMission = parsed.suggest_mission;
-      cleanText = cleanText.replace(missionMatch[0], "").trim();
-    } catch {
-      // ignore parse error
-    }
-  }
+  // Strip any residual suggest_mission JSON (defensive cleanup, feature removed)
+  cleanText = cleanText.replace(/\{"suggest_mission":\s*\{[^}]+\}\}/g, "").trim();
 
   const achievementMatch = response.match(/\{"achievement":\s*(\{[^}]+\})\}/);
   if (achievementMatch) {
@@ -1913,38 +1480,66 @@ export function parseAIActions(response: string): {
     }
   }
 
-  const eventMatch = response.match(/\{"create_event":\s*(\{[\s\S]*?\})\}/);
+  // Greedy match for nested objects — handles all valid JSON structures the AI can produce
+  const eventMatch = response.match(/\{"create_event"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
   if (eventMatch) {
     try {
       const parsed = JSON.parse(eventMatch[0]);
-      createEvent = parsed.create_event;
+      const raw = parsed.create_event;
+      if (raw?.title) {
+        createEvent = {
+          title: raw.title,
+          startAt: raw.startAt ?? raw.start_at ?? raw.date ?? "",
+          endAt: raw.endAt ?? raw.end_at ?? undefined,
+          description: raw.description ?? undefined,
+          location: raw.location ?? undefined,
+        };
+      }
       cleanText = cleanText.replace(eventMatch[0], "").trim();
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error("[parseAIActions] event parse failed:", err, eventMatch[0]);
+    }
   }
 
-  const financeMatch = response.match(/\{"log_finance":\s*(\{[\s\S]*?\})\}/);
+  const financeMatch = response.match(/\{"log_finance"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
   if (financeMatch) {
     try {
       const parsed = JSON.parse(financeMatch[0]);
-      logFinance = parsed.log_finance;
+      const raw = parsed.log_finance;
+      if (raw?.category) {
+        const amount = typeof raw.amount === "number" ? raw.amount : parseFloat(String(raw.amount ?? 0));
+        logFinance = {
+          type: raw.type === "income" ? "income" : "expense",
+          amount: isNaN(amount) ? 0 : amount,
+          category: raw.category,
+          description: raw.description ?? undefined,
+        };
+      }
       cleanText = cleanText.replace(financeMatch[0], "").trim();
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error("[parseAIActions] finance parse failed:", err, financeMatch[0]);
+    }
   }
 
-  const noteMatch = response.match(/\{"save_note":\s*(\{[\s\S]*?\})\}/);
+  const noteMatch = response.match(/\{"save_note"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
   if (noteMatch) {
     try {
       const parsed = JSON.parse(noteMatch[0]);
-      saveNote = parsed.save_note;
+      const raw = parsed.save_note;
+      if (raw?.content) {
+        saveNote = { content: raw.content, title: raw.title ?? undefined };
+      }
       cleanText = cleanText.replace(noteMatch[0], "").trim();
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error("[parseAIActions] note parse failed:", err, noteMatch[0]);
+    }
   }
 
-  return { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance, saveNote };
+  return { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote };
 }
 
 const TRANSCRIBE_PROMPT =
-  "Aplicativo de produtividade pessoal em português do Brasil. O usuário fala sobre metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução pessoal e conquistas.";
+  "Aplicativo de produtividade pessoal em português do Brasil. Metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução, conquistas, produtividade, consistência, planejamento, prioridades, objetivos, resultados, BeeEyes.";
 
 // Patterns Whisper hallucinates when audio is silent, too short, or inaudible
 const WHISPER_HALLUCINATION_PATTERNS = [
@@ -1984,11 +1579,13 @@ export async function transcribeAudio(base64Audio: string, mimeType = "audio/web
   const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
 
   // verbose_json exposes no_speech_prob per segment — the most reliable silence detector
+  // temperature: 0 forces greedy (deterministic) decoding, avoiding hallucinated variation
   const transcription = await openai.audio.transcriptions.create({
     file: audioFile,
     model: "whisper-1",
     language: "pt",
     response_format: "verbose_json",
+    temperature: 0,
     prompt: TRANSCRIBE_PROMPT,
   }) as unknown as { text: string; segments?: Array<{ no_speech_prob?: number }> };
 

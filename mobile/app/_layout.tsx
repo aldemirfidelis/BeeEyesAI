@@ -11,7 +11,6 @@ import { configureGoogleSignin } from "../lib/googleAuth";
 import {
   setupNotificationChannels,
   setupNotificationTapListener,
-  scheduleDailyBeeNotifications,
   registerPushToken,
 } from "../lib/notifications";
 import { useAuthStore } from "../stores/authStore";
@@ -50,7 +49,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (!token) return;
 
-    scheduleDailyBeeNotifications().catch(() => {});
     registerPushToken().catch(() => {});
   }, [token]);
 

@@ -52,57 +52,7 @@ export const MEDAL_CATALOG: MedalSpec[] = [
     hint: "Registre seu humor no app.",
   },
 
-  // ── Missões ──────────────────────────────────────────────────���────────────
-  {
-    type: "first_mission",
-    title: "Primeira Missão",
-    description: "Completou a primeira missão. A jornada começa com uma ação.",
-    icon: "⚡",
-    tier: "bronze",
-    hint: "Conclua sua primeira missão.",
-  },
-  {
-    type: "daily_complete",
-    title: "Dia Perfeito",
-    description: "Completou todas as missões diárias em um único dia. Foco total.",
-    icon: "✅",
-    tier: "silver",
-    hint: "Conclua as 3 missões diárias em um único dia.",
-  },
-  {
-    type: "five_missions",
-    title: "Em Ritmo",
-    description: "5 missões concluídas. A Bee já reconhece seu ritmo.",
-    icon: "🎯",
-    tier: "silver",
-    hint: "Conclua 5 missões no total.",
-  },
-  {
-    type: "ten_missions",
-    title: "Disciplinado",
-    description: "10 missões concluídas. Seu perfil está mais forte.",
-    icon: "🏅",
-    tier: "gold",
-    hint: "Conclua 10 missões no total.",
-  },
-  {
-    type: "twenty_missions",
-    title: "Força Total",
-    description: "20 missões concluídas. Consistência real e provada.",
-    icon: "💪",
-    tier: "gold",
-    hint: "Conclua 20 missões no total.",
-  },
-  {
-    type: "fifty_missions",
-    title: "Imparável",
-    description: "50 missões. Você redefiniu seus próprios limites.",
-    icon: "🔥",
-    tier: "diamond",
-    hint: "Conclua 50 missões no total.",
-  },
-
-  // ── Sequência ────────────────────────────��──────────────────────────────���─
+  // ── Sequência ────────────────────────────────────────────────────────────
   {
     type: "streak_3",
     title: "3 Dias Seguidos",

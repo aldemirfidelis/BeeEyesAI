@@ -16,7 +16,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 
-export function createSocialRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
+export function createSocialRouter() {
   const router = Router();
 
   router.get("/api/achievements", requireAuth, asyncHandler(async (req, res) => {
@@ -128,8 +128,6 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       })
       .catch(() => {});
 
-    triggerMissionAction(req.userId!, "create_post").catch(() => {});
-
     return sendCreated(res, post);
   }));
 
@@ -161,7 +159,6 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
     }
 
     await storage.likePost(req.params.id, req.userId!);
-    triggerMissionAction(req.userId!, "like_post").catch(() => {});
     return sendOk(res, { liked: true, likesCount: await storage.getPostLikesCount(req.params.id) });
   }));
 
@@ -211,7 +208,6 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       storage.createPostComment({ postId: req.params.id, userId: req.userId!, content }),
       storage.getUser(req.userId!),
     ]);
-    triggerMissionAction(req.userId!, "comment_post").catch(() => {});
     return sendCreated(res, {
       ...comment,
       username: user?.username ?? "Voce",
@@ -335,7 +331,6 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
       });
     }
 
-    triggerMissionAction(req.userId!, "add_friend").catch(() => {});
     return sendCreated(res, connection);
   }));
 
@@ -367,8 +362,6 @@ export function createSocialRouter(triggerMissionAction: (userId: string, action
         metadata: JSON.stringify({ type: "connection_accepted", byUserId: req.userId }),
       });
     }
-
-    triggerMissionAction(req.userId!, "accept_friend").catch(() => {});
 
     // Medalhas de amizade para quem aceitou
     storage.ensureAchievement(req.userId!, {

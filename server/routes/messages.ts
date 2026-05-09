@@ -22,21 +22,14 @@ import { storage } from "../storage";
 
 const APP_TIPS: { id: number; text: string }[] = [
   // ── Chat & IA ──────────────────────────────────────────────────────────────
-  { id: 1,  text: "💡 Dica: para criar uma missão, diga claramente 'crie uma missão para...' ou 'quero uma meta de...'. Isso me avisa que é um compromisso de verdade, não só papo." },
-  { id: 2,  text: "💡 Dica: você pode usar comandos rápidos no chat. Digite /missoes para ver suas tarefas, /feed para o timeline, /comunidades para grupos, ou /noticias para manchetes personalizadas." },
-  { id: 3,  text: "💡 Dica: sente que está travado? Me manda uma frase sobre o que está bloqueando. Eu não deixo você ficar parado — te ajudo a encontrar o próximo passo agora." },
-  { id: 4,  text: "💡 Dica: o painel Insight mostra seu foco, constância e disciplina da semana. Toque no ícone de insight no chat para ver sua pontuação atual e o que ela significa." },
-  { id: 5,  text: "💡 Dica: me chame pelo que você precisa agora: 'Quero evoluir', 'Me cobre hoje' ou 'Criar meta'. Os botões de ação rápida no chat são atalhos para começar rápido." },
-  { id: 6,  text: "💡 Dica: eu lembro de tudo que você me conta. Quanto mais você compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestões para você." },
-  { id: 7,  text: "💡 Dica: se quiser notícias relevantes, toque em 'Buscar notícias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
-  { id: 8,  text: "💡 Dica: você pode conversar comigo sobre qualquer coisa — produtividade, reflexões, ideias, planos. Quanto mais natural a conversa, melhores minhas análises sobre você." },
-
-  // ── Missões & XP ──────────────────────────────────────────────────────────
-  { id: 9,  text: "💡 Dica: complete missões diárias para ganhar XP e subir de nível. Você ganha novos destaques sociais e recursos extras conforme evolui." },
-  { id: 10, text: "💡 Dica: os Desafios Bônus aparecem quando você completa todas as missões do dia. São aleatórios, valem XP extra e foram criados especialmente para manter seu ritmo." },
-  { id: 11, text: "💡 Dica: missões do sistema (Boas-vindas, Social, Conectado, Criador) são a base do seu crescimento no app. Complete todas de uma fase para desbloquear a próxima." },
-  { id: 12, text: "💡 Dica: o Resumo Semanal na tela de Missões traz um raio-x da sua semana — consistência, disciplina, ponto forte e onde melhorar. Aparece toda semana automaticamente." },
-  { id: 13, text: "💡 Dica: mantenha sua sequência (streak) ativa todos os dias. Sequências de 3, 7 e 30 dias te dão bônus de XP e mostram que você é constante de verdade." },
+  { id: 1,  text: "💡 Dica: sente que está travado? Me manda uma frase sobre o que está bloqueando. Eu não deixo você ficar parado — te ajudo a encontrar o próximo passo agora." },
+  { id: 2,  text: "💡 Dica: o painel Insight mostra seu foco, constância e disciplina da semana. Toque no ícone de insight no chat para ver sua pontuação atual e o que ela significa." },
+  { id: 3,  text: "💡 Dica: me chame pelo que você precisa agora: 'Quero evoluir', 'Me cobre hoje' ou 'Criar meta'. Os botões de ação rápida no chat são atalhos para começar rápido." },
+  { id: 4,  text: "💡 Dica: eu lembro de tudo que você me conta. Quanto mais você compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestões para você." },
+  { id: 5,  text: "💡 Dica: se quiser notícias relevantes, toque em 'Buscar notícias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
+  { id: 6,  text: "💡 Dica: você pode conversar comigo sobre qualquer coisa — produtividade, reflexões, ideias, planos. Quanto mais natural a conversa, melhores minhas análises sobre você." },
+  { id: 7,  text: "💡 Dica: use comandos rápidos no chat. Digite /feed para o timeline, /comunidades para grupos, ou /noticias para manchetes personalizadas." },
+  { id: 8,  text: "💡 Dica: mantenha sua sequência (streak) ativa todos os dias. Sequências de 3, 7 e 30 dias mostram que você é constante de verdade." },
 
   // ── Feed ───────────────────────────────────────────────────────────────────
   { id: 14, text: "💡 Dica: o Feed não é só uma timeline — é onde sua rede vê seu progresso. Publicar pequenas vitórias aumenta sua conexão com a comunidade e motiva os outros." },
@@ -59,7 +52,7 @@ const APP_TIPS: { id: number; text: string }[] = [
   { id: 25, text: "💡 Dica: na sua inbox, você pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para você acompanhar facilmente." },
 
   // ── Humor & Bem-estar ──────────────────────────────────────────────────────
-  { id: 26, text: "💡 Dica: registre seu humor todo dia no módulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e o tipo de missão que proponho para você." },
+  { id: 26, text: "💡 Dica: registre seu humor todo dia no módulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e minhas análises sobre você." },
   { id: 27, text: "💡 Dica: o calendário de humor mostra os últimos 30 dias em cores. Padrões de humor ruim repetido podem ser um sinal que vale levar ao insight da semana." },
 
   // ── Alertas & Notificações ────────────────────────────────────────────────
@@ -68,7 +61,7 @@ const APP_TIPS: { id: number; text: string }[] = [
 
   // ── Medalhas & Conquistas ──────────────────────────────────────────────────
   { id: 30, text: "💡 Dica: as medalhas ficam no seu perfil e mostram sua trajetória no app. Cada uma tem critérios específicos — toque nela para ver como desbloquear." },
-  { id: 31, text: "💡 Dica: a primeira missão concluída, o primeiro post, o primeiro amigo — cada marco inicial te dá uma medalha. Veja as que ainda estão travadas para saber o que falta." },
+  { id: 31, text: "💡 Dica: o primeiro post, o primeiro amigo, a primeira comunidade — cada marco inicial te dá uma medalha. Veja as que ainda estão travadas para saber o que falta." },
 
   // ── Configurações & Privacidade ────────────────────────────────────────────
   { id: 32, text: "💡 Dica: a navegação anônima (nível 3) faz suas visitas a perfis não aparecerem para o dono. Ative nas Configurações quando não quiser ser identificado ao explorar perfis." },
@@ -82,7 +75,7 @@ const APP_TIPS: { id: number; text: string }[] = [
   { id: 38, text: "💡 Dica: o BeeEyes foi feito para ser parte da sua rotina diária, não uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessões longas e raras." },
 ];
 
-export function createMessagesRouter(triggerMissionAction: (userId: string, actionType: string) => Promise<void>) {
+export function createMessagesRouter() {
   const router = Router();
 
   type NotificationCenterItem = {
@@ -97,15 +90,14 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
   };
 
   async function getUserActivitySnapshot(userId: string) {
-    const [user, missions, messages, posts] = await Promise.all([
+    const [user, messages, posts] = await Promise.all([
       storage.getUser(userId),
-      storage.getMissionsByUser(userId),
       storage.getMessagesByUser(userId, 200),
       storage.getPostsByUser(userId, 50),
     ]);
 
     if (!user) {
-      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+      throw notFound("Usuário não encontrado");
     }
 
     const now = new Date();
@@ -130,17 +122,10 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       dailyActivity.set(key, (dailyActivity.get(key) ?? 0) + 1);
     };
 
-    const weeklyMissions = missions.filter((mission) => new Date(mission.createdAt) >= since);
-    weeklyMissions.forEach((mission) => {
-      touch(mission.createdAt);
-      if (mission.completedAt) touch(mission.completedAt);
-    });
     messages.forEach((message) => touch(message.createdAt));
     posts.forEach((post) => touch(post.createdAt));
 
     const activeDays = [...dailyActivity.values()].filter((count) => count > 0).length;
-    const completedMissions = weeklyMissions.filter((mission) => mission.completed).length;
-    const pendingMissions = missions.filter((mission) => !mission.completed).length;
     const lastActiveHours = user.lastActiveAt
       ? Math.max(0, (Date.now() - new Date(user.lastActiveAt).getTime()) / 3600000)
       : null;
@@ -148,34 +133,10 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     return {
       user,
       activeDays,
-      completedMissions,
-      totalMissionsTouched: weeklyMissions.length,
-      pendingMissions,
+      completedMissions: 0,
+      totalMissionsTouched: 0,
       lastActiveHours,
     };
-  }
-
-  function shouldCreateMissionFromChat(userMessage: string, suggestedMission?: { title: string; description: string; xp_reward: number }) {
-    if (!suggestedMission) return false;
-    const text = userMessage.toLowerCase().trim();
-
-    // Exige pedido EXPLÍCITO de criação de missão/meta/tarefa.
-    // Menções genéricas ("quero estudar", "vou treinar") NÃO criam missão.
-    const explicitRequest =
-      // "crie uma missão para X" / "cria uma tarefa" / "adiciona uma meta"
-      /\b(cri[ae]|registr[ae]|adicion[ae]|coloc[ae]|quer[ao] (criar|registrar|adicionar))\b.{0,40}\b(miss[aã]o|tarefa|meta|objetivo|compromisso)\b/.test(text) ||
-      // "pode colocar isso como missão" / "transforma isso em missão"
-      /\b(transform[ae]|coloc[ae]|bot[ae])\b.{0,30}\b(miss[aã]o|tarefa|meta)\b/.test(text) ||
-      // "quero criar uma missão de X"
-      /\bquero criar (uma |a )?(miss[aã]o|tarefa|meta)\b/.test(text);
-
-    if (!explicitRequest) return false;
-
-    const title = suggestedMission.title?.trim() ?? "";
-    // Título precisa ser concreto: entre 8 e 70 chars, não pode ser genérico
-    if (title.length < 8 || title.length > 70) return false;
-    const isGenericTitle = /^(fazer algo|tarefa|missao|meta|objetivo|compromisso|estudar|treinar)$/i.test(title);
-    return !isGenericTitle;
   }
 
   router.get("/api/messages", requireAuth, asyncHandler(async (req, res) => {
@@ -193,7 +154,6 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       level: snapshot.user.level,
       xp: snapshot.user.xp,
       lastActiveHours: snapshot.lastActiveHours,
-      pendingMissions: snapshot.pendingMissions,
     }));
   }));
 
@@ -207,15 +167,12 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       level: snapshot.user.level,
       xp: snapshot.user.xp,
       lastActiveHours: snapshot.lastActiveHours,
-      pendingMissions: snapshot.pendingMissions,
     });
 
     return sendOk(res, buildIntelligentNotifications({
       focusScore: score.focusScore,
       consistencyScore: score.consistencyScore,
       disciplineScore: score.disciplineScore,
-      completedMissions: snapshot.completedMissions,
-      pendingMissions: snapshot.pendingMissions,
       streak: snapshot.user.currentStreak,
       lastActiveHours: snapshot.lastActiveHours,
     }));
@@ -370,7 +327,6 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     if (!isSystem) {
       await storage.createMessage({ userId, role: "user", content });
       await storage.incrementMessageCount(userId);
-      triggerMissionAction(userId, "send_message").catch(() => {});
     }
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -394,19 +350,8 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return;
     }
 
-    const { cleanText, suggestedMission, achievement, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
+    const { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
-
-    const missionDraft = suggestedMission && shouldCreateMissionFromChat(content, suggestedMission) ? suggestedMission : null;
-    if (missionDraft) {
-      const mission = await storage.createMission({
-        userId,
-        title: missionDraft.title,
-        description: missionDraft.description,
-        xpReward: missionDraft.xp_reward || 20,
-      });
-      res.write(`data: ${JSON.stringify({ type: "mission_created", mission })}\n\n`);
-    }
 
     if (achievement) {
       const alreadyHas = await storage.hasAchievement(userId, achievement.type);
@@ -460,19 +405,24 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
 
     if (createEvent?.title && createEvent.startAt) {
       try {
-        const [event] = await db.insert(calendarEvents).values({
-          userId,
-          title: createEvent.title,
-          description: createEvent.description ?? null,
-          startAt: new Date(createEvent.startAt),
-          endAt: createEvent.endAt ? new Date(createEvent.endAt) : null,
-          location: createEvent.location ?? null,
-        }).returning();
-        if (event) res.write(`data: ${JSON.stringify({ type: "event_created", event })}\n\n`);
-      } catch { /* ignore */ }
+        const startDate = new Date(createEvent.startAt);
+        if (!isNaN(startDate.getTime())) {
+          const [event] = await db.insert(calendarEvents).values({
+            userId,
+            title: createEvent.title,
+            description: createEvent.description ?? null,
+            startAt: startDate,
+            endAt: createEvent.endAt ? new Date(createEvent.endAt) : null,
+            location: createEvent.location ?? null,
+          }).returning();
+          if (event) res.write(`data: ${JSON.stringify({ type: "event_created", event })}\n\n`);
+        }
+      } catch (err) {
+        console.error("[AI Action] event insert failed:", err);
+      }
     }
 
-    if (logFinance?.type && logFinance.amount > 0 && logFinance.category) {
+    if (logFinance?.type && typeof logFinance.amount === "number" && logFinance.amount > 0 && logFinance.category) {
       try {
         const [transaction] = await db.insert(financeTransactions).values({
           userId,
@@ -483,7 +433,9 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
           date: new Date(),
         }).returning();
         if (transaction) res.write(`data: ${JSON.stringify({ type: "finance_logged", transaction })}\n\n`);
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.error("[AI Action] finance insert failed:", err);
+      }
     }
 
     if (saveNote?.content?.trim()) {
@@ -494,7 +446,9 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
           title: saveNote.title?.trim() ?? null,
         }).returning();
         if (note) res.write(`data: ${JSON.stringify({ type: "note_saved", note })}\n\n`);
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.error("[AI Action] note insert failed:", err);
+      }
     }
 
     storage.updateUserStreak(userId).catch(() => {});
@@ -559,10 +513,9 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
       return sendOk(res, { message: null });
     }
 
-    const [user, personality, missions] = await Promise.all([
+    const [user, personality] = await Promise.all([
       storage.getUser(userId),
       storage.getPersonality(userId),
-      storage.getMissionsByUser(userId, false),
     ]);
 
     if (!user || !personality) return sendOk(res, { message: null });
@@ -571,7 +524,7 @@ export function createMessagesRouter(triggerMissionAction: (userId: string, acti
     const hasColmeiaContext = upcomingEvents.length > 0 || financeSummary !== null;
     const content = (!hasColmeiaContext && Math.random() < 0.35)
       ? APP_TIPS[Math.floor(Math.random() * APP_TIPS.length)].text
-      : await generateProactiveMessage(user, personality, missions, upcomingEvents, financeSummary);
+      : await generateProactiveMessage(user, personality, [], upcomingEvents, financeSummary);
     if (!content) return sendOk(res, { message: null });
 
     await storage.createMessage({

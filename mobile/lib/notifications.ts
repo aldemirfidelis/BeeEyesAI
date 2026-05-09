@@ -17,7 +17,6 @@ Notifications.setNotificationHandler({
 
 // ── Canal IDs ─────────────────────────────────────────────────────────────────
 export const CHANNEL = {
-  MISSIONS:  "bee-missions",
   SOCIAL:    "bee-social",
   ALERTS:    "bee-alerts",
   TIPS:      "bee-tips",
@@ -29,15 +28,6 @@ export async function setupNotificationChannels(): Promise<void> {
   if (Platform.OS !== "android") return;
 
   await Promise.all([
-    Notifications.setNotificationChannelAsync(CHANNEL.MISSIONS, {
-      name: "🎯 Missões",
-      description: "Lembretes de missões e progresso diário",
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 200, 100, 200],
-      lightColor: "#FFD940",
-      sound: "default",
-      enableVibrate: true,
-    }),
     Notifications.setNotificationChannelAsync(CHANNEL.SOCIAL, {
       name: "🤝 Social",
       description: "Conexões, amigos e comunidades",
@@ -137,86 +127,6 @@ export function setupNotificationTapListener(): () => void {
   };
 }
 
-// ── Notificações agendadas diárias ────────────────────────────────────────────
-export async function scheduleDailyBeeNotifications(): Promise<void> {
-  try {
-    const granted = await requestNotificationPermission();
-    if (!granted) return;
-
-    // Cancela notificações anteriores da Bee para não acumular
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    await Promise.all(
-      scheduled
-        .filter((n) => {
-          try { return (n.content.data as any)?.source === "bee-daily"; } catch { return false; }
-        })
-        .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
-    );
-
-    const now = new Date();
-
-    // Busca o contexto adaptativo com fallback seguro
-    let morningTitle = "BeeEyes · Bom dia! 🐝";
-    let morningBody = "Suas missões do dia estão prontas. Toque para começar.";
-
-    try {
-      const { data } = await api.get<{
-        label?: string | null;
-        tip?: string | null;
-        reason?: string | null;
-        moodAvg: number | null;
-      }>("/api/missions/daily-context");
-
-      const label = typeof data?.label === "string" && data.label.trim() ? data.label.trim() : null;
-      const tip   = typeof data?.tip   === "string" && data.tip.trim()   ? data.tip.trim()   : null;
-
-      if (label) morningTitle = `BeeEyes · ${label}`;
-      if (tip)   morningBody  = tip;
-    } catch {
-      // usa fallback — não interrompe o agendamento
-    }
-
-    // Notificação da manhã (09:00) — contexto do dia
-    const morning = new Date(now);
-    morning.setHours(9, 0, 0, 0);
-    if (morning <= now) morning.setDate(morning.getDate() + 1);
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: morningTitle,
-        body: morningBody,
-        data: { source: "bee-daily", screen: "/(tabs)/missions" },
-        sound: true,
-        ...(Platform.OS === "android" && { channelId: CHANNEL.MISSIONS }),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: morning,
-      },
-    });
-
-    // Notificação da tarde (18:00) — lembrete de missões
-    const evening = new Date(now);
-    evening.setHours(18, 0, 0, 0);
-    if (evening <= now) evening.setDate(evening.getDate() + 1);
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "BeeEyes · Missões te esperam 🎯",
-        body: "Ainda dá tempo de fechar uma hoje. Não deixa o dia passar em branco.",
-        data: { source: "bee-daily", screen: "/(tabs)/missions" },
-        sound: true,
-        ...(Platform.OS === "android" && { channelId: CHANNEL.MISSIONS }),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: evening,
-      },
-    });
-  } catch {
-    // silencioso — notificações são opcionais
-  }
-}
 
 // ── Helpers de notificação imediata ───────────────────────────────────────────
 
@@ -229,7 +139,7 @@ export async function notifyStreakRisk(): Promise<void> {
       content: {
         title: "BeeEyes · Sua sequência está em risco ⚠️",
         body: "Você ainda não completou nenhuma atividade hoje. Não perca sua sequência!",
-        data: { source: "bee-streak", screen: "/(tabs)/missions" },
+        data: { source: "bee-streak", screen: "/(tabs)" },
         sound: true,
         ...(Platform.OS === "android" && { channelId: CHANNEL.ALERTS }),
       },
@@ -258,26 +168,6 @@ export async function notifyNewConnection(fromName: string): Promise<void> {
   } catch {}
 }
 
-export async function notifyMissionComplete(missionTitle: string, xp: number): Promise<void> {
-  try {
-    const granted = await requestNotificationPermission();
-    if (!granted) return;
-
-    const title = missionTitle?.trim() || "Missão";
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "BeeEyes · Missão concluída! 🎉",
-        body: `"${title}" — +${xp} XP ganhos!`,
-        data: { source: "bee-mission-done", screen: "/(tabs)/missions" },
-        sound: true,
-        ...(Platform.OS === "android" && { channelId: CHANNEL.MISSIONS }),
-      },
-      trigger: null,
-    });
-  } catch {}
-}
-
 export async function notifyLevelUp(newLevel: number): Promise<void> {
   try {
     const granted = await requestNotificationPermission();
@@ -287,9 +177,9 @@ export async function notifyLevelUp(newLevel: number): Promise<void> {
       content: {
         title: `BeeEyes · Você chegou ao Nível ${newLevel}! 🏆`,
         body: "Novos recursos desbloqueados. Confira o que ganhou!",
-        data: { source: "bee-levelup", screen: "/(tabs)/missions" },
+        data: { source: "bee-levelup", screen: "/(tabs)" },
         sound: true,
-        ...(Platform.OS === "android" && { channelId: CHANNEL.MISSIONS }),
+        ...(Platform.OS === "android" && { channelId: CHANNEL.ALERTS }),
       },
       trigger: null,
     });

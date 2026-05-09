@@ -1,2 +1,2 @@
-export { default } from "../../features/missions/screens/MissionsScreen";
-export { default as ErrorBoundary } from "../../components/RouteErrorBoundary";
+// Route removed — missions feature deleted
+export default function MissionsPage() { return null; }

@@ -56,7 +56,13 @@
       "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" log --all --oneline -20)",
       "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" log --all -S \"GOOGLE_CLIENT_SECRET\" --oneline)",
       "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" show 333a690:.env 2>$null)",
-      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" show 333a690 --stat)"
+      "PowerShell(git -C \"d:\\\\Projetos\\\\BeeEyesAI\" show 333a690 --stat)",
+      "Bash(Get-ChildItem -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(cd /d d:\\\\Projetos\\\\BeeEyesAI)",
+      "Bash(find . -type d -name \"*mission*\")",
+      "Bash(Get-ChildItem \"d:\\\\Projetos\\\\BeeEyesAI\\\\mobile\\\\app\\\\\\(tabs\\)\")",
+      "Bash(Select-Object Name)"
     ]
   }
 }
