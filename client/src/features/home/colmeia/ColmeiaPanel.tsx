@@ -96,7 +96,7 @@ function fmtCents(cents: number) {
 
 // ── Colmeia Hub config ────────────────────────────────────────────────────────
 // To add a new tool: (1) add ToolId to the union, (2) push to COLMEIA_TOOLS,
-// (3) place its id in HEX_LAYOUT (replace a null slot or extend).
+// (3) place it in TOOL_POSITIONS.
 
 type ToolId = "calendar" | "finance" | "clock" | "notes";
 
@@ -120,25 +120,18 @@ const HEX_LAYOUT: Array<ToolId | null> = [
 ];
 
 // Hub geometry for full-bleed Colmeia artwork.
-const HUB_W = 316;
-const HUB_H = 336;
-const W_CTR = HUB_W / 2;
-const H_CTR = HUB_H / 2;
-const W_RADIUS = 92;
-const CELL = 96;
-const C_CELL = 122;
-const ICON_ZOOM = 1.18;
-
-function degToRad(d: number) { return (d * Math.PI) / 180; }
-
-function hexXY(angle: number) {
-  return {
-    left: W_CTR + W_RADIUS * Math.cos(degToRad(angle)) - CELL / 2,
-    top:  H_CTR + W_RADIUS * Math.sin(degToRad(angle)) - CELL / 2,
-  };
-}
-
-const HEX_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
+const HUB_W = 360;
+const HUB_H = 426;
+const CELL = 100;
+const C_CELL = 118;
+const ICON_ZOOM = 1.12;
+const CENTER_POS = { left: 121, top: 150 };
+const TOOL_POSITIONS: Record<ToolId, { left: number; top: number }> = {
+  calendar: { left: 130, top: 18 },
+  notes: { left: 14, top: 166 },
+  clock: { left: 246, top: 166 },
+  finance: { left: 130, top: 306 },
+};
 
 function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
   return (
@@ -148,7 +141,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
         className="absolute"
         style={{
           width: C_CELL, height: C_CELL,
-          left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
+          left: CENTER_POS.left, top: CENTER_POS.top,
           borderRadius: 28,
           border: "1px solid rgba(255,217,64,0.42)",
           boxShadow: "0 18px 38px -24px rgba(89,58,0,0.55), 0 0 24px 3px rgba(255,217,64,0.24)",
@@ -163,36 +156,29 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
       </div>
 
       {/* Tool cells */}
-      {HEX_LAYOUT.map((toolId, idx) => {
-        const pos = hexXY(HEX_ANGLES[idx]);
-        const tool = toolId ? COLMEIA_TOOLS.find(t => t.id === toolId) : null;
+      {COLMEIA_TOOLS.map((tool) => {
+        const pos = TOOL_POSITIONS[tool.id];
         return (
           <button
-            key={idx}
-            disabled={!tool}
-            onClick={() => tool && onSelect(tool.id)}
+            key={tool.id}
+            onClick={() => onSelect(tool.id)}
             className="absolute transition-transform hover:scale-105 active:scale-95"
             style={{
               width: CELL, height: CELL,
               left: pos.left, top: pos.top,
               borderRadius: 24,
-              background: tool ? "transparent" : "hsl(var(--muted) / 0.38)",
-              border: tool ? "1px solid rgba(255,255,255,0.42)" : "1px solid hsl(var(--border) / 0.7)",
-              boxShadow: tool ? `0 18px 34px -24px ${tool.color}, 0 0 16px 2px ${tool.color}24` : "none",
-              opacity: tool ? 1 : 0.28,
-              cursor: tool ? "pointer" : "default",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.42)",
+              boxShadow: `0 18px 34px -24px ${tool.color}, 0 0 16px 2px ${tool.color}24`,
+              cursor: "pointer",
               overflow: "hidden",
             }}
           >
-            {tool ? (
-              <img
-                src={tool.src}
-                alt={tool.label}
-                style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
-              />
-            ) : (
-              <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />
-            )}
+            <img
+              src={tool.src}
+              alt={tool.label}
+              style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
+            />
           </button>
         );
       })}

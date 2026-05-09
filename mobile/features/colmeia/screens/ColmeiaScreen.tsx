@@ -1452,34 +1452,30 @@ const BEE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 // ── Colmeia Hub ───────────────────────────────────────────────────────────────
 
 const { width: HUB_SCREEN_W } = Dimensions.get("window");
-const HEX_SIZE    = 104;
-const CENTER_SIZE = 124;
-const HUB_RADIUS  = 108;
-const HUB_HEIGHT  = 380;
-const ICON_ZOOM   = 1.18;
-
-function toRad(deg: number) { return (deg * Math.PI) / 180; }
-
-function hexPos(angle: number): { left: number; top: number } {
-  const cx = HUB_SCREEN_W / 2;
-  const cy = HUB_HEIGHT / 2;
-  return {
-    left: cx + HUB_RADIUS * Math.cos(toRad(angle)) - HEX_SIZE / 2,
-    top:  cy + HUB_RADIUS * Math.sin(toRad(angle)) - HEX_SIZE / 2,
-  };
-}
+const HEX_SIZE    = 96;
+const CENTER_SIZE = 116;
+const HUB_HEIGHT  = 420;
+const ICON_ZOOM   = 1.12;
 
 function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) => void }) {
-  const cx = HUB_SCREEN_W / 2;
-  const cy = HUB_HEIGHT / 2;
+  const hubWidth = Math.min(HUB_SCREEN_W, 390);
+  const cx = hubWidth / 2;
+  const centerLeft = cx - CENTER_SIZE / 2;
+  const sideTop = 164;
+  const toolPositions: Record<ToolId, { left: number; top: number }> = {
+    calendar: { left: cx - HEX_SIZE / 2, top: 20 },
+    notes: { left: centerLeft - HEX_SIZE - 16, top: sideTop },
+    clock: { left: centerLeft + CENTER_SIZE + 16, top: sideTop },
+    finance: { left: cx - HEX_SIZE / 2, top: 306 },
+  };
 
   return (
-    <View style={{ width: HUB_SCREEN_W, height: HUB_HEIGHT }}>
+    <View style={{ width: hubWidth, height: HUB_HEIGHT }}>
       {/* Center — Bee */}
       <View style={{
         position: "absolute",
         width: CENTER_SIZE, height: CENTER_SIZE,
-        left: cx - CENTER_SIZE / 2, top: cy - CENTER_SIZE / 2,
+        left: centerLeft, top: 150,
         borderRadius: CENTER_SIZE * 0.24,
         backgroundColor: colors.card,
         borderWidth: 1, borderColor: "#FFD94066",
@@ -1494,39 +1490,33 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
       </View>
 
       {/* Tool cells */}
-      {HEX_LAYOUT.map((toolId, idx) => {
-        const pos = hexPos(HEX_ANGLES[idx]);
-        const tool = toolId ? COLMEIA_TOOLS.find(t => t.id === toolId) : null;
+      {COLMEIA_TOOLS.map((tool) => {
+        const pos = toolPositions[tool.id];
         return (
           <TouchableOpacity
-            key={idx}
-            disabled={!tool}
+            key={tool.id}
             activeOpacity={0.72}
-            onPress={() => tool && onSelect(tool.id)}
+            onPress={() => onSelect(tool.id)}
             style={{
               position: "absolute",
               width: HEX_SIZE, height: HEX_SIZE,
               left: pos.left, top: pos.top,
               borderRadius: HEX_SIZE * 0.23,
-              backgroundColor: tool ? "transparent" : colors.secondary,
+              backgroundColor: "transparent",
               borderWidth: 1,
-              borderColor: tool ? "#FFFFFF66" : colors.border,
+              borderColor: "#FFFFFF66",
               overflow: "hidden",
-              shadowColor: tool ? tool.color : "transparent",
-              shadowOpacity: tool ? 0.22 : 0,
-              shadowRadius: 14, elevation: tool ? 8 : 1,
-              opacity: tool ? 1 : 0.3,
+              shadowColor: tool.color,
+              shadowOpacity: 0.18,
+              shadowRadius: 14,
+              elevation: 7,
             }}
           >
-            {tool ? (
-              <Image
-                source={tool.img}
-                style={{ width: HEX_SIZE, height: HEX_SIZE, transform: [{ scale: ICON_ZOOM }] }}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }} />
-            )}
+            <Image
+              source={tool.img}
+              style={{ width: HEX_SIZE, height: HEX_SIZE, transform: [{ scale: ICON_ZOOM }] }}
+              resizeMode="cover"
+            />
           </TouchableOpacity>
         );
       })}

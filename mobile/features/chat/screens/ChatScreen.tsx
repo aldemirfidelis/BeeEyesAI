@@ -98,6 +98,7 @@ export default function ChatScreen() {
     dayOfWeek: string;
   } | null>(null);
   const [showDailyBriefing, setShowDailyBriefing] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
@@ -105,10 +106,14 @@ export default function ChatScreen() {
   const { width, height } = Dimensions.get("window");
 
   useEffect(() => {
-    const sub = Keyboard.addListener("keyboardDidShow", () => {
+    const show = Keyboard.addListener("keyboardDidShow", () => {
+      setIsKeyboardVisible(true);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     });
-    return () => sub.remove();
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      setIsKeyboardVisible(false);
+    });
+    return () => { show.remove(); hide.remove(); };
   }, []);
 
   useEffect(() => () => {
@@ -554,10 +559,12 @@ export default function ChatScreen() {
           <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/profile")}><Feather name="user" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>{t("chat_profile")}</Text></TouchableOpacity>
         </View>
       </View>
-      {/* Compact mascot bar */}
-      <View style={styles.mascotBar}>
-        <BeeEyes expression={eyeExpression} size={62} attentionX={eyeAttention.x} attentionY={eyeAttention.y} />
-      </View>
+      {/* Compact mascot bar — hidden when keyboard is open */}
+      {!isKeyboardVisible && (
+        <View style={styles.mascotBar}>
+          <BeeEyes expression={eyeExpression} size={62} attentionX={eyeAttention.x} attentionY={eyeAttention.y} />
+        </View>
+      )}
 
       {/* Insight modal */}
       <Modal visible={showInsight} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowInsight(false)}>
