@@ -119,12 +119,15 @@ const HEX_LAYOUT: Array<ToolId | null> = [
   null,       // top-left    — coming soon
 ];
 
-// Hex geometry (pixel-based, container 280×310)
-const W_CTR = 140; // centerX of hub container
-const H_CTR = 155; // centerY
-const W_RADIUS = 100;
-const CELL = 82;   // hex cell size
-const C_CELL = 96; // center cell size
+// Hub geometry for full-bleed Colmeia artwork.
+const HUB_W = 326;
+const HUB_H = 350;
+const W_CTR = HUB_W / 2;
+const H_CTR = HUB_H / 2;
+const W_RADIUS = 115;
+const CELL = 102;
+const C_CELL = 116;
+const ICON_ZOOM = 1.18;
 
 function degToRad(d: number) { return (d * Math.PI) / 180; }
 
@@ -139,23 +142,23 @@ const HEX_ANGLES = [-90, -30, 30, 90, 150, 210] as const;
 
 function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
   return (
-    <div className="relative mx-auto" style={{ width: 280, height: 310 }}>
+    <div className="relative mx-auto" style={{ width: HUB_W, height: HUB_H }}>
       {/* Center Bee */}
       <div
         className="absolute"
         style={{
           width: C_CELL, height: C_CELL,
           left: W_CTR - C_CELL / 2, top: H_CTR - C_CELL / 2,
-          borderRadius: 24,
-          border: "2.5px solid #FFD940",
-          boxShadow: "0 16px 34px -20px rgba(89,58,0,0.55), 0 0 22px 4px rgba(255,217,64,0.28)",
+          borderRadius: 28,
+          border: "1px solid rgba(255,217,64,0.42)",
+          boxShadow: "0 18px 38px -24px rgba(89,58,0,0.55), 0 0 24px 3px rgba(255,217,64,0.24)",
           overflow: "hidden",
         }}
       >
         <img
           src="/icons-colmeia/icone-central.png"
           alt="Bee"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
         />
       </div>
 
@@ -172,12 +175,10 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
             style={{
               width: CELL, height: CELL,
               left: pos.left, top: pos.top,
-              borderRadius: 20,
-              background: tool
-                ? "linear-gradient(145deg, hsl(var(--card)), hsl(var(--muted) / 0.62))"
-                : "hsl(var(--muted) / 0.55)",
-              border: `1.5px solid ${tool ? tool.color + "99" : "hsl(var(--border))"}`,
-              boxShadow: tool ? `0 16px 26px -22px ${tool.color}, 0 0 14px 2px ${tool.color}26` : "none",
+              borderRadius: 24,
+              background: tool ? "transparent" : "hsl(var(--muted) / 0.38)",
+              border: tool ? "1px solid rgba(255,255,255,0.42)" : "1px solid hsl(var(--border) / 0.7)",
+              boxShadow: tool ? `0 18px 34px -24px ${tool.color}, 0 0 16px 2px ${tool.color}24` : "none",
               opacity: tool ? 1 : 0.28,
               cursor: tool ? "pointer" : "default",
               overflow: "hidden",
@@ -187,7 +188,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
               <img
                 src={tool.src}
                 alt={tool.label}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
               />
             ) : (
               <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />

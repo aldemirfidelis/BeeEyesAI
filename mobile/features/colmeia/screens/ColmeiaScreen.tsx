@@ -1452,10 +1452,11 @@ const BEE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 // ── Colmeia Hub ───────────────────────────────────────────────────────────────
 
 const { width: HUB_SCREEN_W } = Dimensions.get("window");
-const HEX_SIZE    = 90;
-const CENTER_SIZE = 112;
-const HUB_RADIUS  = 118;
-const HUB_HEIGHT  = 374;
+const HEX_SIZE    = 104;
+const CENTER_SIZE = 124;
+const HUB_RADIUS  = 126;
+const HUB_HEIGHT  = 404;
+const ICON_ZOOM   = 1.18;
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }
 
@@ -1479,15 +1480,15 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         position: "absolute",
         width: CENTER_SIZE, height: CENTER_SIZE,
         left: cx - CENTER_SIZE / 2, top: cy - CENTER_SIZE / 2,
-        borderRadius: CENTER_SIZE * 0.28,
+        borderRadius: CENTER_SIZE * 0.24,
         backgroundColor: colors.card,
-        borderWidth: 2.5, borderColor: "#FFD940",
+        borderWidth: 1, borderColor: "#FFD94066",
         overflow: "hidden",
         shadowColor: "#B98005", shadowOpacity: 0.28, shadowRadius: 24, elevation: 14,
       }}>
         <Image
           source={require("../../../assets/icons-colmeia/icone-central.png")}
-          style={{ width: CENTER_SIZE, height: CENTER_SIZE }}
+          style={{ width: CENTER_SIZE, height: CENTER_SIZE, transform: [{ scale: ICON_ZOOM }] }}
           resizeMode="cover"
         />
       </View>
@@ -1506,10 +1507,10 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
               position: "absolute",
               width: HEX_SIZE, height: HEX_SIZE,
               left: pos.left, top: pos.top,
-              borderRadius: HEX_SIZE * 0.26,
-              backgroundColor: tool ? colors.card : colors.secondary,
-              borderWidth: 1.5,
-              borderColor: tool ? tool.color + "BB" : colors.border,
+              borderRadius: HEX_SIZE * 0.23,
+              backgroundColor: tool ? "transparent" : colors.secondary,
+              borderWidth: 1,
+              borderColor: tool ? "#FFFFFF66" : colors.border,
               overflow: "hidden",
               shadowColor: tool ? tool.color : "transparent",
               shadowOpacity: tool ? 0.22 : 0,
@@ -1520,7 +1521,7 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
             {tool ? (
               <Image
                 source={tool.img}
-                style={{ width: HEX_SIZE, height: HEX_SIZE }}
+                style={{ width: HEX_SIZE, height: HEX_SIZE, transform: [{ scale: ICON_ZOOM }] }}
                 resizeMode="cover"
               />
             ) : (
