@@ -1488,7 +1488,7 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         <Image
           source={require("../../../assets/icons-colmeia/icone-central.png")}
           style={{ width: CENTER_SIZE, height: CENTER_SIZE }}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </View>
 
@@ -1521,7 +1521,7 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
               <Image
                 source={tool.img}
                 style={{ width: HEX_SIZE, height: HEX_SIZE }}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             ) : (
               <View style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }} />

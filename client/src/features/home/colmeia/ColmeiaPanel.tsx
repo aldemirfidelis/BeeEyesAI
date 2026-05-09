@@ -155,7 +155,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
         <img
           src="/icons-colmeia/icone-central.png"
           alt="Bee"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
       </div>
 
@@ -187,7 +187,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
               <img
                 src={tool.src}
                 alt={tool.label}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
             ) : (
               <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />
