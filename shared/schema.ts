@@ -387,9 +387,34 @@ export const notes = pgTable("notes", {
   index("notes_user_created_idx").on(table.userId, table.createdAt),
 ]);
 
+export const alarmReminders = pgTable("alarm_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message"),
+  kind: varchar("kind", { length: 20 }).notNull().default("alarm"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  nextTriggerAt: timestamp("next_trigger_at").notNull(),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  repeatType: varchar("repeat_type", { length: 20 }).notNull().default("once"),
+  intervalMinutes: integer("interval_minutes"),
+  active: boolean("active").notNull().default(true),
+  localNotificationId: text("local_notification_id"),
+  pausedAt: timestamp("paused_at"),
+  reactivationReminderAt: timestamp("reactivation_reminder_at"),
+  reactivationPromptedAt: timestamp("reactivation_prompted_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("alarm_reminders_user_next_idx").on(table.userId, table.nextTriggerAt),
+  index("alarm_reminders_active_next_idx").on(table.active, table.nextTriggerAt),
+  index("alarm_reminders_reactivation_idx").on(table.active, table.reactivationReminderAt),
+]);
+
 export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true });
 export const insertFinanceTransactionSchema = createInsertSchema(financeTransactions).omit({ id: true, createdAt: true });
 export const insertNoteSchema = createInsertSchema(notes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAlarmReminderSchema = createInsertSchema(alarmReminders).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
@@ -398,6 +423,8 @@ export type InsertFinanceTransaction = z.infer<typeof insertFinanceTransactionSc
 export type UserIntegration = typeof userIntegrations.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type InsertNote = z.infer<typeof insertNoteSchema>;
+export type AlarmReminder = typeof alarmReminders.$inferSelect;
+export type InsertAlarmReminder = z.infer<typeof insertAlarmReminderSchema>;
 
 // ── Legacy types ──────────────────────────────────────────────────────────────
 

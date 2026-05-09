@@ -41,3 +41,19 @@ test("infers note from explicit chat command", () => {
   assert.equal(actions.saveNote?.content, "conversar com o contador amanhã");
   assert.equal(actions.saveNote?.title, "Conversar com o contador amanhã");
 });
+
+test("infers alarm reminder from explicit chat command", () => {
+  const actions = inferExplicitToolActions("Me desperte dia 25/12/2026 às 08h para tomar remedio");
+
+  assert.equal(actions.alarmReminder?.kind, "medicine");
+  assert.equal(actions.alarmReminder?.repeatType, "once");
+  assert.equal(actions.alarmReminder?.scheduledAt.startsWith("2026-12-25T"), true);
+});
+
+test("infers interval medicine alarm", () => {
+  const actions = inferExplicitToolActions("Avise dia 10/07/2026 às 09h para tomar remédio de 8 horas");
+
+  assert.equal(actions.alarmReminder?.kind, "medicine");
+  assert.equal(actions.alarmReminder?.repeatType, "interval");
+  assert.equal(actions.alarmReminder?.intervalMinutes, 480);
+});

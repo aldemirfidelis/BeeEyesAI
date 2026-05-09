@@ -546,6 +546,84 @@ export default function Home() {
     }
   };
 
+  const handleHolidayAlarmDecision = async (messageId: string, meta: any, decision: "create" | "skip") => {
+    const alarmDraft = meta?.alarmDraft;
+    const holidayName = meta?.holiday?.name ?? "feriado";
+    if (!alarmDraft) return;
+
+    try {
+      if (decision === "create") {
+        const res = await fetch("/api/colmeia/alarms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(alarmDraft),
+        });
+        if (!res.ok) return;
+        setColmeiaRefreshKey((value) => value + 1);
+      }
+
+      const resolvedContent = decision === "create"
+        ? `Combinado. Criei o despertador mesmo sendo ${holidayName}.`
+        : `Tudo bem. Não criei esse despertador para ${holidayName}.`;
+      const resolvedMetadata = JSON.stringify({ type: "holiday_alarm_resolved", decision });
+
+      await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content: resolvedContent, metadata: resolvedMetadata }),
+      });
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === messageId
+            ? { ...message, content: resolvedContent, metadata: resolvedMetadata }
+            : message,
+        ),
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAlarmReactivationDecision = async (messageId: string, meta: any, decision: "activate" | "keep_paused") => {
+    const alarmId = meta?.alarmId;
+    const title = meta?.title ?? "alarme";
+    if (!alarmId) return;
+
+    try {
+      if (decision === "activate") {
+        const res = await fetch(`/api/colmeia/alarms/${alarmId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ active: true }),
+        });
+        if (!res.ok) return;
+        setColmeiaRefreshKey((value) => value + 1);
+      }
+
+      const resolvedContent = decision === "activate"
+        ? `Combinado. Reativei o alarme "${title}".`
+        : `Tudo bem. Mantive o alarme "${title}" pausado.`;
+      const resolvedMetadata = JSON.stringify({ type: "reactivate_alarm_resolved", decision, alarmId });
+
+      await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content: resolvedContent, metadata: resolvedMetadata }),
+      });
+
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === messageId
+            ? { ...message, content: resolvedContent, metadata: resolvedMetadata }
+            : message,
+        ),
+      );
+    } catch {
+      // ignore
+    }
+  };
+
   // Load feed when user switches to feed tab
   const loadFeed = useCallback(async () => {
     if (!token) return;
@@ -844,12 +922,17 @@ export default function Home() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.message) {
-          setMessages((prev) => [...prev, {
-            id: Date.now().toString(),
-            role: "assistant",
-            content: data.message,
-            timestamp: new Date(),
-          }]);
+          setMessages((prev) => {
+            const id = data.id ?? Date.now().toString();
+            if (prev.some((message) => message.id === id)) return prev;
+            return [...prev, {
+              id,
+              role: "assistant",
+              content: data.message,
+              metadata: data.metadata ?? null,
+              timestamp: data.createdAt ? new Date(data.createdAt) : new Date(),
+            }];
+          });
           setEyeExpression("attentive");
           pulseEyeEvent("message-received", 1600);
           setTimeout(() => setEyeExpression("neutral"), 4000);
@@ -1050,10 +1133,11 @@ export default function Home() {
               if (isFirstChunk) pulseEyeEvent("message-received", 1400);
             } else if (event.type === "done") {
               setMessages((prev) => [...prev, {
-                id: assistantMsgId,
+                id: event.id ?? assistantMsgId,
                 role: "assistant",
                 content: event.cleanText ?? accumulated,
                 timestamp: new Date(),
+                metadata: event.metadata ?? null,
               }]);
               setStreamingText("");
               setEyeExpression("happy");
@@ -1083,6 +1167,11 @@ export default function Home() {
               setColmeiaRefreshKey((value) => value + 1);
               const note = event.note;
               setAchievementData({ title: "Nota salva! 📝", description: note?.title ?? (note?.content?.slice(0, 60) + (note?.content?.length > 60 ? "…" : "")) });
+              setShowAchievement(true);
+              setTimeout(() => setShowAchievement(false), 3500);
+            } else if (event.type === "alarm_created") {
+              setColmeiaRefreshKey((value) => value + 1);
+              setAchievementData({ title: "Despertador criado!", description: event.alarm?.title ?? "Aviso adicionado ao Relogio." });
               setShowAchievement(true);
               setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "error") {
@@ -1654,6 +1743,32 @@ export default function Home() {
                 </Button>
                 <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "reject")}>
                   Recusar
+                </Button>
+              </div>
+            );
+          }
+
+          if (meta.type === "holiday_alarm_confirmation" && meta.alarmDraft) {
+            return (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "create")}>
+                  Despertar mesmo assim
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "skip")}>
+                  Nao despertar no feriado
+                </Button>
+              </div>
+            );
+          }
+
+          if (meta.type === "reactivate_alarm_confirmation" && meta.alarmId) {
+            return (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="h-8 text-xs" onClick={() => handleAlarmReactivationDecision(message.id, meta, "activate")}>
+                  Reativar alarme
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleAlarmReactivationDecision(message.id, meta, "keep_paused")}>
+                  Manter pausado
                 </Button>
               </div>
             );

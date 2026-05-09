@@ -7,7 +7,7 @@ import { ptBR } from "date-fns/locale";
 import {
   Calendar, ChevronLeft, ChevronRight, DollarSign, ExternalLink,
   Loader2, MapPin, Plus, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
-  StickyNote, Pin, PinOff, Pencil, Check,
+  StickyNote, Pin, PinOff, Pencil, Check, Clock, BellRing, Pill, Briefcase, Pause, Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,19 @@ interface Note {
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AlarmReminder {
+  id: string;
+  title: string;
+  message?: string | null;
+  kind: "alarm" | "medicine" | "appointment";
+  scheduledAt: string;
+  nextTriggerAt: string;
+  lastTriggeredAt?: string | null;
+  repeatType: "once" | "daily" | "weekly" | "interval";
+  intervalMinutes?: number | null;
+  active: boolean;
 }
 
 interface ColmeiaPanelProps {
@@ -736,8 +749,253 @@ function NotesSection({ authHeaders }: { authHeaders: () => Record<string, strin
 
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
+function alarmKindLabel(kind: AlarmReminder["kind"]) {
+  if (kind === "medicine") return "Remedio";
+  if (kind === "appointment") return "Compromisso";
+  return "Despertador";
+}
+
+function alarmRepeatLabel(alarm: AlarmReminder) {
+  if (alarm.repeatType === "daily") return "Diario";
+  if (alarm.repeatType === "weekly") return "Semanal";
+  if (alarm.repeatType === "interval") return `A cada ${alarm.intervalMinutes ?? 60} min`;
+  return "Uma vez";
+}
+
+function alarmBody(alarm: AlarmReminder) {
+  if (alarm.message?.trim()) return alarm.message.trim();
+  if (alarm.kind === "medicine") return `Hora de tomar: ${alarm.title}`;
+  if (alarm.kind === "appointment") return `Compromisso agora: ${alarm.title}`;
+  return alarm.title;
+}
+
+function playWebAlarmFeedback(alarm: AlarmReminder) {
+  try { navigator.vibrate?.([700, 200, 700, 200, 700]); } catch { /* ignore */ }
+  try {
+    const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
+    const context = new AudioCtor();
+    [0, 0.85, 1.7].forEach((offset) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = 880;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      gain.gain.setValueAtTime(0.0001, context.currentTime + offset);
+      gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + offset + 0.55);
+      oscillator.start(context.currentTime + offset);
+      oscillator.stop(context.currentTime + offset + 0.6);
+    });
+  } catch { /* ignore */ }
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification(`BeeEyes - ${alarmKindLabel(alarm.kind)}`, {
+      body: alarmBody(alarm),
+      tag: `bee-alarm-${alarm.id}`,
+      requireInteraction: true,
+    });
+  }
+}
+
+function ClockSection({ authHeaders }: { authHeaders: () => Record<string, string> }) {
+  const [alarms, setAlarms] = useState<AlarmReminder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission
+  );
+  const [form, setForm] = useState({
+    title: "",
+    message: "",
+    kind: "alarm" as AlarmReminder["kind"],
+    scheduledAt: "",
+    repeatType: "once" as AlarmReminder["repeatType"],
+    intervalMinutes: "240",
+  });
+
+  const loadAlarms = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/colmeia/alarms", { headers: authHeaders() });
+      if (res.ok) setAlarms(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [authHeaders]);
+
+  useEffect(() => { loadAlarms(); }, [loadAlarms]);
+
+  useEffect(() => {
+    const timers = alarms.flatMap((alarm) => {
+      if (!alarm.active) return [];
+      const delay = new Date(alarm.nextTriggerAt).getTime() - Date.now();
+      if (delay < 0 || delay > 24 * 60 * 60 * 1000) return [];
+      return [window.setTimeout(() => {
+        playWebAlarmFeedback(alarm);
+        fetch("/api/colmeia/alarms/due", { method: "POST", headers: authHeaders() })
+          .then(() => loadAlarms())
+          .catch(() => {});
+      }, delay)];
+    });
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [alarms, authHeaders, loadAlarms]);
+
+  const requestNotifications = async () => {
+    if (!("Notification" in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
+
+  const createAlarm = async () => {
+    if (!form.title.trim() || !form.scheduledAt || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/colmeia/alarms", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title.trim(),
+          message: form.message.trim() || null,
+          kind: form.kind,
+          scheduledAt: new Date(form.scheduledAt).toISOString(),
+          repeatType: form.repeatType,
+          intervalMinutes: form.repeatType === "interval" ? Number(form.intervalMinutes) : null,
+        }),
+      });
+      if (res.ok) {
+        setShowForm(false);
+        setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatType: "once", intervalMinutes: "240" });
+        await loadAlarms();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAlarm = async (alarm: AlarmReminder) => {
+    await fetch(`/api/colmeia/alarms/${alarm.id}`, {
+      method: "PATCH",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !alarm.active }),
+    });
+    await loadAlarms();
+  };
+
+  const deleteAlarm = async (id: string) => {
+    await fetch(`/api/colmeia/alarms/${id}`, { method: "DELETE", headers: authHeaders() });
+    setAlarms((prev) => prev.filter((alarm) => alarm.id !== id));
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Relogio inteligente</p>
+            <p className="text-xs text-muted-foreground mt-1">Alarmes, remedios e compromissos com aviso, som e vibracao.</p>
+          </div>
+          <Clock className="w-5 h-5 text-primary shrink-0" />
+        </div>
+        <div className="flex gap-2">
+          {notificationPermission !== "granted" && notificationPermission !== "unsupported" && (
+            <Button size="sm" variant="outline" className="text-xs flex-1" onClick={requestNotifications}>Ativar avisos</Button>
+          )}
+          <Button size="sm" className="text-xs flex-1" onClick={() => setShowForm((value) => !value)}>
+            <Plus className="w-3.5 h-3.5 mr-1" /> Novo alarme
+          </Button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+          <div className="grid grid-cols-3 gap-1">
+            {(["alarm", "medicine", "appointment"] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, kind }))}
+                className={`flex items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors ${form.kind === kind ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"}`}
+              >
+                {kind === "medicine" ? <Pill className="w-3.5 h-3.5" /> : kind === "appointment" ? <Briefcase className="w-3.5 h-3.5" /> : <BellRing className="w-3.5 h-3.5" />}
+                {alarmKindLabel(kind)}
+              </button>
+            ))}
+          </div>
+          <Input placeholder="Nome do aviso" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
+          <Textarea placeholder="Mensagem opcional" value={form.message} onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))} className="min-h-[64px] resize-none text-sm" />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Data e hora</label>
+              <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm((prev) => ({ ...prev, scheduledAt: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Repeticao</label>
+              <select value={form.repeatType} onChange={(e) => setForm((prev) => ({ ...prev, repeatType: e.target.value as AlarmReminder["repeatType"] }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="once">Uma vez</option>
+                <option value="daily">Diario</option>
+                <option value="weekly">Semanal</option>
+                <option value="interval">Por periodo</option>
+              </select>
+            </div>
+          </div>
+          {form.repeatType === "interval" && (
+            <Input type="number" min={1} max={1440} value={form.intervalMinutes} onChange={(e) => setForm((prev) => ({ ...prev, intervalMinutes: e.target.value }))} placeholder="Intervalo em minutos" />
+          )}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button className="flex-1" disabled={!form.title.trim() || !form.scheduledAt || saving} onClick={createAlarm}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : alarms.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">
+          <BellRing className="w-9 h-9 mx-auto mb-2 opacity-40" />
+          <p className="text-sm font-semibold">Nenhum alarme criado</p>
+          <p className="text-xs mt-1">Crie avisos para remedios, horarios e compromissos.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {alarms.map((alarm) => (
+            <div key={alarm.id} className={`rounded-xl border p-3 bg-card ${alarm.active ? "border-border" : "border-border/60 opacity-70"}`}>
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
+                  {alarm.kind === "medicine" ? <Pill className="w-4 h-4" /> : alarm.kind === "appointment" ? <Briefcase className="w-4 h-4" /> : <BellRing className="w-4 h-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-sm truncate">{alarm.title}</p>
+                    <span className="text-[10px] rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{alarmRepeatLabel(alarm)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{alarmBody(alarm)}</p>
+                  <p className="text-xs font-mono mt-2">
+                    {alarm.active ? "Proximo: " : "Pausado - era: "}
+                    {new Date(alarm.nextTriggerAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <button className="p-2 rounded-lg hover:bg-muted" onClick={() => toggleAlarm(alarm)} aria-label={alarm.active ? "Pausar" : "Ativar"}>
+                    {alarm.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </button>
+                  <button className="p-2 rounded-lg hover:bg-muted" onClick={() => deleteAlarm(alarm.id)} aria-label="Excluir">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
-  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "notes">("calendar");
+  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "clock" | "notes">("calendar");
 
   return (
     <div className="flex flex-col h-full">
@@ -749,7 +1007,7 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
             <p className="text-[11px] text-muted-foreground">Suas ferramentas integradas à Bee</p>
           </div>
         </div>
-        <div className="flex gap-1 p-1 bg-muted rounded-xl">
+        <div className="grid grid-cols-4 gap-1 p-1 bg-muted rounded-xl">
           <button onClick={() => setActiveTab("calendar")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "calendar" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
             <Calendar className="w-3.5 h-3.5" /> Calendário
@@ -757,6 +1015,10 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
           <button onClick={() => setActiveTab("finance")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "finance" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
             <DollarSign className="w-3.5 h-3.5" /> Finanças
+          </button>
+          <button onClick={() => setActiveTab("clock")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "clock" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+            <Clock className="w-3.5 h-3.5" /> Relogio
           </button>
           <button onClick={() => setActiveTab("notes")}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === "notes" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
@@ -768,6 +1030,7 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
       <div className="flex-1 overflow-y-auto min-h-0">
         {activeTab === "calendar" && <CalendarSection authHeaders={authHeaders} />}
         {activeTab === "finance" && <FinanceSection authHeaders={authHeaders} />}
+        {activeTab === "clock" && <ClockSection authHeaders={authHeaders} />}
         {activeTab === "notes" && <NotesSection authHeaders={authHeaders} />}
       </div>
     </div>

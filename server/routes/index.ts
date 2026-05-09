@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { createAdminRouter } from "./admin";
 import { createAuthRouter } from "./auth";
-import { createColmeiaRouter } from "./colmeia";
+import { createColmeiaRouter, startAlarmReminderScheduler } from "./colmeia";
 import { createCommunitiesRouter } from "./communities";
 import { createMessagesRouter } from "./messages";
 import { createMoodRouter } from "./mood";
@@ -20,5 +20,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(createCommunitiesRouter());
 
   const httpServer = createServer(app);
+  startAlarmReminderScheduler();
   return httpServer;
 }

@@ -3,9 +3,11 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
+import { createDueAlarmReactivationPrompts, findOpenAlarmReactivationPrompt } from "../alarm-reactivation";
 import { inferExplicitToolActions } from "../ai-actions";
 import { db } from "../db";
-import { calendarEvents, financeTransactions, notes } from "../../shared/schema";
+import { getBrazilNationalHoliday } from "../holidays";
+import { alarmReminders, calendarEvents, financeTransactions, notes } from "../../shared/schema";
 import {
   buildIntelligentNotifications,
   buildScoreSnapshot,
@@ -69,6 +71,20 @@ const APP_TIPS: { id: number; text: string }[] = [
   { id: 37, text: "💡 Dica: invista uns 5 minutos por semana lendo o Resumo Semanal. Ele mostra onde você está evoluindo e o que está travado antes que vire um problema maior." },
   { id: 38, text: "💡 Dica: o BeeEyes foi feito para ser parte da sua rotina diária, não uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessões longas e raras." },
 ];
+
+function formatRoutineContext(
+  events: Array<{ title: string; startAt: Date; endAt: Date | null; allDay: boolean | null }>,
+  alarms: Array<{ title: string; nextTriggerAt: Date; repeatType: string; kind: string; active: boolean }>,
+) {
+  const eventLines = events.slice(0, 8).map((event) =>
+    `- Calendario: ${event.title} em ${event.startAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: event.allDay ? undefined : "short" })}${event.allDay ? " (dia inteiro)" : ""}`
+  );
+  const alarmLines = alarms.slice(0, 8).map((alarm) =>
+    `- Relogio: ${alarm.title} em ${alarm.nextTriggerAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })} (${alarm.kind}, ${alarm.repeatType})`
+  );
+  const lines = [...eventLines, ...alarmLines];
+  return lines.length > 0 ? `Horarios marcados do usuario:\n${lines.join("\n")}` : "";
+}
 
 export function createMessagesRouter() {
   const router = Router();
@@ -309,10 +325,33 @@ export function createMessagesRouter() {
       }
     }
 
-    const [user, personality, history] = await Promise.all([
+    const now = new Date();
+    const routineUntil = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const [user, personality, history, routineEvents, routineAlarms] = await Promise.all([
       storage.getUser(userId),
       storage.getPersonality(userId),
       storage.getMessagesByUser(userId, 20),
+      db.select({
+        title: calendarEvents.title,
+        startAt: calendarEvents.startAt,
+        endAt: calendarEvents.endAt,
+        allDay: calendarEvents.allDay,
+      })
+        .from(calendarEvents)
+        .where(and(eq(calendarEvents.userId, userId), gte(calendarEvents.startAt, now), lte(calendarEvents.startAt, routineUntil)))
+        .orderBy(calendarEvents.startAt)
+        .limit(10),
+      db.select({
+        title: alarmReminders.title,
+        nextTriggerAt: alarmReminders.nextTriggerAt,
+        repeatType: alarmReminders.repeatType,
+        kind: alarmReminders.kind,
+        active: alarmReminders.active,
+      })
+        .from(alarmReminders)
+        .where(and(eq(alarmReminders.userId, userId), eq(alarmReminders.active, true), gte(alarmReminders.nextTriggerAt, now), lte(alarmReminders.nextTriggerAt, routineUntil)))
+        .orderBy(alarmReminders.nextTriggerAt)
+        .limit(10),
     ]);
 
     if (!user || !personality) {
@@ -333,12 +372,13 @@ export function createMessagesRouter() {
       role: message.role as "user" | "assistant",
       content: message.content,
     }));
+    const routineContext = formatRoutineContext(routineEvents, routineAlarms);
 
     let fullResponse = "";
     try {
       fullResponse = await streamChat(user, personality, chatHistory, content, (chunk) => {
         res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
-      });
+      }, routineContext);
     } catch {
       res.write(`data: ${JSON.stringify({ type: "error", message: "Erro ao gerar resposta" })}\n\n`);
       res.end();
@@ -350,7 +390,27 @@ export function createMessagesRouter() {
     createEvent ??= explicitActions.createEvent;
     logFinance ??= explicitActions.logFinance;
     saveNote ??= explicitActions.saveNote;
-    await storage.createMessage({ userId, role: "assistant", content: cleanText });
+    const alarmReminder = explicitActions.alarmReminder;
+    let assistantMetadata: string | undefined;
+
+    if (alarmReminder?.scheduledAt) {
+      const holiday = getBrazilNationalHoliday(new Date(alarmReminder.scheduledAt));
+      if (holiday) {
+        cleanText = `${holiday.date} é feriado nacional (${holiday.name}). Você quer manter esse despertador mesmo assim?`;
+        assistantMetadata = JSON.stringify({
+          type: "holiday_alarm_confirmation",
+          holiday,
+          alarmDraft: alarmReminder,
+        });
+      }
+    }
+
+    const assistantMessage = await storage.createMessage({
+      userId,
+      role: "assistant",
+      content: cleanText,
+      metadata: assistantMetadata,
+    });
 
     if (achievement) {
       const alreadyHas = await storage.hasAchievement(userId, achievement.type);
@@ -451,23 +511,65 @@ export function createMessagesRouter() {
       }
     }
 
+    if (alarmReminder?.scheduledAt && !assistantMetadata) {
+      try {
+        const scheduledAt = new Date(alarmReminder.scheduledAt);
+        if (!isNaN(scheduledAt.getTime())) {
+          const [alarm] = await db.insert(alarmReminders).values({
+            userId,
+            title: alarmReminder.title,
+            message: alarmReminder.message ?? null,
+            kind: alarmReminder.kind,
+            scheduledAt,
+            nextTriggerAt: scheduledAt,
+            repeatType: alarmReminder.repeatType,
+            intervalMinutes: alarmReminder.repeatType === "interval" ? alarmReminder.intervalMinutes ?? 60 : null,
+            active: true,
+          }).returning();
+          if (alarm) res.write(`data: ${JSON.stringify({ type: "alarm_created", alarm })}\n\n`);
+        }
+      } catch (err) {
+        console.error("[AI Action] alarm insert failed:", err);
+      }
+    }
+
     storage.updateUserStreak(userId).catch(() => {});
     updatePersonalityFromMessage(userId, content, cleanText).catch(() => {});
 
-    res.write(`data: ${JSON.stringify({ type: "done", cleanText })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: "done", cleanText, id: assistantMessage.id, metadata: assistantMessage.metadata ?? null })}\n\n`);
     res.end();
   }));
 
   router.get("/api/proactive", requireAuth, asyncHandler(async (req, res) => {
     const userId = req.userId!;
-    const recentMessages = await storage.getMessagesByUser(userId, 10);
+    const recentMessages = await storage.getMessagesByUser(userId, 50);
+    const openAlarmPrompt = findOpenAlarmReactivationPrompt(recentMessages);
+    if (openAlarmPrompt) {
+      return sendOk(res, {
+        message: openAlarmPrompt.content,
+        id: openAlarmPrompt.id,
+        metadata: openAlarmPrompt.metadata,
+        createdAt: openAlarmPrompt.createdAt,
+      });
+    }
 
-    if (recentMessages.length > 0) {
-      const lastMsg = recentMessages[recentMessages.length - 1];
+    const [alarmPrompt] = await createDueAlarmReactivationPrompts(userId, false);
+    if (alarmPrompt) {
+      return sendOk(res, {
+        message: alarmPrompt.content,
+        id: alarmPrompt.id,
+        metadata: alarmPrompt.metadata,
+        createdAt: alarmPrompt.createdAt,
+      });
+    }
+    const recentForCooldown = recentMessages.slice(-10);
+
+    if (recentForCooldown.length > 0) {
+      const lastMsg = recentForCooldown[recentForCooldown.length - 1];
       const minutesSinceLast = (Date.now() - new Date(lastMsg.createdAt).getTime()) / 60000;
       if (minutesSinceLast < 15) return sendOk(res, { message: null });
 
-      const lastProactive = [...recentMessages].reverse().find((message) => {
+      const lastProactive = [...recentForCooldown].reverse().find((message) => {
         try { return JSON.parse(message.metadata || "{}").proactive === true; } catch { return false; }
       });
       if (lastProactive) {

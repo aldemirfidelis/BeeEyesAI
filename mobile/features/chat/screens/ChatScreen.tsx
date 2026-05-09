@@ -168,6 +168,54 @@ export default function ChatScreen() {
     },
   });
 
+  const resolveHolidayAlarm = useMutation({
+    mutationFn: async ({ messageId, meta, decision }: { messageId: string; meta: any; decision: "create" | "skip" }) => {
+      const alarmDraft = meta?.alarmDraft;
+      const holidayName = meta?.holiday?.name ?? "feriado";
+      if (!alarmDraft) throw new Error("Alarme inválido");
+
+      if (decision === "create") {
+        await api.post("/api/colmeia/alarms", alarmDraft);
+      }
+
+      const content = decision === "create"
+        ? `Combinado. Criei o despertador mesmo sendo ${holidayName}.`
+        : `Tudo bem. Não criei esse despertador para ${holidayName}.`;
+      const metadata = JSON.stringify({ type: "holiday_alarm_resolved", decision });
+      await api.patch(`/api/messages/${messageId}`, { content, metadata });
+      return { messageId, content, metadata };
+    },
+    onSuccess: ({ messageId, content, metadata }) => {
+      setMessages(chatMessages.map((message) => (message.id === messageId ? { ...message, content, metadata } : message)));
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["colmeia-alarms"] });
+    },
+  });
+
+  const resolveAlarmReactivation = useMutation({
+    mutationFn: async ({ messageId, meta, decision }: { messageId: string; meta: any; decision: "activate" | "keep_paused" }) => {
+      const alarmId = meta?.alarmId;
+      const title = meta?.title ?? "alarme";
+      if (!alarmId) throw new Error("Alarme invalido");
+
+      if (decision === "activate") {
+        await api.patch(`/api/colmeia/alarms/${alarmId}`, { active: true });
+      }
+
+      const content = decision === "activate"
+        ? `Combinado. Reativei o alarme "${title}".`
+        : `Tudo bem. Mantive o alarme "${title}" pausado.`;
+      const metadata = JSON.stringify({ type: "reactivate_alarm_resolved", decision, alarmId });
+      await api.patch(`/api/messages/${messageId}`, { content, metadata });
+      return { messageId, content, metadata };
+    },
+    onSuccess: ({ messageId, content, metadata }) => {
+      setMessages(chatMessages.map((message) => (message.id === messageId ? { ...message, content, metadata } : message)));
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["colmeia-alarms"] });
+    },
+  });
+
   useEffect(() => {
     if (Array.isArray(initialMessages) && chatMessages.length === 0) setMessages(initialMessages);
   }, [initialMessages, chatMessages.length, setMessages]);
@@ -177,7 +225,13 @@ export default function ChatScreen() {
       try {
         const { data } = await api.get("/api/proactive");
         if (!data?.message) return;
-        addMessage({ id: `proactive-${Date.now()}`, role: "assistant", content: data.message, createdAt: new Date().toISOString(), metadata: JSON.stringify({ proactive: true }) });
+        addMessage({
+          id: data.id ?? `proactive-${Date.now()}`,
+          role: "assistant",
+          content: data.message,
+          createdAt: data.createdAt ?? new Date().toISOString(),
+          metadata: data.metadata ?? JSON.stringify({ proactive: true }),
+        });
         pulseEyeExpression("happy", "neutral", 4000);
       } catch {}
     };
@@ -551,6 +605,22 @@ export default function ChatScreen() {
                 <View>
                   <ChatMessage role={item.role} content={item.content} createdAt={item.createdAt} />
                   {isConnectionRequestMeta(meta) ? <ConnectionRequestCard styles={styles} pending={resolveConnection.isPending} meta={meta} onAccept={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "accept" })} onReject={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "reject" })} /> : null}
+                  {rawMeta.type === "holiday_alarm_confirmation" ? (
+                    <HolidayAlarmCard
+                      styles={styles}
+                      pending={resolveHolidayAlarm.isPending}
+                      onCreate={() => resolveHolidayAlarm.mutate({ messageId: item.id, meta: rawMeta, decision: "create" })}
+                      onSkip={() => resolveHolidayAlarm.mutate({ messageId: item.id, meta: rawMeta, decision: "skip" })}
+                    />
+                  ) : null}
+                  {rawMeta.type === "reactivate_alarm_confirmation" ? (
+                    <AlarmReactivationCard
+                      styles={styles}
+                      pending={resolveAlarmReactivation.isPending}
+                      onActivate={() => resolveAlarmReactivation.mutate({ messageId: item.id, meta: rawMeta, decision: "activate" })}
+                      onKeepPaused={() => resolveAlarmReactivation.mutate({ messageId: item.id, meta: rawMeta, decision: "keep_paused" })}
+                    />
+                  ) : null}
                   {isNetworkDigestMeta(meta) ? <NetworkDigestCard meta={meta} styles={styles} /> : null}
                   {isNewsDigestMeta(meta) ? <NewsDigestCard meta={meta} styles={styles} /> : null}
                 </View>
@@ -669,6 +739,32 @@ function ConnectionRequestCard({ meta, pending, onAccept, onReject, styles }: { 
       <View style={styles.metaActions}>
         <TouchableOpacity style={styles.metaSecondaryButton} onPress={onReject} disabled={pending}><Text style={styles.metaSecondaryText}>{t("chat_reject")}</Text></TouchableOpacity>
         <TouchableOpacity style={styles.metaPrimaryButton} onPress={onAccept} disabled={pending}><Text style={styles.metaPrimaryText}>{pending ? "..." : t("chat_accept")}</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function HolidayAlarmCard({ pending, onCreate, onSkip, styles }: { pending: boolean; onCreate: () => void; onSkip: () => void; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={styles.metaCard}>
+      <Text style={styles.metaTitle}>Despertador em feriado</Text>
+      <Text style={styles.metaText}>Escolha se quer manter esse aviso no Relogio.</Text>
+      <View style={styles.metaActions}>
+        <TouchableOpacity style={styles.metaSecondaryButton} onPress={onSkip} disabled={pending}><Text style={styles.metaSecondaryText}>Nao despertar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.metaPrimaryButton} onPress={onCreate} disabled={pending}><Text style={styles.metaPrimaryText}>{pending ? "..." : "Despertar"}</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function AlarmReactivationCard({ pending, onActivate, onKeepPaused, styles }: { pending: boolean; onActivate: () => void; onKeepPaused: () => void; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={styles.metaCard}>
+      <Text style={styles.metaTitle}>Reativar alarme?</Text>
+      <Text style={styles.metaText}>Esse alarme recorrente ficou pausado hoje.</Text>
+      <View style={styles.metaActions}>
+        <TouchableOpacity style={styles.metaSecondaryButton} onPress={onKeepPaused} disabled={pending}><Text style={styles.metaSecondaryText}>Manter pausado</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.metaPrimaryButton} onPress={onActivate} disabled={pending}><Text style={styles.metaPrimaryText}>{pending ? "..." : "Reativar"}</Text></TouchableOpacity>
       </View>
     </View>
   );

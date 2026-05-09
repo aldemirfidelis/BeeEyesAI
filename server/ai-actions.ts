@@ -19,10 +19,20 @@ export type SaveNoteAction = {
   title?: string;
 };
 
+export type AlarmReminderAction = {
+  title: string;
+  message?: string;
+  kind: "alarm" | "medicine" | "appointment";
+  scheduledAt: string;
+  repeatType: "once" | "daily" | "weekly" | "interval";
+  intervalMinutes?: number | null;
+};
+
 export type ExplicitToolActions = {
   createEvent?: CreateEventAction;
   logFinance?: LogFinanceAction;
   saveNote?: SaveNoteAction;
+  alarmReminder?: AlarmReminderAction;
 };
 
 function stripDiacritics(value: string): string {
@@ -181,6 +191,54 @@ function inferNoteAction(message: string, normalized: string): SaveNoteAction | 
   };
 }
 
+function inferAlarmAction(message: string, normalized: string): AlarmReminderAction | undefined {
+  const hasAlarmIntent = /\b(despert|acord|alarme|avise|avisar|lembre|lembrar|notifiq|toque)\w*\b/.test(normalized);
+  const mentionsMedicine = /\b(remedio|medicamento|comprimido|dose|tomar)\b/.test(normalized);
+  const mentionsAppointment = /\b(compromisso|reuniao|consulta|evento)\b/.test(normalized);
+  if (!hasAlarmIntent && !mentionsMedicine) return undefined;
+
+  const dateTime = parseDateTimeFromMessage(message);
+  if (!dateTime) return undefined;
+
+  let repeatType: AlarmReminderAction["repeatType"] = "once";
+  let intervalMinutes: number | null = null;
+
+  const intervalMatch = normalized.match(/\b(?:a cada|de)\s+(\d{1,2})\s*(h|hora|horas|min|minutos)\b/);
+  if (intervalMatch) {
+    repeatType = "interval";
+    const amount = Number(intervalMatch[1]);
+    intervalMinutes = intervalMatch[2].startsWith("h") ? amount * 60 : amount;
+  } else if (/\b(todo dia|todos os dias|diario|diaria|diariamente)\b/.test(normalized)) {
+    repeatType = "daily";
+  } else if (/\b(toda semana|semanal|semanalmente)\b/.test(normalized)) {
+    repeatType = "weekly";
+  }
+
+  const kind: AlarmReminderAction["kind"] = mentionsMedicine ? "medicine" : mentionsAppointment ? "appointment" : "alarm";
+  let title = message
+    .replace(/\b(?:me|para|por favor)\b/gi, " ")
+    .replace(/\b(?:desperte|despertar|acorde|acordar|alarme|avise|avisar|lembre|lembrar|notifique|toque)\b/gi, " ")
+    .replace(/\b(?:dia\s+)?\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b/gi, " ")
+    .replace(/(?:[aÃ ]s|@)\s*\d{1,2}(?:[:h]\d{2})?\s*h?\b/gi, " ")
+    .replace(/\ba\s*\d{1,2}(?:[:h]\d{2})?\s*h?\b/gi, " ")
+    .replace(/\b(?:a cada|de)\s+\d{1,2}\s*(?:h|hora|horas|min|minutos)\b/gi, " ")
+    .replace(/\b(?:todo dia|todos os dias|diario|diaria|diariamente|toda semana|semanal|semanalmente)\b/gi, " ");
+
+  title = cleanSpaces(title.replace(/^[:,.-]+|[:,.-]+$/g, ""));
+  if (!title) {
+    title = kind === "medicine" ? "Tomar remedio" : kind === "appointment" ? "Compromisso" : "Despertar";
+  }
+
+  return {
+    title: titleCaseFirst(title),
+    message: kind === "medicine" ? `Hora de tomar: ${titleCaseFirst(title)}` : undefined,
+    kind,
+    scheduledAt: dateTime.startAt.toISOString(),
+    repeatType,
+    intervalMinutes,
+  };
+}
+
 export function inferExplicitToolActions(message: string): ExplicitToolActions {
   const normalized = normalize(message);
 
@@ -188,5 +246,6 @@ export function inferExplicitToolActions(message: string): ExplicitToolActions {
     createEvent: inferEventAction(message, normalized),
     logFinance: inferFinanceAction(message, normalized),
     saveNote: inferNoteAction(message, normalized),
+    alarmReminder: inferAlarmAction(message, normalized),
   };
 }

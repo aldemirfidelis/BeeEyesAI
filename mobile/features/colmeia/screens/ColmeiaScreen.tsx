@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
-  ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions,
+  ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions, Vibration,
 } from "react-native";
+import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@mobile/lib/api";
+import { CHANNEL, requestNotificationPermission } from "@mobile/lib/notifications";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 
@@ -46,6 +48,20 @@ interface Note {
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AlarmReminder {
+  id: string;
+  title: string;
+  message?: string | null;
+  kind: "alarm" | "medicine" | "appointment";
+  scheduledAt: string;
+  nextTriggerAt: string;
+  lastTriggeredAt?: string | null;
+  repeatType: "once" | "daily" | "weekly" | "interval";
+  intervalMinutes?: number | null;
+  active: boolean;
+  localNotificationId?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -947,6 +963,278 @@ function NotesSection({ colors }: { colors: any }) {
   );
 }
 
+function alarmKindLabel(kind: AlarmReminder["kind"]) {
+  if (kind === "medicine") return "Remedio";
+  if (kind === "appointment") return "Compromisso";
+  return "Despertador";
+}
+
+function alarmRepeatLabel(alarm: AlarmReminder) {
+  if (alarm.repeatType === "daily") return "Diario";
+  if (alarm.repeatType === "weekly") return "Semanal";
+  if (alarm.repeatType === "interval") return `A cada ${alarm.intervalMinutes ?? 60} min`;
+  return "Uma vez";
+}
+
+function alarmBody(alarm: Pick<AlarmReminder, "kind" | "title" | "message">) {
+  if (alarm.message?.trim()) return alarm.message.trim();
+  if (alarm.kind === "medicine") return `Hora de tomar: ${alarm.title}`;
+  if (alarm.kind === "appointment") return `Compromisso agora: ${alarm.title}`;
+  return alarm.title;
+}
+
+async function scheduleNativeAlarm(alarm: Pick<AlarmReminder, "id" | "title" | "message" | "kind" | "nextTriggerAt" | "repeatType" | "intervalMinutes">) {
+  const granted = await requestNotificationPermission();
+  if (!granted) return null;
+
+  const date = new Date(alarm.nextTriggerAt);
+  if (date.getTime() <= Date.now()) return null;
+
+  const content = {
+    title: `BeeEyes · ${alarmKindLabel(alarm.kind)}`,
+    body: alarmBody(alarm),
+    data: { source: "bee-alarm", screen: "/(tabs)/colmeia", alarmId: alarm.id },
+    sound: true,
+    ...(Platform.OS === "android" && { channelId: CHANNEL.ALARMS }),
+  };
+
+  if (alarm.repeatType === "daily") {
+    return Notifications.scheduleNotificationAsync({
+      content,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: date.getHours(),
+        minute: date.getMinutes(),
+      },
+    });
+  }
+
+  if (alarm.repeatType === "weekly") {
+    return Notifications.scheduleNotificationAsync({
+      content,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+        weekday: date.getDay() + 1,
+        hour: date.getHours(),
+        minute: date.getMinutes(),
+      },
+    });
+  }
+
+  if (alarm.repeatType === "interval") {
+    return Notifications.scheduleNotificationAsync({
+      content,
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: Math.max(60, (alarm.intervalMinutes ?? 60) * 60),
+        repeats: true,
+      },
+    });
+  }
+
+  return Notifications.scheduleNotificationAsync({
+    content,
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date,
+    },
+  });
+}
+
+function ClockSection({ colors }: { colors: any }) {
+  const [alarms, setAlarms] = useState<AlarmReminder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    message: "",
+    kind: "alarm" as AlarmReminder["kind"],
+    scheduledAt: "",
+    repeatType: "once" as AlarmReminder["repeatType"],
+    intervalMinutes: "240",
+  });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/colmeia/alarms");
+      const rows: AlarmReminder[] = res.data ?? [];
+      setAlarms(rows);
+      for (const alarm of rows) {
+        if (!alarm.active || alarm.localNotificationId || new Date(alarm.nextTriggerAt).getTime() <= Date.now()) continue;
+        const localId = await scheduleNativeAlarm(alarm);
+        if (localId) {
+          await api.patch(`/api/colmeia/alarms/${alarm.id}`, { localNotificationId: localId }).catch(() => {});
+        }
+      }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const createAlarm = async () => {
+    if (!form.title.trim() || !form.scheduledAt.trim()) {
+      Alert.alert("Atenção", "Informe o nome e a data/hora do alarme.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        message: form.message.trim() || null,
+        kind: form.kind,
+        scheduledAt: new Date(form.scheduledAt).toISOString(),
+        repeatType: form.repeatType,
+        intervalMinutes: form.repeatType === "interval" ? Number(form.intervalMinutes) : null,
+      };
+      const res = await api.post("/api/colmeia/alarms", payload);
+      const created: AlarmReminder = res.data;
+      const localId = await scheduleNativeAlarm(created);
+      if (localId) {
+        await api.patch(`/api/colmeia/alarms/${created.id}`, { localNotificationId: localId }).catch(() => {});
+        created.localNotificationId = localId;
+      }
+      Vibration.vibrate([0, 80, 80, 80]);
+      setAlarms((prev) => [created, ...prev]);
+      setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatType: "once", intervalMinutes: "240" });
+      setShowAdd(false);
+    } catch {
+      Alert.alert("Erro", "Não foi possível criar o alarme.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAlarm = async (alarm: AlarmReminder) => {
+    const nextActive = !alarm.active;
+    try {
+      if (!nextActive && alarm.localNotificationId) {
+        await Notifications.cancelScheduledNotificationAsync(alarm.localNotificationId).catch(() => {});
+      }
+      let localNotificationId: string | null = nextActive ? alarm.localNotificationId ?? null : null;
+      if (nextActive && !localNotificationId) {
+        localNotificationId = await scheduleNativeAlarm(alarm);
+      }
+      const res = await api.patch(`/api/colmeia/alarms/${alarm.id}`, { active: nextActive, localNotificationId });
+      setAlarms((prev) => prev.map((item) => item.id === alarm.id ? res.data : item));
+    } catch {
+      Alert.alert("Erro", "Não foi possível atualizar o alarme.");
+    }
+  };
+
+  const deleteAlarm = (alarm: AlarmReminder) => {
+    Alert.alert("Excluir alarme", `Excluir "${alarm.title}"?`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Excluir", style: "destructive", onPress: async () => {
+        if (alarm.localNotificationId) await Notifications.cancelScheduledNotificationAsync(alarm.localNotificationId).catch(() => {});
+        await api.delete(`/api/colmeia/alarms/${alarm.id}`).catch(() => {});
+        setAlarms((prev) => prev.filter((item) => item.id !== alarm.id));
+      }},
+    ]);
+  };
+
+  return (
+    <View>
+      <View style={[alarmStyles.hero, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={localStyles.row}>
+          <Feather name="clock" size={18} color={colors.primaryDark} />
+          <Text style={[alarmStyles.heroTitle, { color: colors.foreground }]}>Relogio inteligente</Text>
+        </View>
+        <Text style={[alarmStyles.heroText, { color: colors.muted }]}>Despertadores locais com som e vibracao para remedios, periodos e compromissos.</Text>
+        <TouchableOpacity style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark, marginBottom: 0 }]} onPress={() => setShowAdd((v) => !v)}>
+          <Feather name="plus" size={16} color="#fff" />
+          <Text style={localStyles.btnPrimaryText}>Novo alarme</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showAdd && (
+        <View style={[alarmStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={alarmStyles.kindRow}>
+            {(["alarm", "medicine", "appointment"] as const).map((kind) => (
+              <TouchableOpacity
+                key={kind}
+                style={[alarmStyles.kindBtn, { borderColor: form.kind === kind ? colors.primaryDark : colors.border, backgroundColor: form.kind === kind ? colors.primaryDark + "18" : colors.background }]}
+                onPress={() => setForm((p) => ({ ...p, kind }))}
+              >
+                <Feather name={kind === "medicine" ? "activity" : kind === "appointment" ? "briefcase" : "bell"} size={13} color={form.kind === kind ? colors.primaryDark : colors.muted} />
+                <Text style={[alarmStyles.kindText, { color: form.kind === kind ? colors.primaryDark : colors.muted }]}>{alarmKindLabel(kind)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Nome do aviso" placeholderTextColor={colors.muted} value={form.title} onChangeText={(v) => setForm((p) => ({ ...p, title: v }))} />
+          <TextInput style={[localStyles.input, localStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Mensagem opcional" placeholderTextColor={colors.muted} value={form.message} onChangeText={(v) => setForm((p) => ({ ...p, message: v }))} multiline />
+          <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Data e hora: 2026-07-10 09:00" placeholderTextColor={colors.muted} value={form.scheduledAt} onChangeText={(v) => setForm((p) => ({ ...p, scheduledAt: v }))} />
+          <View style={alarmStyles.kindRow}>
+            {(["once", "daily", "weekly", "interval"] as const).map((repeatType) => (
+              <TouchableOpacity key={repeatType} style={[alarmStyles.repeatBtn, { borderColor: form.repeatType === repeatType ? colors.primaryDark : colors.border }]} onPress={() => setForm((p) => ({ ...p, repeatType }))}>
+                <Text style={[alarmStyles.kindText, { color: form.repeatType === repeatType ? colors.primaryDark : colors.muted }]}>{repeatType === "once" ? "Uma vez" : repeatType === "daily" ? "Diario" : repeatType === "weekly" ? "Semanal" : "Periodo"}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {form.repeatType === "interval" && (
+            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} keyboardType="number-pad" placeholder="Intervalo em minutos" placeholderTextColor={colors.muted} value={form.intervalMinutes} onChangeText={(v) => setForm((p) => ({ ...p, intervalMinutes: v }))} />
+          )}
+          <View style={noteStyles.formActions}>
+            <TouchableOpacity onPress={() => setShowAdd(false)}>
+              <Text style={[noteStyles.cancelText, { color: colors.muted }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[noteStyles.saveBtn, { backgroundColor: colors.primaryDark }]} onPress={createAlarm} disabled={saving}>
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={noteStyles.saveBtnText}>Salvar</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {loading ? (
+        <ActivityIndicator color={colors.primaryDark} style={{ marginTop: 24 }} />
+      ) : alarms.length === 0 ? (
+        <View style={noteStyles.empty}>
+          <Feather name="bell" size={32} color={colors.border} />
+          <Text style={[noteStyles.emptyTitle, { color: colors.muted }]}>Nenhum alarme ainda</Text>
+          <Text style={[noteStyles.emptyHint, { color: colors.muted }]}>Crie avisos para remedios, horarios e compromissos.</Text>
+        </View>
+      ) : alarms.map((alarm) => (
+        <View key={alarm.id} style={[alarmStyles.card, { backgroundColor: colors.card, borderColor: colors.border, opacity: alarm.active ? 1 : 0.65 }]}>
+          <View style={alarmStyles.alarmHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[alarmStyles.alarmTitle, { color: colors.foreground }]}>{alarm.title}</Text>
+              <Text style={[alarmStyles.alarmBody, { color: colors.muted }]}>{alarmBody(alarm)}</Text>
+              <Text style={[alarmStyles.alarmMeta, { color: colors.muted }]}>
+                {alarm.active ? "Proximo: " : "Pausado - era: "}
+                {new Date(alarm.nextTriggerAt).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · {alarmRepeatLabel(alarm)}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => toggleAlarm(alarm)} style={[alarmStyles.iconBtn, { borderColor: colors.border }]}>
+              <Feather name={alarm.active ? "pause" : "play"} size={15} color={colors.muted} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => deleteAlarm(alarm)} style={[alarmStyles.iconBtn, { borderColor: colors.border }]}>
+              <Feather name="trash-2" size={15} color={colors.muted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const alarmStyles = StyleSheet.create({
+  hero: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10, marginBottom: 12 },
+  heroTitle: { fontSize: 15, fontFamily: FONTS.sans },
+  heroText: { fontSize: 12, lineHeight: 17 },
+  card: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10 },
+  kindRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
+  kindBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", gap: 4 },
+  repeatBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center" },
+  kindText: { fontSize: 11, fontFamily: FONTS.sans },
+  alarmHeader: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  alarmTitle: { fontSize: 15, fontFamily: FONTS.sans },
+  alarmBody: { fontSize: 12, marginTop: 3 },
+  alarmMeta: { fontSize: 11, marginTop: 8 },
+  iconBtn: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+});
+
 const finStyles = StyleSheet.create({
   catDot: { width: 8, height: 8, borderRadius: 4 },
   catName: { fontSize: 12, width: 80 },
@@ -1008,7 +1296,7 @@ export default function ColmeiaScreen() {
   const themeMode = useUIStore((s) => s.themeMode);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "notes">("calendar");
+  const [activeTab, setActiveTab] = useState<"calendar" | "finance" | "clock" | "notes">("calendar");
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -1047,6 +1335,15 @@ export default function ColmeiaScreen() {
             Notas
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabSwitcherBtn, activeTab === "clock" && { backgroundColor: colors.card }]}
+          onPress={() => setActiveTab("clock")}
+        >
+          <Feather name="clock" size={14} color={activeTab === "clock" ? colors.primaryDark : colors.muted} />
+          <Text style={[styles.tabSwitcherText, { color: activeTab === "clock" ? colors.primaryDark : colors.muted }]}>
+            Relogio
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -1057,6 +1354,7 @@ export default function ColmeiaScreen() {
       >
         {activeTab === "calendar" && <CalendarSection colors={colors} styles={styles} />}
         {activeTab === "finance" && <FinanceSection colors={colors} styles={styles} />}
+        {activeTab === "clock" && <ClockSection colors={colors} />}
         {activeTab === "notes" && <NotesSection colors={colors} />}
       </ScrollView>
     </View>

@@ -16,7 +16,7 @@ interface ChatState {
   addMessage: (msg: Message) => void;
   setIsTyping: (v: boolean) => void;
   appendStream: (chunk: string) => void;
-  finalizeStream: (finalContent: string) => void;
+  finalizeStream: (finalContent: string, metadata?: string | null, id?: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -25,20 +25,25 @@ export const useChatStore = create<ChatState>((set) => ({
   streamingContent: "",
 
   setMessages: (messages) => set({ messages }),
-  addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
+  addMessage: (msg) => set((s) => (
+    s.messages.some((message) => message.id === msg.id)
+      ? s
+      : { messages: [...s.messages, msg] }
+  )),
   setIsTyping: (v) => set({ isTyping: v }),
   appendStream: (chunk) => set((s) => ({ streamingContent: s.streamingContent + chunk })),
-  finalizeStream: (finalContent) =>
+  finalizeStream: (finalContent, metadata = null, id) =>
     set((s) => ({
       streamingContent: "",
       isTyping: false,
       messages: [
         ...s.messages,
         {
-          id: Date.now().toString(),
+          id: id ?? Date.now().toString(),
           role: "assistant",
           content: finalContent,
           createdAt: new Date().toISOString(),
+          metadata,
         },
       ],
     })),

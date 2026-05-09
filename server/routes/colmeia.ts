@@ -1,16 +1,54 @@
 import { Router } from "express";
-import { and, between, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
+import { createDueAlarmReactivationPrompts, getAlarmReactivationReviewAt } from "../alarm-reactivation";
 import { db } from "../db";
 import { requireAuth } from "../middleware/requireAuth";
+import { sendPushToUser } from "../push";
 import {
+  alarmReminders,
   calendarEvents,
   financeTransactions,
   notes,
   userIntegrations,
 } from "../../shared/schema";
+
+const ALARM_KINDS = new Set(["alarm", "medicine", "appointment"]);
+const ALARM_REPEAT_TYPES = new Set(["once", "daily", "weekly", "interval"]);
+
+function normalizeAlarmKind(value: unknown) {
+  return typeof value === "string" && ALARM_KINDS.has(value) ? value : "alarm";
+}
+
+function normalizeRepeatType(value: unknown) {
+  return typeof value === "string" && ALARM_REPEAT_TYPES.has(value) ? value : "once";
+}
+
+function computeNextAlarmTrigger(current: Date, repeatType: string, intervalMinutes?: number | null): Date | null {
+  if (repeatType === "once") return null;
+  const next = new Date(current);
+  if (repeatType === "daily") next.setDate(next.getDate() + 1);
+  else if (repeatType === "weekly") next.setDate(next.getDate() + 7);
+  else if (repeatType === "interval") next.setMinutes(next.getMinutes() + Math.max(1, intervalMinutes ?? 60));
+  else return null;
+
+  const now = new Date();
+  while (next <= now) {
+    if (repeatType === "daily") next.setDate(next.getDate() + 1);
+    else if (repeatType === "weekly") next.setDate(next.getDate() + 7);
+    else next.setMinutes(next.getMinutes() + Math.max(1, intervalMinutes ?? 60));
+  }
+  return next;
+}
+
+function buildAlarmBody(row: { kind: string; title: string; message: string | null }) {
+  if (row.message?.trim()) return row.message.trim();
+  if (row.kind === "medicine") return `Hora de tomar: ${row.title}`;
+  if (row.kind === "appointment") return `Compromisso agora: ${row.title}`;
+  return row.title;
+}
 
 // ── Google Calendar OAuth ─────────────────────────────────────────────────────
 
@@ -362,6 +400,141 @@ export function createColmeiaRouter(): Router {
     return sendOk(res, { deleted: true });
   }));
 
+  // ── Clock / Alarm Reminders ───────────────────────────────────────────────
+
+  router.get("/api/colmeia/alarms", requireAuth, asyncHandler(async (req, res) => {
+    const rows = await db
+      .select()
+      .from(alarmReminders)
+      .where(eq(alarmReminders.userId, req.userId!))
+      .orderBy(desc(alarmReminders.active), alarmReminders.nextTriggerAt);
+    return sendOk(res, rows);
+  }));
+
+  router.post("/api/colmeia/alarms", requireAuth, asyncHandler(async (req, res) => {
+    const { title, message, kind, scheduledAt, repeatType, intervalMinutes, localNotificationId } = req.body ?? {};
+    if (!title?.trim() || !scheduledAt) throw badRequest("title e scheduledAt são obrigatórios");
+
+    const start = new Date(scheduledAt);
+    if (Number.isNaN(start.getTime())) throw badRequest("scheduledAt inválido");
+
+    const normalizedRepeat = normalizeRepeatType(repeatType);
+    const normalizedInterval = normalizedRepeat === "interval"
+      ? Math.max(1, Math.min(24 * 60, parseInt(String(intervalMinutes ?? 60))))
+      : null;
+
+    const [row] = await db
+      .insert(alarmReminders)
+      .values({
+        userId: req.userId!,
+        title: title.trim(),
+        message: message?.trim() ?? null,
+        kind: normalizeAlarmKind(kind),
+        scheduledAt: start,
+        nextTriggerAt: start,
+        repeatType: normalizedRepeat,
+        intervalMinutes: normalizedInterval,
+        localNotificationId: localNotificationId?.trim() ?? null,
+        active: true,
+      })
+      .returning();
+
+    return sendOk(res, row);
+  }));
+
+  router.patch("/api/colmeia/alarms/:id", requireAuth, asyncHandler(async (req, res) => {
+    const [existing] = await db
+      .select()
+      .from(alarmReminders)
+      .where(and(eq(alarmReminders.id, req.params.id), eq(alarmReminders.userId, req.userId!)))
+      .limit(1);
+    if (!existing) throw notFound("Alarme não encontrado");
+
+    const now = new Date();
+    const updates: Partial<typeof alarmReminders.$inferInsert> = { updatedAt: now };
+    if (typeof req.body?.active === "boolean") updates.active = req.body.active;
+    if (typeof req.body?.localNotificationId === "string") updates.localNotificationId = req.body.localNotificationId.trim() || null;
+
+    if (req.body?.scheduledAt) {
+      const start = new Date(req.body.scheduledAt);
+      if (Number.isNaN(start.getTime())) throw badRequest("scheduledAt inválido");
+      updates.scheduledAt = start;
+      updates.nextTriggerAt = start;
+    }
+    if (typeof req.body?.title === "string" && req.body.title.trim()) updates.title = req.body.title.trim();
+    if (typeof req.body?.message === "string") updates.message = req.body.message.trim() || null;
+    if (req.body?.kind) updates.kind = normalizeAlarmKind(req.body.kind);
+    if (req.body?.repeatType) updates.repeatType = normalizeRepeatType(req.body.repeatType);
+    if (updates.repeatType === "interval" || existing.repeatType === "interval") {
+      const rawInterval = req.body?.intervalMinutes ?? existing.intervalMinutes ?? 60;
+      updates.intervalMinutes = Math.max(1, Math.min(24 * 60, parseInt(String(rawInterval))));
+    }
+    const nextRepeatType = updates.repeatType ?? existing.repeatType;
+    if (typeof updates.active === "boolean") {
+      if (!updates.active && existing.active && nextRepeatType !== "once") {
+        updates.pausedAt = now;
+        updates.reactivationReminderAt = getAlarmReactivationReviewAt(now);
+        updates.reactivationPromptedAt = null;
+      } else if (updates.active) {
+        updates.pausedAt = null;
+        updates.reactivationReminderAt = null;
+        updates.reactivationPromptedAt = null;
+      }
+    }
+
+    const [updated] = await db
+      .update(alarmReminders)
+      .set(updates)
+      .where(eq(alarmReminders.id, req.params.id))
+      .returning();
+
+    return sendOk(res, updated);
+  }));
+
+  router.delete("/api/colmeia/alarms/:id", requireAuth, asyncHandler(async (req, res) => {
+    const [existing] = await db
+      .select({ id: alarmReminders.id })
+      .from(alarmReminders)
+      .where(and(eq(alarmReminders.id, req.params.id), eq(alarmReminders.userId, req.userId!)))
+      .limit(1);
+    if (!existing) throw notFound("Alarme não encontrado");
+
+    await db.delete(alarmReminders).where(eq(alarmReminders.id, req.params.id));
+    return sendOk(res, { deleted: true });
+  }));
+
+  router.post("/api/colmeia/alarms/due", requireAuth, asyncHandler(async (req, res) => {
+    const now = new Date();
+    const due = await db
+      .select()
+      .from(alarmReminders)
+      .where(and(
+        eq(alarmReminders.userId, req.userId!),
+        eq(alarmReminders.active, true),
+        lte(alarmReminders.nextTriggerAt, now),
+      ))
+      .orderBy(alarmReminders.nextTriggerAt)
+      .limit(10);
+
+    const triggered = [];
+    for (const row of due) {
+      const next = computeNextAlarmTrigger(row.nextTriggerAt, row.repeatType, row.intervalMinutes);
+      const [updated] = await db
+        .update(alarmReminders)
+        .set({
+          lastTriggeredAt: now,
+          nextTriggerAt: next ?? row.nextTriggerAt,
+          active: next ? row.active : false,
+          updatedAt: now,
+        })
+        .where(eq(alarmReminders.id, row.id))
+        .returning();
+      triggered.push({ ...updated, body: buildAlarmBody(row) });
+    }
+
+    return sendOk(res, triggered);
+  }));
+
   // ── Notes ─────────────────────────────────────────────────────────────────
 
   router.get("/api/colmeia/notes", requireAuth, asyncHandler(async (req, res) => {
@@ -421,4 +594,51 @@ export function createColmeiaRouter(): Router {
   }));
 
   return router;
+}
+
+let alarmSchedulerStarted = false;
+
+export function startAlarmReminderScheduler() {
+  if (alarmSchedulerStarted) return;
+  alarmSchedulerStarted = true;
+
+  const tick = async () => {
+    const now = new Date();
+    try {
+      const due = await db
+        .select()
+        .from(alarmReminders)
+        .where(and(eq(alarmReminders.active, true), lte(alarmReminders.nextTriggerAt, now)))
+        .orderBy(alarmReminders.nextTriggerAt)
+        .limit(25);
+
+      for (const row of due) {
+        const next = computeNextAlarmTrigger(row.nextTriggerAt, row.repeatType, row.intervalMinutes);
+        await db
+          .update(alarmReminders)
+          .set({
+            lastTriggeredAt: now,
+            nextTriggerAt: next ?? row.nextTriggerAt,
+            active: next ? row.active : false,
+            updatedAt: now,
+          })
+          .where(eq(alarmReminders.id, row.id));
+
+        await sendPushToUser(
+          row.userId,
+          row.kind === "medicine" ? "BeeEyes · Hora do remédio" : row.kind === "appointment" ? "BeeEyes · Compromisso" : "BeeEyes · Despertador",
+          buildAlarmBody(row),
+          { source: "bee-alarm", screen: "/(tabs)/colmeia", alarmId: row.id },
+          "bee-alarms",
+        );
+      }
+
+      await createDueAlarmReactivationPrompts(undefined, true);
+    } catch {
+      // Scheduler failures are non-blocking; the next tick tries again.
+    }
+  };
+
+  setInterval(tick, 30_000).unref?.();
+  tick();
 }

@@ -73,6 +73,8 @@ export function useChat() {
       let fullText = "";
       let newsFetched: { query: string; items: any[] } | null = null;
       let reactedToResponse = false;
+      let doneMetadata: string | null = null;
+      let doneId: string | undefined;
 
       const lines = raw.split("\n");
       for (const line of lines) {
@@ -107,11 +109,18 @@ export function useChat() {
             const label = tx?.type === "income" ? "Receita" : "Despesa";
             const amount = tx ? ` R$ ${(tx.amountCents / 100).toFixed(2)}` : "";
             showAchievement({ id: "finance_logged", type: "finance_logged", title: `${label} registrada!`, description: (tx?.description || tx?.category || "Finanças") + amount });
+          } else if (event.type === "alarm_created") {
+            queryClient.invalidateQueries({ queryKey: ["colmeia-alarms"] });
+            showAchievement({ id: "alarm_created", type: "alarm_created", title: "Despertador criado!", description: event.alarm?.title || "Adicionado ao Relogio" });
+          } else if (event.type === "done") {
+            doneMetadata = event.metadata ?? null;
+            doneId = event.id;
+            if (event.cleanText) fullText = event.cleanText;
           }
         } catch { /* skip malformed */ }
       }
 
-      finalizeStream(cleanAIText(fullText) || "Desculpe, não consegui gerar uma resposta.");
+      finalizeStream(cleanAIText(fullText) || "Desculpe, não consegui gerar uma resposta.", doneMetadata, doneId);
       setEyeExpression("happy");
 
       // Injetar card de notícias após a mensagem da IA
@@ -145,4 +154,3 @@ export function useChat() {
 
   return { sendMessage };
 }
-

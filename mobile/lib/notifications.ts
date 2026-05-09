@@ -19,6 +19,7 @@ Notifications.setNotificationHandler({
 export const CHANNEL = {
   SOCIAL:    "bee-social",
   ALERTS:    "bee-alerts",
+  ALARMS:    "bee-alarms",
   TIPS:      "bee-tips",
 } as const;
 
@@ -42,6 +43,15 @@ export async function setupNotificationChannels(): Promise<void> {
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 400, 200, 400],
       lightColor: "#FF4444",
+      sound: "default",
+      enableVibrate: true,
+    }),
+    Notifications.setNotificationChannelAsync(CHANNEL.ALARMS, {
+      name: "Despertadores",
+      description: "Alarmes, remédios e compromissos com vibração",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 900, 250, 900, 250, 900],
+      lightColor: "#FFD940",
       sound: "default",
       enableVibrate: true,
     }),

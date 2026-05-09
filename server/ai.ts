@@ -212,7 +212,8 @@ function buildChatSystemPrompt(
   user: User,
   personality: UserPersonality,
   history: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  runtimeContext = ""
 ): string {
   const mode = selectAiMode(user, userMessage);
   const recentUserMessages = history
@@ -230,9 +231,16 @@ ${buildModeOverlay(mode)}
 ## Contexto recente
 ${recentUserMessages || "- conversa iniciando"}
 
+## Data e rotina atual
+- Agora em America/Sao_Paulo: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" })}
+- Ano atual: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", year: "numeric" })}
+${runtimeContext || "- Sem horarios futuros carregados."}
+
 ## Regras extras
 - Evite respostas genéricas.
 - Se houver autossabotagem, nomeie isso com respeito.
+- Use a data atual acima para interpretar pedidos como hoje, amanha, sexta, este ano e proximos horarios.
+- Quando o usuario falar de rotina, considere os horarios marcados em calendario e relogio/despertador.
 - Termine com uma direção curta e concreta.`.trim();
 }
 
@@ -486,10 +494,11 @@ async function streamChatOpenAI(
   personality: UserPersonality,
   history: ChatMessage[],
   userMessage: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  runtimeContext = ""
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
   let fullResponse = "";
 
   const stream = await openai.chat.completions.create({
@@ -518,10 +527,11 @@ async function streamChatGroq(
   personality: UserPersonality,
   history: ChatMessage[],
   userMessage: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  runtimeContext = ""
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
   let fullResponse = "";
 
   const stream = await groq.chat.completions.create({
@@ -550,9 +560,10 @@ async function streamChatGemini(
   personality: UserPersonality,
   history: ChatMessage[],
   userMessage: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  runtimeContext = ""
 ): Promise<string> {
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
   const model = geminiAI.getGenerativeModel({
     model: "gemini-2.0-flash",
     systemInstruction: systemPrompt,
@@ -583,10 +594,11 @@ async function streamChatCerebras(
   personality: UserPersonality,
   history: ChatMessage[],
   userMessage: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  runtimeContext = ""
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
   let fullResponse = "";
 
   const stream = await cerebras.chat.completions.create({
@@ -615,27 +627,28 @@ export async function streamChat(
   personality: UserPersonality,
   history: ChatMessage[],
   userMessage: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  runtimeContext = ""
 ): Promise<string> {
   try {
-    return await streamChatOpenAI(user, personality, history, userMessage, onChunk);
+    return await streamChatOpenAI(user, personality, history, userMessage, onChunk, runtimeContext);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] OpenAI rate limited (streamChat) → usando Groq");
   }
   try {
-    return await streamChatGroq(user, personality, history, userMessage, onChunk);
+    return await streamChatGroq(user, personality, history, userMessage, onChunk, runtimeContext);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] Groq rate limited (streamChat) → usando Gemini");
   }
   try {
-    return await streamChatGemini(user, personality, history, userMessage, onChunk);
+    return await streamChatGemini(user, personality, history, userMessage, onChunk, runtimeContext);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] Gemini rate limited (streamChat) → usando Cerebras");
   }
-  return await streamChatCerebras(user, personality, history, userMessage, onChunk);
+  return await streamChatCerebras(user, personality, history, userMessage, onChunk, runtimeContext);
 }
 
 // ── Post Analysis ─────────────────────────────────────────────────────────────
