@@ -2,8 +2,10 @@ import { Router } from "express";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, forbidden, notFound } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
+import { parseBoundedInt } from "../http";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
+import { saveBase64Image, isBase64Image } from "../media";
 import { sendPushToCommunityMembers, sendPushToUser } from "../push";
 
 export function createCommunitiesRouter() {
@@ -159,19 +161,24 @@ export function createCommunitiesRouter() {
   }));
 
   router.get("/api/communities/:id/posts", requireAuth, asyncHandler(async (req, res) => {
-    return sendOk(res, await storage.getCommunityPosts(req.params.id, req.userId!));
+    const limit = parseBoundedInt(req.query.limit, { fallback: 20, min: 1, max: 50 });
+    const offset = parseBoundedInt(req.query.offset, { fallback: 0, min: 0, max: 1_000_000 });
+    return sendOk(res, await storage.getCommunityPosts(req.params.id, req.userId!, limit, offset));
   }));
 
   router.post("/api/communities/:id/posts", requireAuth, asyncHandler(async (req, res) => {
     const content = String(req.body?.content || "").trim();
-    const imageUrl = typeof req.body?.imageUrl === "string" && req.body.imageUrl.startsWith("data:image/")
+    const rawImageUrl = typeof req.body?.imageUrl === "string" && isBase64Image(req.body.imageUrl)
       ? req.body.imageUrl
       : null;
-    if (!content && !imageUrl) {
+    if (!content && !rawImageUrl) {
       throw badRequest("Conteúdo obrigatório");
     }
 
-    const community = await storage.getCommunityById(req.params.id, req.userId!);
+    const [community, imageUrl] = await Promise.all([
+      storage.getCommunityById(req.params.id, req.userId!),
+      rawImageUrl ? saveBase64Image(rawImageUrl).catch(() => rawImageUrl) : Promise.resolve(null),
+    ]);
     if (!community?.isMember) {
       throw forbidden("Entre na comunidade para publicar");
     }

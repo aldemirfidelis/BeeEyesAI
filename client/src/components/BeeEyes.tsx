@@ -281,6 +281,7 @@ export default function BeeEyes({
   const floatDuration  = shouldIdle ? 6.2 : effectiveEmotion === "thinking" ? 5 : 4;
 
   const glowColor  = `rgba(245, 200, 66, ${0.1 + glowStrength * 0.5})`;
+  const darkEyeHalo = "drop-shadow(0 0 7px rgba(245, 200, 66, 0.34)) drop-shadow(0 1px 1px rgba(0,0,0,0.45))";
 
   const isCelebrating = effectiveEmotion === "excited";
 
@@ -288,6 +289,7 @@ export default function BeeEyes({
     <div className={cn("relative flex items-center justify-center", className)} aria-hidden="true">
       <motion.div
         className="relative flex items-center gap-2 px-3 py-3"
+        style={{ ["--bee-eye-ink" as string]: "hsl(var(--foreground))" }}
         animate={{ y: [0, -floatAmplitude, 0] }}
         transition={{ duration: floatDuration, repeat: Infinity, ease: "easeInOut" }}
       >
@@ -335,9 +337,10 @@ export default function BeeEyes({
                 <path
                   d={`M 10 10 Q 28 ${browCurveY} 46 10`}
                   fill="none"
-                  stroke="#1a1a1a"
+                  stroke="var(--bee-eye-ink)"
                   strokeWidth="5"
                   strokeLinecap="round"
+                  style={{ filter: darkEyeHalo }}
                 />
               </motion.svg>
 
@@ -353,12 +356,12 @@ export default function BeeEyes({
                   style={{
                     display: "block",
                     filter: glowStrength > 0.04
-                      ? `drop-shadow(0 0 ${4 + glowStrength * 10}px ${glowColor})`
-                      : undefined,
+                      ? `${darkEyeHalo} drop-shadow(0 0 ${4 + glowStrength * 10}px ${glowColor})`
+                      : darkEyeHalo,
                   }}
                 >
                   {/* Eye body — hexagon */}
-                  <polygon points={HEX_POINTS} fill="#1a1a1a" />
+                  <polygon points={HEX_POINTS} fill="var(--bee-eye-ink)" />
                   {/* Pupil — octagon amber */}
                   <g transform={`translate(${14 + pX}, ${14 + pY})`}>
                     <polygon points={OCT_POINTS} fill="#F5C842" />

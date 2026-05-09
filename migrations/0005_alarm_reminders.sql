@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS "alarm_reminders" (
   "last_triggered_at" timestamp,
   "repeat_type" varchar(20) NOT NULL DEFAULT 'once',
   "interval_minutes" integer,
+  "repeat_days" jsonb NOT NULL DEFAULT '[]'::jsonb,
   "active" boolean NOT NULL DEFAULT true,
   "local_notification_id" text,
   "paused_at" timestamp,
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS "alarm_reminders" (
   "updated_at" timestamp NOT NULL DEFAULT now()
 );
 
+ALTER TABLE "alarm_reminders" ADD COLUMN IF NOT EXISTS "repeat_days" jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE "alarm_reminders" ADD COLUMN IF NOT EXISTS "paused_at" timestamp;
 ALTER TABLE "alarm_reminders" ADD COLUMN IF NOT EXISTS "reactivation_reminder_at" timestamp;
 ALTER TABLE "alarm_reminders" ADD COLUMN IF NOT EXISTS "reactivation_prompted_at" timestamp;

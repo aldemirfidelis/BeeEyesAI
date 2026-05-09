@@ -2,7 +2,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   RefreshControl,
@@ -389,78 +389,84 @@ export default function FeedScreen() {
           </View>
         </View>
 
-        <ScrollView
+        <FlatList
+          data={feed}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        >
-          {/* Composer trigger row */}
-          <TouchableOpacity style={styles.composerTrigger} onPress={openComposer} activeOpacity={0.75}>
-            <UserAvatar name={authorName} avatarUrl={user?.avatarUrl || profileImageUri} size={36} backgroundColor={colors.primary} color="#1A1A1A" />
-            <Text style={styles.composerTriggerPlaceholder}>O que você está pensando?</Text>
-            <View style={styles.composerTriggerPhotoBtn}>
-              <Feather name="image" size={16} color={colors.primaryDark} />
-            </View>
-          </TouchableOpacity>
-
-          {suggestions.length > 0 && (
-            <View style={styles.suggestionsCard}>
-              <Text style={styles.sectionTitle}>Sugestoes de conexao</Text>
-              {suggestions.map((s) => (
-                <View key={s.id} style={styles.suggestionRow}>
-                  <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
-                    <UserAvatar name={displayNameOf(s)} avatarUrl={s.avatarUrl} size={42} backgroundColor={colors.secondary} color={colors.foreground} />
-                  </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.suggestionTopRow}>
-                      <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
-                        <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
-                      </TouchableOpacity>
-                      {typeof s.matchScore === "number" ? (
-                        <View style={styles.matchBadge}>
-                          <Text style={styles.matchBadgeText}>{s.matchScore}% match</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.suggestionInterests} numberOfLines={2}>
-                      {s.commonInterests.slice(0, 3).join(" • ") || s.suggestionMessage || "Boa conexao para voce"}
-                    </Text>
-                    {s.matchReason ? (
-                      <Text style={styles.matchReasonText} numberOfLines={2}>
-                        {s.matchReason}
-                      </Text>
-                    ) : null}
-                    {s.matchSignals?.length ? (
-                      <Text style={styles.suggestionSignals} numberOfLines={1}>
-                        {s.matchSignals.join(" • ")}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.connectBtn}
-                    onPress={() => sendConnection.mutate(s.id)}
-                    disabled={sendConnection.isPending}
-                  >
-                    <Text style={styles.connectBtnText}>Conectar</Text>
-                  </TouchableOpacity>
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          removeClippedSubviews
+          ListHeaderComponent={
+            <View>
+              <TouchableOpacity style={styles.composerTrigger} onPress={openComposer} activeOpacity={0.75}>
+                <UserAvatar name={authorName} avatarUrl={user?.avatarUrl || profileImageUri} size={36} backgroundColor={colors.primary} color="#1A1A1A" />
+                <Text style={styles.composerTriggerPlaceholder}>O que você está pensando?</Text>
+                <View style={styles.composerTriggerPhotoBtn}>
+                  <Feather name="image" size={16} color={colors.primaryDark} />
                 </View>
-              ))}
+              </TouchableOpacity>
+
+              {suggestions.length > 0 && (
+                <View style={styles.suggestionsCard}>
+                  <Text style={styles.sectionTitle}>Sugestoes de conexao</Text>
+                  {suggestions.map((s) => (
+                    <View key={s.id} style={styles.suggestionRow}>
+                      <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
+                        <UserAvatar name={displayNameOf(s)} avatarUrl={s.avatarUrl} size={42} backgroundColor={colors.secondary} color={colors.foreground} />
+                      </TouchableOpacity>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.suggestionTopRow}>
+                          <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
+                            <Text style={styles.suggestionName}>{displayNameOf(s)}</Text>
+                          </TouchableOpacity>
+                          {typeof s.matchScore === "number" ? (
+                            <View style={styles.matchBadge}>
+                              <Text style={styles.matchBadgeText}>{s.matchScore}% match</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.suggestionInterests} numberOfLines={2}>
+                          {s.commonInterests.slice(0, 3).join(" • ") || s.suggestionMessage || "Boa conexao para voce"}
+                        </Text>
+                        {s.matchReason ? (
+                          <Text style={styles.matchReasonText} numberOfLines={2}>
+                            {s.matchReason}
+                          </Text>
+                        ) : null}
+                        {s.matchSignals?.length ? (
+                          <Text style={styles.suggestionSignals} numberOfLines={1}>
+                            {s.matchSignals.join(" • ")}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        style={styles.connectBtn}
+                        onPress={() => sendConnection.mutate(s.id)}
+                        disabled={sendConnection.isPending}
+                      >
+                        <Text style={styles.connectBtnText}>Conectar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
-          )}
-
-          {isLoading && <Text style={styles.loadingText}>Carregando feed...</Text>}
-
-          {!isLoading && feed.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>🌐</Text>
-              <Text style={styles.emptyTitle}>Seu feed esta vazio</Text>
-              <Text style={styles.emptyDesc}>Publique algo ou conecte-se com outros usuarios para ver conteudos aqui.</Text>
-            </View>
-          )}
-
-          {feed.map((post) => (
+          }
+          ListEmptyComponent={
+            isLoading
+              ? <Text style={styles.loadingText}>Carregando feed...</Text>
+              : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyEmoji}>🌐</Text>
+                  <Text style={styles.emptyTitle}>Seu feed esta vazio</Text>
+                  <Text style={styles.emptyDesc}>Publique algo ou conecte-se com outros usuarios para ver conteudos aqui.</Text>
+                </View>
+              )
+          }
+          renderItem={({ item: post }) => (
             <PostCard
-              key={post.id}
               post={{ ...post, commentsCount: post.commentsCount ?? 0 }}
               onLike={() => likePost.mutate(post.id)}
               isLiking={likePost.isPending}
@@ -468,8 +474,8 @@ export default function FeedScreen() {
               currentUserId={user?.id}
               onOpenProfile={setProfileUserId}
             />
-          ))}
-        </ScrollView>
+          )}
+        />
       </View>
     </View>
   );

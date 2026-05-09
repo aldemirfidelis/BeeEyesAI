@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
@@ -26,8 +26,34 @@ function normalizeRepeatType(value: unknown) {
   return typeof value === "string" && ALARM_REPEAT_TYPES.has(value) ? value : "once";
 }
 
-function computeNextAlarmTrigger(current: Date, repeatType: string, intervalMinutes?: number | null): Date | null {
+function normalizeRepeatDays(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))]
+    .sort((a, b) => a - b);
+}
+
+function computeWeekdayTrigger(base: Date, repeatDays: number[], includeBase: boolean) {
+  const now = new Date();
+  const next = new Date(base);
+  if (!includeBase) next.setDate(next.getDate() + 1);
+
+  for (let i = 0; i < 14; i += 1) {
+    if (repeatDays.includes(next.getDay()) && next > now) return next;
+    next.setDate(next.getDate() + 1);
+  }
+
+  return null;
+}
+
+function computeInitialAlarmTrigger(start: Date, repeatDays: number[]) {
+  if (repeatDays.length === 0) return start;
+  return computeWeekdayTrigger(start, repeatDays, true) ?? start;
+}
+
+function computeNextAlarmTrigger(current: Date, repeatType: string, intervalMinutes?: number | null, repeatDays: number[] = []): Date | null {
   if (repeatType === "once") return null;
+  if (repeatDays.length > 0) return computeWeekdayTrigger(current, repeatDays, false);
+
   const next = new Date(current);
   if (repeatType === "daily") next.setDate(next.getDate() + 1);
   else if (repeatType === "weekly") next.setDate(next.getDate() + 7);
@@ -109,6 +135,64 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
     .where(eq(userIntegrations.id, integration.id));
 
   return refreshed.accessToken;
+}
+
+async function syncFromGoogleCalendar(userId: string, accessToken: string, from: Date, to: Date): Promise<void> {
+  const params = new URLSearchParams({
+    timeMin: from.toISOString(),
+    timeMax: to.toISOString(),
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "250",
+  });
+
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return;
+
+  const data = await res.json() as any;
+  const items: any[] = data.items ?? [];
+  if (items.length === 0) return;
+
+  const googleIds = items.map((i: any) => i.id as string).filter(Boolean);
+  const existing = await db
+    .select({ id: calendarEvents.id, googleEventId: calendarEvents.googleEventId })
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), inArray(calendarEvents.googleEventId, googleIds)));
+
+  const existingMap = new Map(existing.map((e) => [e.googleEventId!, e.id]));
+
+  for (const item of items) {
+    if (!item.id) continue;
+
+    if (item.status === "cancelled") {
+      if (existingMap.has(item.id)) {
+        await db.delete(calendarEvents).where(eq(calendarEvents.id, existingMap.get(item.id)!)).catch(() => {});
+      }
+      continue;
+    }
+
+    const allDay = !!item.start?.date && !item.start?.dateTime;
+    const startAt = item.start?.dateTime ? new Date(item.start.dateTime) : new Date(item.start?.date ?? Date.now());
+    const endAt = item.end?.dateTime ? new Date(item.end.dateTime) : item.end?.date ? new Date(item.end.date) : null;
+
+    const eventData = {
+      title: (item.summary as string | undefined) ?? "(sem título)",
+      description: (item.description as string | undefined) ?? null,
+      startAt,
+      endAt,
+      allDay,
+      location: (item.location as string | undefined) ?? null,
+      googleEventId: item.id as string,
+    };
+
+    if (existingMap.has(item.id)) {
+      await db.update(calendarEvents).set(eventData).where(eq(calendarEvents.id, existingMap.get(item.id)!)).catch(() => {});
+    } else {
+      await db.insert(calendarEvents).values({ userId, color: "primary", ...eventData }).catch(() => {});
+    }
+  }
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -207,6 +291,13 @@ export function createColmeiaRouter(): Router {
     const { from, to } = req.query as Record<string, string>;
     const userId = req.userId!;
 
+    if (from && to) {
+      const accessToken = await getValidAccessToken(userId);
+      if (accessToken) {
+        await syncFromGoogleCalendar(userId, accessToken, new Date(from), new Date(to)).catch(() => {});
+      }
+    }
+
     let rows;
     if (from && to) {
       rows = await db
@@ -303,6 +394,32 @@ export function createColmeiaRouter(): Router {
       })
       .where(eq(calendarEvents.id, req.params.id))
       .returning();
+
+    if (updated?.googleEventId) {
+      const accessToken = await getValidAccessToken(req.userId!);
+      if (accessToken) {
+        try {
+          const gcalBody: any = {
+            summary: updated.title,
+            description: updated.description ?? undefined,
+            location: updated.location ?? undefined,
+          };
+          if (updated.allDay) {
+            const d = updated.startAt.toISOString().split("T")[0];
+            gcalBody.start = { date: d };
+            gcalBody.end = { date: updated.endAt ? updated.endAt.toISOString().split("T")[0] : d };
+          } else {
+            gcalBody.start = { dateTime: updated.startAt.toISOString(), timeZone: "America/Sao_Paulo" };
+            gcalBody.end = { dateTime: updated.endAt ? updated.endAt.toISOString() : new Date(updated.startAt.getTime() + 3600000).toISOString(), timeZone: "America/Sao_Paulo" };
+          }
+          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${updated.googleEventId}`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify(gcalBody),
+          });
+        } catch { /* non-fatal */ }
+      }
+    }
 
     return sendOk(res, updated);
   }));
@@ -412,16 +529,18 @@ export function createColmeiaRouter(): Router {
   }));
 
   router.post("/api/colmeia/alarms", requireAuth, asyncHandler(async (req, res) => {
-    const { title, message, kind, scheduledAt, repeatType, intervalMinutes, localNotificationId } = req.body ?? {};
+    const { title, message, kind, scheduledAt, repeatType, intervalMinutes, repeatDays, localNotificationId } = req.body ?? {};
     if (!title?.trim() || !scheduledAt) throw badRequest("title e scheduledAt são obrigatórios");
 
     const start = new Date(scheduledAt);
     if (Number.isNaN(start.getTime())) throw badRequest("scheduledAt inválido");
 
-    const normalizedRepeat = normalizeRepeatType(repeatType);
+    const normalizedRepeatDays = normalizeRepeatDays(repeatDays);
+    const normalizedRepeat = normalizedRepeatDays.length > 0 ? "weekly" : normalizeRepeatType(repeatType);
     const normalizedInterval = normalizedRepeat === "interval"
       ? Math.max(1, Math.min(24 * 60, parseInt(String(intervalMinutes ?? 60))))
       : null;
+    const firstTrigger = computeInitialAlarmTrigger(start, normalizedRepeatDays);
 
     const [row] = await db
       .insert(alarmReminders)
@@ -431,9 +550,10 @@ export function createColmeiaRouter(): Router {
         message: message?.trim() ?? null,
         kind: normalizeAlarmKind(kind),
         scheduledAt: start,
-        nextTriggerAt: start,
+        nextTriggerAt: firstTrigger,
         repeatType: normalizedRepeat,
         intervalMinutes: normalizedInterval,
+        repeatDays: normalizedRepeatDays,
         localNotificationId: localNotificationId?.trim() ?? null,
         active: true,
       })
@@ -454,24 +574,34 @@ export function createColmeiaRouter(): Router {
     const updates: Partial<typeof alarmReminders.$inferInsert> = { updatedAt: now };
     if (typeof req.body?.active === "boolean") updates.active = req.body.active;
     if (typeof req.body?.localNotificationId === "string") updates.localNotificationId = req.body.localNotificationId.trim() || null;
+    const nextRepeatDays = Array.isArray(req.body?.repeatDays)
+      ? normalizeRepeatDays(req.body.repeatDays)
+      : existing.repeatDays ?? [];
 
     if (req.body?.scheduledAt) {
       const start = new Date(req.body.scheduledAt);
       if (Number.isNaN(start.getTime())) throw badRequest("scheduledAt inválido");
       updates.scheduledAt = start;
-      updates.nextTriggerAt = start;
+      updates.nextTriggerAt = computeInitialAlarmTrigger(start, nextRepeatDays);
     }
     if (typeof req.body?.title === "string" && req.body.title.trim()) updates.title = req.body.title.trim();
     if (typeof req.body?.message === "string") updates.message = req.body.message.trim() || null;
     if (req.body?.kind) updates.kind = normalizeAlarmKind(req.body.kind);
+    if (Array.isArray(req.body?.repeatDays)) {
+      updates.repeatDays = nextRepeatDays;
+      updates.repeatType = nextRepeatDays.length > 0 ? "weekly" : "once";
+      updates.intervalMinutes = null;
+      if (!req.body?.scheduledAt) updates.nextTriggerAt = computeInitialAlarmTrigger(existing.scheduledAt, nextRepeatDays);
+    }
     if (req.body?.repeatType) updates.repeatType = normalizeRepeatType(req.body.repeatType);
     if (updates.repeatType === "interval" || existing.repeatType === "interval") {
       const rawInterval = req.body?.intervalMinutes ?? existing.intervalMinutes ?? 60;
       updates.intervalMinutes = Math.max(1, Math.min(24 * 60, parseInt(String(rawInterval))));
     }
-    const nextRepeatType = updates.repeatType ?? existing.repeatType;
-    if (typeof updates.active === "boolean") {
-      if (!updates.active && existing.active && nextRepeatType !== "once") {
+      const nextRepeatType = updates.repeatType ?? existing.repeatType;
+      const hasRecurringDays = (updates.repeatDays ?? existing.repeatDays ?? []).length > 0;
+      if (typeof updates.active === "boolean") {
+      if (!updates.active && existing.active && (nextRepeatType !== "once" || hasRecurringDays)) {
         updates.pausedAt = now;
         updates.reactivationReminderAt = getAlarmReactivationReviewAt(now);
         updates.reactivationPromptedAt = null;
@@ -479,6 +609,10 @@ export function createColmeiaRouter(): Router {
         updates.pausedAt = null;
         updates.reactivationReminderAt = null;
         updates.reactivationPromptedAt = null;
+        if (existing.nextTriggerAt <= now && nextRepeatType !== "once") {
+          const nextTrigger = computeNextAlarmTrigger(existing.nextTriggerAt, nextRepeatType, updates.intervalMinutes ?? existing.intervalMinutes, updates.repeatDays ?? existing.repeatDays ?? []);
+          if (nextTrigger) updates.nextTriggerAt = nextTrigger;
+        }
       }
     }
 
@@ -518,7 +652,7 @@ export function createColmeiaRouter(): Router {
 
     const triggered = [];
     for (const row of due) {
-      const next = computeNextAlarmTrigger(row.nextTriggerAt, row.repeatType, row.intervalMinutes);
+      const next = computeNextAlarmTrigger(row.nextTriggerAt, row.repeatType, row.intervalMinutes, row.repeatDays ?? []);
       const [updated] = await db
         .update(alarmReminders)
         .set({
@@ -612,8 +746,8 @@ export function startAlarmReminderScheduler() {
         .orderBy(alarmReminders.nextTriggerAt)
         .limit(25);
 
-      for (const row of due) {
-        const next = computeNextAlarmTrigger(row.nextTriggerAt, row.repeatType, row.intervalMinutes);
+        for (const row of due) {
+          const next = computeNextAlarmTrigger(row.nextTriggerAt, row.repeatType, row.intervalMinutes, row.repeatDays ?? []);
         await db
           .update(alarmReminders)
           .set({

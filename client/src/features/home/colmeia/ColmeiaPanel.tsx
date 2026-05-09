@@ -63,6 +63,7 @@ interface AlarmReminder {
   lastTriggeredAt?: string | null;
   repeatType: "once" | "daily" | "weekly" | "interval";
   intervalMinutes?: number | null;
+  repeatDays: number[];
   active: boolean;
 }
 
@@ -72,6 +73,16 @@ interface ColmeiaPanelProps {
 
 const EXPENSE_CATEGORIES = ["Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Moradia", "Compras", "Outros"];
 const INCOME_CATEGORIES = ["Salário", "Freelance", "Investimentos", "Outros"];
+const WEEK_DAYS = [
+  { value: 0, label: "Dom" },
+  { value: 1, label: "Seg" },
+  { value: 2, label: "Ter" },
+  { value: 3, label: "Qua" },
+  { value: 4, label: "Qui" },
+  { value: 5, label: "Sex" },
+  { value: 6, label: "Sab" },
+];
+
 const CATEGORY_COLORS: Record<string, string> = {
   Alimentação: "#F59E0B", Transporte: "#3B82F6", Saúde: "#10B981",
   Lazer: "#8B5CF6", Educação: "#06B6D4", Moradia: "#EF4444",
@@ -756,6 +767,12 @@ function alarmKindLabel(kind: AlarmReminder["kind"]) {
 }
 
 function alarmRepeatLabel(alarm: AlarmReminder) {
+  if (alarm.repeatDays?.length) {
+    return alarm.repeatDays
+      .map((day) => WEEK_DAYS.find((item) => item.value === day)?.label)
+      .filter(Boolean)
+      .join(", ");
+  }
   if (alarm.repeatType === "daily") return "Diario";
   if (alarm.repeatType === "weekly") return "Semanal";
   if (alarm.repeatType === "interval") return `A cada ${alarm.intervalMinutes ?? 60} min`;
@@ -809,8 +826,7 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
     message: "",
     kind: "alarm" as AlarmReminder["kind"],
     scheduledAt: "",
-    repeatType: "once" as AlarmReminder["repeatType"],
-    intervalMinutes: "240",
+    repeatDays: [] as number[],
   });
 
   const loadAlarms = useCallback(async () => {
@@ -858,13 +874,14 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
           message: form.message.trim() || null,
           kind: form.kind,
           scheduledAt: new Date(form.scheduledAt).toISOString(),
-          repeatType: form.repeatType,
-          intervalMinutes: form.repeatType === "interval" ? Number(form.intervalMinutes) : null,
+          repeatType: form.repeatDays.length > 0 ? "weekly" : "once",
+          repeatDays: form.repeatDays,
+          intervalMinutes: null,
         }),
       });
       if (res.ok) {
         setShowForm(false);
-        setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatType: "once", intervalMinutes: "240" });
+        setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatDays: [] });
         await loadAlarms();
       }
     } finally {
@@ -923,24 +940,37 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
           </div>
           <Input placeholder="Nome do aviso" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
           <Textarea placeholder="Mensagem opcional" value={form.message} onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))} className="min-h-[64px] resize-none text-sm" />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Data e hora</label>
-              <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm((prev) => ({ ...prev, scheduledAt: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Repeticao</label>
-              <select value={form.repeatType} onChange={(e) => setForm((prev) => ({ ...prev, repeatType: e.target.value as AlarmReminder["repeatType"] }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="once">Uma vez</option>
-                <option value="daily">Diario</option>
-                <option value="weekly">Semanal</option>
-                <option value="interval">Por periodo</option>
-              </select>
-            </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Data e hora</label>
+            <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm((prev) => ({ ...prev, scheduledAt: e.target.value }))} />
           </div>
-          {form.repeatType === "interval" && (
-            <Input type="number" min={1} max={1440} value={form.intervalMinutes} onChange={(e) => setForm((prev) => ({ ...prev, intervalMinutes: e.target.value }))} placeholder="Intervalo em minutos" />
-          )}
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Repeticao</label>
+            <div className="grid grid-cols-7 gap-1">
+              {WEEK_DAYS.map((day) => {
+                const selected = form.repeatDays.includes(day.value);
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => setForm((prev) => ({
+                      ...prev,
+                      repeatDays: selected
+                        ? prev.repeatDays.filter((value) => value !== day.value)
+                        : [...prev.repeatDays, day.value].sort((a, b) => a - b),
+                    }))}
+                    className={`h-9 rounded-lg border text-[11px] font-semibold transition-colors ${selected ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"}`}
+                    aria-pressed={selected}
+                  >
+                    {day.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Sem dias marcados, o alarme toca apenas uma vez.
+            </p>
+          </div>
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button className="flex-1" disabled={!form.title.trim() || !form.scheduledAt || saving} onClick={createAlarm}>

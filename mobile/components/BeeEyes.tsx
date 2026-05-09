@@ -13,8 +13,8 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from "react-native-reanimated";
-import { type EyeExpression } from "../stores/uiStore";
-import { COLORS } from "../lib/theme";
+import { type EyeExpression, useUIStore } from "../stores/uiStore";
+import { COLORS, getThemeColors } from "../lib/theme";
 
 interface BeeEyesProps {
   expression?: EyeExpression;
@@ -75,9 +75,13 @@ const EXPR: Record<EyeExpression, {
 function Eyebrow({
   side,
   expression,
+  ink,
+  halo,
 }: {
   side: "left" | "right";
   expression: EyeExpression;
+  ink: string;
+  halo: string;
 }) {
   const cfg = side === "left" ? EXPR[expression].browLeft : EXPR[expression].browRight;
 
@@ -92,7 +96,15 @@ function Eyebrow({
         <Path
           d={`M 10 10 Q 28 ${cfg.rotate > 0 ? 3 : cfg.rotate < -8 ? 1 : 5} 46 10`}
           fill="none"
-          stroke={COLORS.foreground}
+          stroke={halo}
+          strokeWidth={8}
+          strokeLinecap="round"
+          opacity={0.42}
+        />
+        <Path
+          d={`M 10 10 Q 28 ${cfg.rotate > 0 ? 3 : cfg.rotate < -8 ? 1 : 5} 46 10`}
+          fill="none"
+          stroke={ink}
           strokeWidth={5.5}
           strokeLinecap="round"
         />
@@ -108,6 +120,8 @@ function Eye({
   bounceY,
   attentionX,
   attentionY,
+  ink,
+  halo,
 }: {
   side: "left" | "right";
   expression: EyeExpression;
@@ -115,6 +129,8 @@ function Eye({
   bounceY: SharedValue<number>;
   attentionX: number;
   attentionY: number;
+  ink: string;
+  halo: string;
 }) {
   const cfg = EXPR[expression];
 
@@ -135,13 +151,14 @@ function Eye({
   return (
     <Animated.View style={[{ alignItems: "center" }, bounceStyle]}>
       {/* Eyebrow — outside blinkStyle, always visible */}
-      <Eyebrow side={side} expression={expression} />
+      <Eyebrow side={side} expression={expression} ink={ink} halo={halo} />
 
       {/* Eye body — affected by blink + expression scaleY */}
       <Animated.View style={blinkStyle}>
         <Svg width={56} height={56} viewBox="0 0 56 56">
           {/* Eye body — hexagon */}
-          <Polygon points={HEX_POINTS} fill={COLORS.foreground} />
+          <Polygon points={HEX_POINTS} fill={halo} opacity={0.35} transform="translate(-1 -1)" />
+          <Polygon points={HEX_POINTS} fill={ink} />
 
           {/* Pupil — octagon (amber) */}
           <G transform={`translate(${14 + pX}, ${14 + pY})`}>
@@ -170,6 +187,10 @@ export default function BeeEyes({
   attentionX = 0,
   attentionY = 0,
 }: BeeEyesProps) {
+  const themeMode = useUIStore((state) => state.themeMode);
+  const colors = getThemeColors(themeMode);
+  const ink = colors.foreground;
+  const halo = themeMode === "dark" ? colors.primary : "rgba(245, 200, 66, 0.45)";
   const blinkScale = useSharedValue(1);
   const bounceY = useSharedValue(0);
   const sparkle1Opacity = useSharedValue(0);
@@ -261,6 +282,8 @@ export default function BeeEyes({
           bounceY={bounceY}
           attentionX={attentionX}
           attentionY={attentionY}
+          ink={ink}
+          halo={halo}
         />
         <Eye
           side="right"
@@ -269,6 +292,8 @@ export default function BeeEyes({
           bounceY={bounceY}
           attentionX={attentionX}
           attentionY={attentionY}
+          ink={ink}
+          halo={halo}
         />
       </View>
 

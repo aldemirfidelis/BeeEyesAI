@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { type NextFunction, type Request, type Response } from "express";
+import { join } from "path";
 import { ApiError } from "./api/errors";
 import { sendError } from "./api/response";
 import { ensureDatabaseCompatibility } from "./db";
@@ -23,6 +24,7 @@ app.use((_req, res, next) => {
 
 app.use(applySecurityHeaders);
 app.use(requestContextMiddleware);
+app.use("/uploads", express.static(join(process.cwd(), "uploads"), { maxAge: "30d" }));
 // Suporta imagens base64 de perfil, feed e comunidades, incluindo fallback sem compressão.
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: false, limit: "25mb" }));

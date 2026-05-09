@@ -16,6 +16,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { sendPushToUser } from "../push";
 import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
+import { saveBase64Image, isBase64Image } from "../media";
 
 export function createSocialRouter() {
   const router = Router();
@@ -39,12 +40,10 @@ export function createSocialRouter() {
       throw notFound("Usuário não encontrado");
     }
 
-    const enriched = await Promise.all(feed.map(async (post) => {
-      const [likesCount, liked, commentsCount] = await Promise.all([
-        storage.getPostLikesCount(post.id),
-        storage.hasLikedPost(post.id, req.userId!),
-        storage.getCommentCount(post.id),
-      ]);
+    const postIds = feed.map((p) => p.id);
+    const { likeCounts, likedSet, commentCounts } = await storage.getPostEnrichmentBatch(postIds, req.userId!);
+
+    const enriched = feed.map((post) => {
       const feedInsight = buildFeedInsight(post.content, post.sentimentLabel);
       const personalizedInsight = buildPersonalizedFeedInsight({
         viewer,
@@ -55,14 +54,14 @@ export function createSocialRouter() {
       });
       return {
         ...post,
-        likesCount,
-        liked,
-        commentsCount,
+        likesCount: likeCounts.get(post.id) ?? 0,
+        liked: likedSet.has(post.id),
+        commentsCount: commentCounts.get(post.id) ?? 0,
         feedInsight,
         personalizedInsight,
         aiComment: post.aiComment || feedInsight.comment,
       };
-    }));
+    });
 
     const ranked = enriched.sort((a, b) => {
       if (mode === "friends") {
@@ -80,12 +79,12 @@ export function createSocialRouter() {
   router.get("/api/posts", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 20, min: 1, max: 100 });
     const myPosts = await storage.getPostsByUser(req.userId!, limit);
-    const enriched = await Promise.all(myPosts.map(async (post) => {
-      const [likesCount, liked] = await Promise.all([
-        storage.getPostLikesCount(post.id),
-        storage.hasLikedPost(post.id, req.userId!),
-      ]);
-      return { ...post, likesCount, liked };
+    const postIds = myPosts.map((p) => p.id);
+    const { likeCounts, likedSet } = await storage.getPostEnrichmentBatch(postIds, req.userId!);
+    const enriched = myPosts.map((post) => ({
+      ...post,
+      likesCount: likeCounts.get(post.id) ?? 0,
+      liked: likedSet.has(post.id),
     }));
 
     return sendOk(res, enriched);
@@ -93,17 +92,20 @@ export function createSocialRouter() {
 
   router.post("/api/posts", requireAuth, asyncHandler(async (req, res) => {
     const content = String(req.body?.content || "").trim();
-    const imageUrl = typeof req.body?.imageUrl === "string" && req.body.imageUrl.startsWith("data:image/")
+    const rawImageUrl = typeof req.body?.imageUrl === "string" && isBase64Image(req.body.imageUrl)
       ? req.body.imageUrl
       : null;
-    if (!content && !imageUrl) {
+    if (!content && !rawImageUrl) {
       throw badRequest("Conteúdo não pode ser vazio");
     }
     if (content.length > 500) {
       throw badRequest("Post muito longo (máximo 500 caracteres)");
     }
 
-    const user = await storage.getUser(req.userId!);
+    const [user, imageUrl] = await Promise.all([
+      storage.getUser(req.userId!),
+      rawImageUrl ? saveBase64Image(rawImageUrl).catch(() => rawImageUrl) : Promise.resolve(null),
+    ]);
     if (!user) {
       throw notFound("Usuário não encontrado");
     }

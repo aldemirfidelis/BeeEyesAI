@@ -192,10 +192,10 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
              "o que aconteceu no futebol hoje?" → {"fetch_news": {"query": "futebol hoje Brasil"}}
 5. NUNCA invente informações sobre o usuário que não foram mencionadas
 6. Responda SEMPRE em português do Brasil
-7. COLMEIA — Ferramentas integradas ao app. Quando o usuário pedir explicitamente para:
+7. COLMEIA — Ferramentas integradas ao app. REGRA CRÍTICA: SEMPRE que o usuário pedir uma dessas ações — mesmo que já tenha pedido antes nesta conversa — inclua OBRIGATORIAMENTE o JSON correspondente ao FINAL da resposta. Cada mensagem é uma ação nova e independente.
    - Marcar/agendar/criar reunião, compromisso, evento, alarme ou lembrete → inclua ao FINAL:
      {"create_event": {"title": "Título claro do evento", "startAt": "ISO 8601 datetime", "endAt": "ISO 8601 datetime ou null", "description": "opcional", "location": "opcional"}}
-     Use datas/horas absolutas em ISO 8601. Se o usuário disser "amanhã às 15h", converta com base na data atual (${new Date().toISOString().split("T")[0]}).
+     Use datas/horas absolutas em ISO 8601. Data atual: ${new Date().toISOString().split("T")[0]}. Converta "amanhã", "sexta", "semana que vem" para a data absoluta correta.
    - Registrar gasto/despesa/compra ou receita/renda/salário → inclua ao FINAL:
      {"log_finance": {"type": "expense|income", "amount": 0.00, "category": "categoria", "description": "descrição opcional"}}
      Categorias de despesa: Alimentação, Transporte, Saúde, Lazer, Educação, Moradia, Compras, Outros
@@ -203,7 +203,7 @@ conectar com propósito, organizar a vida, incentivar evolução, entregar conte
    - Salvar/anotar/guardar nota, ideia, lembrete de texto ou recado → inclua ao FINAL:
      {"save_note": {"content": "texto completo da nota", "title": "título curto opcional"}}
      Use quando o usuário disser: "anota isso", "salva essa ideia", "guarda esse lembrete", "cria uma nota", "registra isso" ou similar.
-   Nunca mencione esses JSONs ao usuário. Responda normalmente e inclua o JSON discretamente ao final.`.trim();
+   Nunca mencione esses JSONs ao usuário. Responda normalmente e inclua o JSON discretamente ao final. O JSON deve estar presente TODA vez que o usuário solicitar, sem exceção.`.trim();
 }
 
 // ── Personality Analysis ──────────────────────────────────────────────────────

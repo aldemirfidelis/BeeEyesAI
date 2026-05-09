@@ -60,11 +60,22 @@ interface AlarmReminder {
   lastTriggeredAt?: string | null;
   repeatType: "once" | "daily" | "weekly" | "interval";
   intervalMinutes?: number | null;
+  repeatDays: number[];
   active: boolean;
   localNotificationId?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const ALARM_WEEK_DAYS = [
+  { value: 0, label: "Dom" },
+  { value: 1, label: "Seg" },
+  { value: 2, label: "Ter" },
+  { value: 3, label: "Qua" },
+  { value: 4, label: "Qui" },
+  { value: 5, label: "Sex" },
+  { value: 6, label: "Sab" },
+];
 
 function formatCurrency(cents: number) {
   return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
@@ -970,6 +981,12 @@ function alarmKindLabel(kind: AlarmReminder["kind"]) {
 }
 
 function alarmRepeatLabel(alarm: AlarmReminder) {
+  if (alarm.repeatDays?.length) {
+    return alarm.repeatDays
+      .map((day) => ALARM_WEEK_DAYS.find((item) => item.value === day)?.label)
+      .filter(Boolean)
+      .join(", ");
+  }
   if (alarm.repeatType === "daily") return "Diario";
   if (alarm.repeatType === "weekly") return "Semanal";
   if (alarm.repeatType === "interval") return `A cada ${alarm.intervalMinutes ?? 60} min`;
@@ -983,7 +1000,19 @@ function alarmBody(alarm: Pick<AlarmReminder, "kind" | "title" | "message">) {
   return alarm.title;
 }
 
-async function scheduleNativeAlarm(alarm: Pick<AlarmReminder, "id" | "title" | "message" | "kind" | "nextTriggerAt" | "repeatType" | "intervalMinutes">) {
+async function cancelNativeAlarmNotifications(localNotificationId?: string | null) {
+  if (!localNotificationId) return;
+  let ids = [localNotificationId];
+  try {
+    const parsed = JSON.parse(localNotificationId);
+    if (Array.isArray(parsed)) ids = parsed.filter((id) => typeof id === "string");
+  } catch {
+    // Legacy single notification id.
+  }
+  await Promise.all(ids.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})));
+}
+
+async function scheduleNativeAlarm(alarm: Pick<AlarmReminder, "id" | "title" | "message" | "kind" | "nextTriggerAt" | "repeatType" | "intervalMinutes" | "repeatDays">) {
   const granted = await requestNotificationPermission();
   if (!granted) return null;
 
@@ -998,27 +1027,19 @@ async function scheduleNativeAlarm(alarm: Pick<AlarmReminder, "id" | "title" | "
     ...(Platform.OS === "android" && { channelId: CHANNEL.ALARMS }),
   };
 
-  if (alarm.repeatType === "daily") {
-    return Notifications.scheduleNotificationAsync({
-      content,
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: date.getHours(),
-        minute: date.getMinutes(),
-      },
-    });
-  }
-
-  if (alarm.repeatType === "weekly") {
-    return Notifications.scheduleNotificationAsync({
-      content,
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        weekday: date.getDay() + 1,
-        hour: date.getHours(),
-        minute: date.getMinutes(),
-      },
-    });
+  if (alarm.repeatDays?.length) {
+    const ids = await Promise.all(alarm.repeatDays.map((day) =>
+      Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+          weekday: day + 1,
+          hour: date.getHours(),
+          minute: date.getMinutes(),
+        },
+      })
+    ));
+    return JSON.stringify(ids);
   }
 
   if (alarm.repeatType === "interval") {
@@ -1051,8 +1072,7 @@ function ClockSection({ colors }: { colors: any }) {
     message: "",
     kind: "alarm" as AlarmReminder["kind"],
     scheduledAt: "",
-    repeatType: "once" as AlarmReminder["repeatType"],
-    intervalMinutes: "240",
+    repeatDays: [] as number[],
   });
 
   const load = useCallback(async () => {
@@ -1086,8 +1106,9 @@ function ClockSection({ colors }: { colors: any }) {
         message: form.message.trim() || null,
         kind: form.kind,
         scheduledAt: new Date(form.scheduledAt).toISOString(),
-        repeatType: form.repeatType,
-        intervalMinutes: form.repeatType === "interval" ? Number(form.intervalMinutes) : null,
+        repeatType: form.repeatDays.length > 0 ? "weekly" : "once",
+        repeatDays: form.repeatDays,
+        intervalMinutes: null,
       };
       const res = await api.post("/api/colmeia/alarms", payload);
       const created: AlarmReminder = res.data;
@@ -1098,7 +1119,7 @@ function ClockSection({ colors }: { colors: any }) {
       }
       Vibration.vibrate([0, 80, 80, 80]);
       setAlarms((prev) => [created, ...prev]);
-      setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatType: "once", intervalMinutes: "240" });
+      setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatDays: [] });
       setShowAdd(false);
     } catch {
       Alert.alert("Erro", "Não foi possível criar o alarme.");
@@ -1111,14 +1132,19 @@ function ClockSection({ colors }: { colors: any }) {
     const nextActive = !alarm.active;
     try {
       if (!nextActive && alarm.localNotificationId) {
-        await Notifications.cancelScheduledNotificationAsync(alarm.localNotificationId).catch(() => {});
+        await cancelNativeAlarmNotifications(alarm.localNotificationId);
       }
-      let localNotificationId: string | null = nextActive ? alarm.localNotificationId ?? null : null;
-      if (nextActive && !localNotificationId) {
-        localNotificationId = await scheduleNativeAlarm(alarm);
+      const res = await api.patch(`/api/colmeia/alarms/${alarm.id}`, { active: nextActive, localNotificationId: nextActive ? alarm.localNotificationId ?? null : null });
+      const updated: AlarmReminder = res.data;
+      if (nextActive && !updated.localNotificationId) {
+        const localNotificationId = await scheduleNativeAlarm(updated);
+        if (localNotificationId) {
+          const withNotification = await api.patch(`/api/colmeia/alarms/${alarm.id}`, { localNotificationId });
+          setAlarms((prev) => prev.map((item) => item.id === alarm.id ? withNotification.data : item));
+          return;
+        }
       }
-      const res = await api.patch(`/api/colmeia/alarms/${alarm.id}`, { active: nextActive, localNotificationId });
-      setAlarms((prev) => prev.map((item) => item.id === alarm.id ? res.data : item));
+      setAlarms((prev) => prev.map((item) => item.id === alarm.id ? updated : item));
     } catch {
       Alert.alert("Erro", "Não foi possível atualizar o alarme.");
     }
@@ -1128,7 +1154,7 @@ function ClockSection({ colors }: { colors: any }) {
     Alert.alert("Excluir alarme", `Excluir "${alarm.title}"?`, [
       { text: "Cancelar", style: "cancel" },
       { text: "Excluir", style: "destructive", onPress: async () => {
-        if (alarm.localNotificationId) await Notifications.cancelScheduledNotificationAsync(alarm.localNotificationId).catch(() => {});
+        await cancelNativeAlarmNotifications(alarm.localNotificationId);
         await api.delete(`/api/colmeia/alarms/${alarm.id}`).catch(() => {});
         setAlarms((prev) => prev.filter((item) => item.id !== alarm.id));
       }},
@@ -1166,16 +1192,30 @@ function ClockSection({ colors }: { colors: any }) {
           <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Nome do aviso" placeholderTextColor={colors.muted} value={form.title} onChangeText={(v) => setForm((p) => ({ ...p, title: v }))} />
           <TextInput style={[localStyles.input, localStyles.inputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Mensagem opcional" placeholderTextColor={colors.muted} value={form.message} onChangeText={(v) => setForm((p) => ({ ...p, message: v }))} multiline />
           <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="Data e hora: 2026-07-10 09:00" placeholderTextColor={colors.muted} value={form.scheduledAt} onChangeText={(v) => setForm((p) => ({ ...p, scheduledAt: v }))} />
-          <View style={alarmStyles.kindRow}>
-            {(["once", "daily", "weekly", "interval"] as const).map((repeatType) => (
-              <TouchableOpacity key={repeatType} style={[alarmStyles.repeatBtn, { borderColor: form.repeatType === repeatType ? colors.primaryDark : colors.border }]} onPress={() => setForm((p) => ({ ...p, repeatType }))}>
-                <Text style={[alarmStyles.kindText, { color: form.repeatType === repeatType ? colors.primaryDark : colors.muted }]}>{repeatType === "once" ? "Uma vez" : repeatType === "daily" ? "Diario" : repeatType === "weekly" ? "Semanal" : "Periodo"}</Text>
-              </TouchableOpacity>
-            ))}
+          <Text style={[alarmStyles.sectionLabel, { color: colors.muted }]}>Repeticao</Text>
+          <View style={alarmStyles.weekdayGrid}>
+            {ALARM_WEEK_DAYS.map((day) => {
+              const selected = form.repeatDays.includes(day.value);
+              return (
+                <TouchableOpacity
+                  key={day.value}
+                  style={[alarmStyles.weekdayBtn, {
+                    borderColor: selected ? colors.primaryDark : colors.border,
+                    backgroundColor: selected ? colors.primaryDark + "18" : colors.background,
+                  }]}
+                  onPress={() => setForm((p) => ({
+                    ...p,
+                    repeatDays: selected
+                      ? p.repeatDays.filter((value) => value !== day.value)
+                      : [...p.repeatDays, day.value].sort((a, b) => a - b),
+                  }))}
+                >
+                  <Text style={[alarmStyles.kindText, { color: selected ? colors.primaryDark : colors.muted }]}>{day.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          {form.repeatType === "interval" && (
-            <TextInput style={[localStyles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]} keyboardType="number-pad" placeholder="Intervalo em minutos" placeholderTextColor={colors.muted} value={form.intervalMinutes} onChangeText={(v) => setForm((p) => ({ ...p, intervalMinutes: v }))} />
-          )}
+          <Text style={[alarmStyles.repeatHint, { color: colors.muted }]}>Sem dias marcados, toca apenas uma vez.</Text>
           <View style={noteStyles.formActions}>
             <TouchableOpacity onPress={() => setShowAdd(false)}>
               <Text style={[noteStyles.cancelText, { color: colors.muted }]}>Cancelar</Text>
@@ -1227,6 +1267,10 @@ const alarmStyles = StyleSheet.create({
   kindRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
   kindBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", gap: 4 },
   repeatBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center" },
+  sectionLabel: { fontSize: 11, marginBottom: 6 },
+  weekdayGrid: { flexDirection: "row", gap: 5, marginBottom: 6 },
+  weekdayBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center" },
+  repeatHint: { fontSize: 11, marginBottom: 10 },
   kindText: { fontSize: 11, fontFamily: FONTS.sans },
   alarmHeader: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   alarmTitle: { fontSize: 15, fontFamily: FONTS.sans },

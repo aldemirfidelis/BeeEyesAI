@@ -74,14 +74,15 @@ const APP_TIPS: { id: number; text: string }[] = [
 
 function formatRoutineContext(
   events: Array<{ title: string; startAt: Date; endAt: Date | null; allDay: boolean | null }>,
-  alarms: Array<{ title: string; nextTriggerAt: Date; repeatType: string; kind: string; active: boolean }>,
+  alarms: Array<{ title: string; nextTriggerAt: Date; repeatType: string; repeatDays: number[]; kind: string; active: boolean }>,
 ) {
   const eventLines = events.slice(0, 8).map((event) =>
     `- Calendario: ${event.title} em ${event.startAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: event.allDay ? undefined : "short" })}${event.allDay ? " (dia inteiro)" : ""}`
   );
-  const alarmLines = alarms.slice(0, 8).map((alarm) =>
-    `- Relogio: ${alarm.title} em ${alarm.nextTriggerAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })} (${alarm.kind}, ${alarm.repeatType})`
-  );
+  const alarmLines = alarms.slice(0, 8).map((alarm) => {
+    const repeat = alarm.repeatDays.length > 0 ? `dias ${alarm.repeatDays.join(",")}` : alarm.repeatType;
+    return `- Relogio: ${alarm.title} em ${alarm.nextTriggerAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })} (${alarm.kind}, ${repeat})`;
+  });
   const lines = [...eventLines, ...alarmLines];
   return lines.length > 0 ? `Horarios marcados do usuario:\n${lines.join("\n")}` : "";
 }
@@ -345,6 +346,7 @@ export function createMessagesRouter() {
         title: alarmReminders.title,
         nextTriggerAt: alarmReminders.nextTriggerAt,
         repeatType: alarmReminders.repeatType,
+        repeatDays: alarmReminders.repeatDays,
         kind: alarmReminders.kind,
         active: alarmReminders.active,
       })
@@ -524,6 +526,7 @@ export function createMessagesRouter() {
             nextTriggerAt: scheduledAt,
             repeatType: alarmReminder.repeatType,
             intervalMinutes: alarmReminder.repeatType === "interval" ? alarmReminder.intervalMinutes ?? 60 : null,
+            repeatDays: [],
             active: true,
           }).returning();
           if (alarm) res.write(`data: ${JSON.stringify({ type: "alarm_created", alarm })}\n\n`);

@@ -73,6 +73,7 @@ export interface IStorage {
   unlikePost(postId: string, userId: string): Promise<void>;
   hasLikedPost(postId: string, userId: string): Promise<boolean>;
   getPostLikesCount(postId: string): Promise<number>;
+  getPostEnrichmentBatch(postIds: string[], userId: string): Promise<{ likeCounts: Map<string, number>; likedSet: Set<string>; commentCounts: Map<string, number> }>;
 
   // Connections
   getConnectionStatus(userId: string, targetUserId: string): Promise<UserConnection | undefined>;
@@ -132,7 +133,7 @@ export interface IStorage {
   getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; requestedAt: Date }[]>;
   approveJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
   rejectJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
-  getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
+  getCommunityPosts(communityId: string, userId: string, limit?: number, offset?: number): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
   createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost>;
   getUserCommunities(userId: string): Promise<Community[]>;
   toggleCommunityPostLike(postId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
@@ -1071,7 +1072,7 @@ export class DrizzleStorage implements IStorage {
     }
   }
 
-  async getCommunityPosts(communityId: string, userId: string): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]> {
+  async getCommunityPosts(communityId: string, userId: string, limit = 20, offset = 0): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]> {
     const rows = await db
       .select({
         id: communityPosts.id,
@@ -1088,7 +1089,8 @@ export class DrizzleStorage implements IStorage {
       .innerJoin(users, eq(communityPosts.userId, users.id))
       .where(eq(communityPosts.communityId, communityId))
       .orderBy(desc(communityPosts.createdAt))
-      .limit(50);
+      .limit(limit)
+      .offset(offset);
 
     if (rows.length === 0) return [];
     const postIds = rows.map((r) => r.id);
@@ -1218,6 +1220,23 @@ export class DrizzleStorage implements IStorage {
       .from(postComments)
       .where(eq(postComments.postId, postId));
     return Number(result[0]?.count ?? 0);
+  }
+
+  async getPostEnrichmentBatch(postIds: string[], userId: string): Promise<{ likeCounts: Map<string, number>; likedSet: Set<string>; commentCounts: Map<string, number> }> {
+    if (postIds.length === 0) return { likeCounts: new Map(), likedSet: new Set(), commentCounts: new Map() };
+    const [allLikes, allComments] = await Promise.all([
+      db.select({ postId: postLikes.postId, userId: postLikes.userId }).from(postLikes).where(inArray(postLikes.postId, postIds)),
+      db.select({ postId: postComments.postId }).from(postComments).where(inArray(postComments.postId, postIds)),
+    ]);
+    const likeCounts = new Map<string, number>();
+    const likedSet = new Set<string>();
+    for (const l of allLikes) {
+      likeCounts.set(l.postId, (likeCounts.get(l.postId) ?? 0) + 1);
+      if (l.userId === userId) likedSet.add(l.postId);
+    }
+    const commentCounts = new Map<string, number>();
+    for (const c of allComments) commentCounts.set(c.postId, (commentCounts.get(c.postId) ?? 0) + 1);
+    return { likeCounts, likedSet, commentCounts };
   }
 
   async toggleCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }> {

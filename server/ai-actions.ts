@@ -53,41 +53,112 @@ function cleanSpaces(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+const DAY_OF_WEEK: Record<string, number> = {
+  domingo: 0, segunda: 1, "segunda-feira": 1, terca: 2, "terca-feira": 2,
+  quarta: 3, "quarta-feira": 3, quinta: 4, "quinta-feira": 4,
+  sexta: 5, "sexta-feira": 5, sabado: 6,
+};
+
+function parseTimeFromMessage(message: string): { hour: number; minute: number; hasTime: boolean } {
+  const m =
+    message.match(/\b(?:as|às|a|@)\s*(\d{1,2})(?:[:h](\d{2}))?\s*h?\b/i) ??
+    message.match(/\b(\d{1,2})h(\d{2})?\b/i);
+  if (!m) return { hour: 9, minute: 0, hasTime: false };
+  const hour = Number(m[1]);
+  const minute = m[2] ? Number(m[2]) : 0;
+  if (hour > 23 || minute > 59) return { hour: 9, minute: 0, hasTime: false };
+  return { hour, minute, hasTime: true };
+}
+
 function parseDateTimeFromMessage(message: string): { startAt: Date; endAt?: Date; allDay: boolean } | null {
-  const dateMatch = message.match(/\b(?:dia\s+)?(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/i);
-  if (!dateMatch) return null;
-
-  const day = Number(dateMatch[1]);
-  const month = Number(dateMatch[2]);
+  const norm = stripDiacritics(message).toLowerCase();
   const now = new Date();
-  let year = dateMatch[3] ? Number(dateMatch[3]) : now.getFullYear();
-  if (year < 100) year += 2000;
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-
-  const afterDate = message.slice(dateMatch.index! + dateMatch[0].length);
-  const timeMatch =
-    afterDate.match(/\b(?:as|às|a|@)?\s*(\d{1,2})(?:[:h](\d{2}))?\s*h?\b/i) ??
-    message.match(/\b(?:as|às|a|@)\s*(\d{1,2})(?:[:h](\d{2}))?\s*h?\b/i);
-
-  const hasTime = !!timeMatch;
-  const hour = timeMatch ? Number(timeMatch[1]) : 9;
-  const minute = timeMatch?.[2] ? Number(timeMatch[2]) : 0;
-  if (hour > 23 || minute > 59) return null;
-
-  const startAt = new Date(year, month - 1, day, hour, minute, 0, 0);
-  if (Number.isNaN(startAt.getTime())) return null;
+  const { hour, minute, hasTime } = parseTimeFromMessage(message);
 
   const durationMatch = message.match(/\b(?:por|durante)\s+(\d{1,2})\s*(h|hora|horas|min|minutos)\b/i);
-  let endAt: Date | undefined;
-  if (durationMatch) {
-    const amount = Number(durationMatch[1]);
-    const millis = durationMatch[2].toLowerCase().startsWith("h") ? amount * 60 * 60 * 1000 : amount * 60 * 1000;
-    endAt = new Date(startAt.getTime() + millis);
-  } else if (hasTime) {
-    endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+  function buildResult(base: Date): { startAt: Date; endAt?: Date; allDay: boolean } {
+    const startAt = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0);
+    let endAt: Date | undefined;
+    if (durationMatch) {
+      const amount = Number(durationMatch[1]);
+      const millis = durationMatch[2].toLowerCase().startsWith("h") ? amount * 3_600_000 : amount * 60_000;
+      endAt = new Date(startAt.getTime() + millis);
+    } else if (hasTime) {
+      endAt = new Date(startAt.getTime() + 3_600_000);
+    }
+    return { startAt, endAt, allDay: !hasTime };
   }
 
-  return { startAt, endAt, allDay: !hasTime };
+  // Explicit numeric date: DD/MM or DD/MM/YYYY
+  const dateMatch = message.match(/\b(?:dia\s+)?(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/i);
+  if (dateMatch) {
+    const day = Number(dateMatch[1]);
+    const month = Number(dateMatch[2]);
+    let year = dateMatch[3] ? Number(dateMatch[3]) : now.getFullYear();
+    if (year < 100) year += 2000;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const base = new Date(year, month - 1, day);
+    if (Number.isNaN(base.getTime())) return null;
+    return buildResult(base);
+  }
+
+  // "depois de amanha" / "depois de amanhã"
+  if (/\bdepois de amanha\b/.test(norm)) {
+    const base = new Date(now);
+    base.setDate(base.getDate() + 2);
+    return buildResult(base);
+  }
+
+  // "amanha" / "amanhã"
+  if (/\bamanha\b/.test(norm)) {
+    const base = new Date(now);
+    base.setDate(base.getDate() + 1);
+    return buildResult(base);
+  }
+
+  // "hoje"
+  if (/\bhoje\b/.test(norm)) {
+    return buildResult(now);
+  }
+
+  // "em X dias/semanas"
+  const relMatch = norm.match(/\bem\s+(\d+)\s*(dia|dias|semana|semanas)\b/);
+  if (relMatch) {
+    const n = Number(relMatch[1]);
+    const isWeeks = relMatch[2].startsWith("semana");
+    const base = new Date(now);
+    base.setDate(base.getDate() + (isWeeks ? n * 7 : n));
+    return buildResult(base);
+  }
+
+  // Day-of-week names: "sexta", "quarta-feira", etc.
+  for (const [name, target] of Object.entries(DAY_OF_WEEK)) {
+    if (new RegExp(`\\b${name}\\b`).test(norm)) {
+      const today = now.getDay();
+      let diff = target - today;
+      if (diff <= 0) diff += 7;
+      const base = new Date(now);
+      base.setDate(base.getDate() + diff);
+      return buildResult(base);
+    }
+  }
+
+  // Has a time but no recognisable date → default to today (if time is in the future) or tomorrow
+  if (hasTime) {
+    const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+    const base = candidate > now ? candidate : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, hour, minute, 0, 0);
+    let endAt: Date | undefined;
+    if (durationMatch) {
+      const amount = Number(durationMatch[1]);
+      const millis = durationMatch[2].toLowerCase().startsWith("h") ? amount * 3_600_000 : amount * 60_000;
+      endAt = new Date(base.getTime() + millis);
+    } else {
+      endAt = new Date(base.getTime() + 3_600_000);
+    }
+    return { startAt: base, endAt, allDay: false };
+  }
+
+  return null;
 }
 
 function inferEventAction(message: string, normalized: string): CreateEventAction | undefined {
