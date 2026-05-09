@@ -63,7 +63,7 @@ function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { 
   }, [onClose]);
 
   return (
-    <div ref={ref} className="bee-surface absolute right-0 top-12 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl z-50 overflow-hidden">
+    <div ref={ref} className="bg-card border border-border shadow-xl absolute right-0 top-12 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl z-50 overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <span className="font-bold text-sm">Alertas</span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>

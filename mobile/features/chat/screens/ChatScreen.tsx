@@ -607,7 +607,11 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <KeyboardAvoidingView style={styles.chatArea} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
+      <KeyboardAvoidingView
+        style={[styles.chatArea, { paddingBottom: Platform.OS === "ios" ? 92 : 86 }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
         {allMessages.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>{t("chat_empty", { name: user?.displayName || user?.username })}</Text>
