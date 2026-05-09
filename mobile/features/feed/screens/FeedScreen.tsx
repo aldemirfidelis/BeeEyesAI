@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
+  ScrollView,
   Alert,
   KeyboardAvoidingView,
   Modal,

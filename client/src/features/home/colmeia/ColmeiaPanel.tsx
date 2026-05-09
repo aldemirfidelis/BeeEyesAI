@@ -6,7 +6,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import {
   Calendar, ChevronLeft, ChevronRight, DollarSign, ExternalLink,
-  Loader2, MapPin, Plus, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
+  Loader2, MapPin, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
   StickyNote, Pin, PinOff, Pencil, Check, Clock, BellRing, Pill, Briefcase, Pause, Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,11 +102,14 @@ type ToolId = "calendar" | "finance" | "clock" | "notes";
 
 interface ColmeiaTool { id: ToolId; label: string; icon: React.ReactNode; color: string }
 
-function CalIcon()    { return <Calendar className="w-6 h-6" />; }
-function MoneyIcon()  { return <DollarSign className="w-6 h-6" />; }
-function BellIcon()   { return <BellRing className="w-6 h-6" />; }
-function NoteIcon()   { return <StickyNote className="w-6 h-6" />; }
-function PlusIcon()   { return <Plus className="w-5 h-5 opacity-40" />; }
+function ColmeiaToolIcon({ children }: { children: React.ReactNode }) {
+  return <span className="flex h-7 w-7 items-center justify-center [&>svg]:h-5 [&>svg]:w-5">{children}</span>;
+}
+
+function CalIcon()    { return <ColmeiaToolIcon><Calendar /></ColmeiaToolIcon>; }
+function MoneyIcon()  { return <ColmeiaToolIcon><DollarSign /></ColmeiaToolIcon>; }
+function BellIcon()   { return <ColmeiaToolIcon><BellRing /></ColmeiaToolIcon>; }
+function NoteIcon()   { return <ColmeiaToolIcon><StickyNote /></ColmeiaToolIcon>; }
 
 const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "calendar", label: "Calendário", icon: <CalIcon />,   color: "#FFD940" },
@@ -180,18 +183,18 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
               boxShadow: tool ? `0 0 14px 2px ${tool.color}33` : "none",
               opacity: tool ? 1 : 0.28,
               cursor: tool ? "pointer" : "default",
-              gap: 5,
+               gap: 4,
             }}
           >
             {tool ? (
               <>
                 <span style={{ color: tool.color }}>{tool.icon}</span>
-                <span style={{ fontSize: 8, color: tool.color, fontWeight: 700, lineHeight: 1.2, textAlign: "center", paddingInline: 4 }}>
+                <span style={{ fontSize: 9, color: tool.color, fontWeight: 700, lineHeight: 1.15, textAlign: "center", paddingInline: 4, minHeight: 11 }}>
                   {tool.label}
                 </span>
               </>
             ) : (
-              <PlusIcon />
+              <span className="h-7 w-7 rounded-lg border border-border/70 bg-muted/20" aria-hidden="true" />
             )}
           </button>
         );
@@ -366,11 +369,11 @@ function CalendarSection({ authHeaders }: { authHeaders: () => Record<string, st
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">{format(selectedDay, "dd 'de' MMMM", { locale: ptBR })}</h3>
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
               setForm(f => ({ ...f, startAt: format(selectedDay, "yyyy-MM-dd") + "T09:00" }));
               setShowForm(true);
             }}>
-              <Plus className="w-3 h-3" /> Evento
+              Evento
             </Button>
           </div>
           {dayEvents.length === 0 ? (
@@ -423,8 +426,8 @@ function CalendarSection({ authHeaders }: { authHeaders: () => Record<string, st
 
       {/* Add event button */}
       {!selectedDay && !showForm && (
-        <Button variant="outline" className="w-full gap-2" onClick={() => setShowForm(true)}>
-          <Plus className="w-4 h-4" /> Novo evento
+        <Button variant="outline" className="w-full" onClick={() => setShowForm(true)}>
+          Novo evento
         </Button>
       )}
 
@@ -577,8 +580,8 @@ function FinanceSection({ authHeaders }: { authHeaders: () => Record<string, str
 
       {/* Add transaction button */}
       {!showForm && (
-        <Button variant="outline" className="w-full gap-2" onClick={() => setShowForm(true)}>
-          <Plus className="w-4 h-4" /> Nova transação
+        <Button variant="outline" className="w-full" onClick={() => setShowForm(true)}>
+          Nova transação
         </Button>
       )}
 
@@ -745,9 +748,9 @@ function NotesSection({ authHeaders }: { authHeaders: () => Record<string, strin
       {!showAdd && (
         <button
           onClick={() => setShowAdd(true)}
-          className="w-full flex items-center gap-2 justify-center py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors text-sm"
+          className="w-full flex items-center justify-center py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors text-sm"
         >
-          <Plus className="w-4 h-4" /> Nova nota
+          Nova nota
         </button>
       )}
 
@@ -1024,7 +1027,7 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
             <Button size="sm" variant="outline" className="text-xs flex-1" onClick={requestNotifications}>Ativar avisos</Button>
           )}
           <Button size="sm" className="text-xs flex-1" onClick={() => setShowForm((value) => !value)}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Novo alarme
+            Novo alarme
           </Button>
         </div>
       </div>

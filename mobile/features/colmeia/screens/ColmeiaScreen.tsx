@@ -403,7 +403,6 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
                 setShowAddEvent(true);
               }}
             >
-              <Feather name="plus" size={13} color="#1A1A1A" />
               <Text style={calStyles.addDayBtnText}>Adicionar</Text>
             </TouchableOpacity>
           </View>
@@ -436,7 +435,6 @@ function CalendarSection({ colors, styles }: { colors: any; styles: any }) {
       {/* Add event button (when no day selected) */}
       {selectedDay == null && (
         <TouchableOpacity style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark }]} onPress={() => setShowAddEvent(true)}>
-          <Feather name="plus" size={16} color="#fff" />
           <Text style={localStyles.btnPrimaryText}>Novo Evento</Text>
         </TouchableOpacity>
       )}
@@ -718,7 +716,6 @@ function FinanceSection({ colors, styles }: { colors: any; styles: any }) {
             style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark }]}
             onPress={() => setShowAdd(true)}
           >
-            <Feather name="plus" size={16} color="#fff" />
             <Text style={localStyles.btnPrimaryText}>Registrar Transação</Text>
           </TouchableOpacity>
 
@@ -928,7 +925,6 @@ function NotesSection({ colors }: { colors: any }) {
           style={[noteStyles.addBtn, { borderColor: colors.border }]}
           onPress={() => setShowAdd(true)}
         >
-          <Feather name="plus" size={16} color={colors.muted} />
           <Text style={[noteStyles.addBtnText, { color: colors.muted }]}>Nova nota</Text>
         </TouchableOpacity>
       )}
@@ -1240,7 +1236,6 @@ function ClockSection({ colors }: { colors: any }) {
         </View>
         <Text style={[alarmStyles.heroText, { color: colors.muted }]}>Despertadores locais com som e vibracao para remedios, periodos e compromissos.</Text>
         <TouchableOpacity style={[localStyles.btnPrimary, { backgroundColor: colors.primaryDark, marginBottom: 0 }]} onPress={() => setShowAdd((v) => !v)}>
-          <Feather name="plus" size={16} color="#fff" />
           <Text style={localStyles.btnPrimaryText}>Novo alarme</Text>
         </TouchableOpacity>
       </View>
@@ -1522,13 +1517,15 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
           >
             {tool ? (
               <>
-                <Feather name={tool.icon} size={26} color={tool.color} />
-                <Text style={{ fontSize: 9, color: tool.color, fontFamily: FONTS.sans, fontWeight: "700", marginTop: 5, textAlign: "center", paddingHorizontal: 4 }}>
+                <View style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}>
+                  <Feather name={tool.icon} size={24} color={tool.color} />
+                </View>
+                <Text style={{ fontSize: 10, color: tool.color, fontFamily: FONTS.sans, fontWeight: "700", marginTop: 3, textAlign: "center", paddingHorizontal: 4, minHeight: 12 }}>
                   {tool.label}
                 </Text>
               </>
             ) : (
-              <Feather name="plus-circle" size={20} color={colors.muted} />
+              <View style={{ width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }} />
             )}
           </TouchableOpacity>
         );
@@ -1765,6 +1762,7 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 12,
   },
+  dateField: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   inputMultiline: {
     minHeight: 70,
     textAlignVertical: "top",
