@@ -86,4 +86,8 @@ export async function ensureDatabaseCompatibility() {
     CREATE INDEX IF NOT EXISTS "alarm_reminders_active_next_idx" ON "alarm_reminders" ("active", "next_trigger_at");
     CREATE INDEX IF NOT EXISTS "alarm_reminders_reactivation_idx" ON "alarm_reminders" ("active", "reactivation_reminder_at");
   `);
+  await pool.query(`
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "city" text;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_daily_briefing_date" text;
+  `);
 }

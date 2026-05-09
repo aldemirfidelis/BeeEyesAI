@@ -20,6 +20,22 @@ export interface User {
   anonymousProfileVisitsEnabled?: boolean;
   currentStreak: number;
   totalMessagesCount?: number;
+  city?: string | null;
+  lastDailyBriefingDate?: string | null;
+}
+
+export interface DailyBriefing {
+  text: string;
+  weather: {
+    temp: number;
+    tempMin: number;
+    tempMax: number;
+    description: string;
+    precipitationChance: number;
+  } | null;
+  city: string | null;
+  date: string;
+  dayOfWeek: string;
 }
 
 export interface FeedPost {

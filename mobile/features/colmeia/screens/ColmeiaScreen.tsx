@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions, Vibration,
+  Image,
 } from "react-native";
 import { SvgXml } from "react-native-svg";
 import { DrumRollDatePicker } from "@mobile/components/DrumRollDatePicker";
@@ -132,15 +133,13 @@ function getCategoryColor(cat: string) {
 // To add a new tool: (1) add its ToolId to the union above, (2) push to COLMEIA_TOOLS,
 // (3) place its id in HEX_LAYOUT (replace a null slot or extend).
 
-type FeatherName = React.ComponentProps<typeof Feather>["name"];
-
-interface ColmeiaTool { id: ToolId; label: string; icon: FeatherName; color: string }
+interface ColmeiaTool { id: ToolId; label: string; img: number; color: string }
 
 const COLMEIA_TOOLS: ColmeiaTool[] = [
-  { id: "calendar", label: "Calendário",  icon: "calendar",    color: "#FFD940" },
-  { id: "finance",  label: "Finanças",    icon: "dollar-sign", color: "#10B981" },
-  { id: "notes",    label: "Notas",       icon: "file-text",   color: "#8B5CF6" },
-  { id: "clock",    label: "Alarmes",     icon: "bell",        color: "#F97316" },
+  { id: "calendar", label: "Calendário", img: require("../../../assets/icons-colmeia/calendario.png"),  color: "#FFD940" },
+  { id: "finance",  label: "Finanças",   img: require("../../../assets/icons-colmeia/financas.png"),    color: "#10B981" },
+  { id: "notes",    label: "Notas",      img: require("../../../assets/icons-colmeia/notas.png"),       color: "#8B5CF6" },
+  { id: "clock",    label: "Alarmes",    img: require("../../../assets/icons-colmeia/alarmes.png"),     color: "#F97316" },
 ];
 
 // 6 positions around center (degrees, clockwise from top).
@@ -1487,7 +1486,11 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         alignItems: "center", justifyContent: "center",
         shadowColor: "#B98005", shadowOpacity: 0.28, shadowRadius: 24, elevation: 14,
       }}>
-        <SvgXml xml={BEE_SVG} width={72} height={72} />
+        <Image
+          source={require("../../../assets/icons-colmeia/icone-central.png")}
+          style={{ width: 72, height: 72 }}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Tool cells */}
@@ -1517,9 +1520,11 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
           >
             {tool ? (
               <>
-                <View style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}>
-                  <Feather name={tool.icon} size={24} color={tool.color} />
-                </View>
+                <Image
+                  source={tool.img}
+                  style={{ width: 40, height: 40 }}
+                  resizeMode="contain"
+                />
                 <Text style={{ fontSize: 10, color: tool.color, fontFamily: FONTS.sans, fontWeight: "700", marginTop: 3, textAlign: "center", paddingHorizontal: 4, minHeight: 12 }}>
                   {tool.label}
                 </Text>

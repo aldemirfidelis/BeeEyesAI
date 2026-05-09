@@ -1552,6 +1552,111 @@ export function parseAIActions(response: string): {
   return { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote };
 }
 
+// ── Daily Briefing ────────────────────────────────────────────────────────────
+
+export interface DailyBriefingInput {
+  userName: string;
+  gender?: string | null;
+  city: string | null;
+  dateStr: string;
+  dayOfWeek: string;
+  weather: {
+    temp: number;
+    tempMin: number;
+    tempMax: number;
+    description: string;
+    precipitationChance: number;
+  } | null;
+  interests: string[];
+  streak: number;
+  level: number;
+  facts: string[];
+}
+
+function buildDailyBriefingPrompt(input: DailyBriefingInput): string {
+  const genderNote = input.gender === "feminino" ? "Use o gênero feminino ao se referir à usuária." :
+    input.gender === "masculino" ? "Use o gênero masculino ao se referir ao usuário." : "";
+
+  const weatherBlock = input.weather
+    ? `Clima em ${input.city || "sua cidade"}: ${input.weather.description}, ${input.weather.temp}°C agora, mínima ${input.weather.tempMin}°C e máxima ${input.weather.tempMax}°C, ${input.weather.precipitationChance}% de chance de chuva.`
+    : input.city
+    ? `Localização: ${input.city}. Dados de clima não disponíveis no momento.`
+    : "Localização não disponível.";
+
+  const interestsBlock = input.interests.length > 0
+    ? `Interesses do usuário: ${input.interests.slice(0, 6).join(", ")}.`
+    : "";
+
+  const factsBlock = input.facts.length > 0
+    ? `O que você já sabe sobre ${input.userName}: ${input.facts.slice(0, 5).join("; ")}.`
+    : "";
+
+  const streakBlock = input.streak > 0
+    ? `Sequência ativa: ${input.streak} dia${input.streak > 1 ? "s" : ""}.`
+    : "";
+
+  return `Você é a Bee 🐝 — assistente pessoal inteligente, amigável e motivadora. Gere um resumo curto e acolhedor para o início do dia de ${input.userName}.
+
+Dados disponíveis:
+- Data: ${input.dateStr} (${input.dayOfWeek})
+- ${weatherBlock}
+${interestsBlock}
+${factsBlock}
+${streakBlock}
+${genderNote}
+
+Instruções:
+- Comece com uma saudação personalizada (bom dia/boa tarde/boa noite conforme a hora: ${new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit" })}h de Brasília)
+- Mencione o nome ${input.userName}
+- Se houver dados de clima, inclua uma sugestão prática (ex: "leve um guarda-chuva", "beba mais água", "aproveite o sol")
+- Inclua uma sugestão de foco para o dia baseada nos interesses
+- Termine com uma frase motivacional curta e genuína
+- Seja acolhedora, objetiva e natural — como uma amiga próxima mandando mensagem
+- Máximo 4 frases curtas, sem listas, sem markdown
+- NÃO invente dados que não foram fornecidos
+- Responda APENAS em português do Brasil`;
+}
+
+export async function generateDailyBriefing(input: DailyBriefingInput): Promise<string> {
+  const prompt = buildDailyBriefingPrompt(input);
+  const fallback = `Bom dia, ${input.userName}! Hoje é ${input.dateStr}, ${input.dayOfWeek}. Que seu dia seja cheio de foco e realizações. A Bee está com você. 🐝`;
+
+  return callWithFallback<string>(
+    [
+      async () => {
+        const r = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? fallback;
+      },
+      async () => {
+        const r = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? fallback;
+      },
+      async () => {
+        const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim() || fallback;
+      },
+      async () => {
+        const r = await cerebras.chat.completions.create({
+          model: "llama-3.3-70b",
+          max_tokens: 200,
+          messages: [{ role: "user", content: prompt }],
+        });
+        return r.choices[0]?.message?.content?.trim() ?? fallback;
+      },
+    ],
+    fallback
+  );
+}
+
 const TRANSCRIBE_PROMPT =
   "Aplicativo de produtividade pessoal em português do Brasil. Metas, missões, tarefas, hábitos, rotina, foco, disciplina, evolução, conquistas, produtividade, consistência, planejamento, prioridades, objetivos, resultados, BeeEyes.";
 

@@ -29,7 +29,8 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { googleId?: string; displayName?: string; gender?: string }): Promise<User>;
-  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean }): Promise<User>;
+  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean; city?: string | null }): Promise<User>;
+  updateLastDailyBriefingDate(userId: string, date: string): Promise<void>;
   updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void>;
   updateUserPassword(userId: string, passwordHash: string): Promise<void>;
   updateUserPushToken(userId: string, token: string | null): Promise<void>;
@@ -166,7 +167,7 @@ export class DrizzleStorage implements IStorage {
     return user;
   }
 
-  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean }): Promise<User> {
+  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean; city?: string | null }): Promise<User> {
     const updates: Partial<typeof users.$inferInsert> = {};
     if (preferences.anonymousProfileVisitsEnabled !== undefined) {
       updates.anonymousProfileVisitsEnabled = preferences.anonymousProfileVisitsEnabled;
@@ -175,6 +176,7 @@ export class DrizzleStorage implements IStorage {
     if (preferences.bio !== undefined) updates.bio = preferences.bio;
     if (preferences.language !== undefined) updates.language = preferences.language;
     if (preferences.onboardingCompleted !== undefined) updates.onboardingCompleted = preferences.onboardingCompleted;
+    if (preferences.city !== undefined) updates.city = preferences.city;
 
     if (Object.keys(updates).length === 0) {
       const user = await this.getUser(userId);
@@ -195,6 +197,10 @@ export class DrizzleStorage implements IStorage {
     }
 
     return updated;
+  }
+
+  async updateLastDailyBriefingDate(userId: string, date: string): Promise<void> {
+    await db.update(users).set({ lastDailyBriefingDate: date }).where(eq(users.id, userId));
   }
 
   async updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void> {

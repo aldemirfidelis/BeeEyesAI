@@ -18,6 +18,7 @@ import { useChat } from "@mobile/hooks/useChat";
 import BeeEyes from "@mobile/components/BeeEyes";
 import ChatMessage from "@mobile/components/ChatMessage";
 import AchievementToast from "@mobile/components/AchievementToast";
+import DailyBriefingModal from "@mobile/components/DailyBriefingModal";
 import { UserAvatar } from "@mobile/components/UserAvatar";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { type ConnectionRequestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNewsDigestMeta, parseMessageMeta } from "@mobile/lib/social";
@@ -89,6 +90,14 @@ export default function ChatScreen() {
   const { eyeExpression, themeMode, setEyeExpression } = useUIStore();
   const { user } = useAuthStore();
   const { sendMessage } = useChat();
+  const [dailyBriefing, setDailyBriefing] = useState<{
+    text: string;
+    weather: { temp: number; tempMin: number; tempMax: number; description: string; precipitationChance: number } | null;
+    city: string | null;
+    date: string;
+    dayOfWeek: string;
+  } | null>(null);
+  const [showDailyBriefing, setShowDailyBriefing] = useState(false);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
@@ -106,6 +115,25 @@ export default function ChatScreen() {
     if (eyeResetTimeoutRef.current) clearTimeout(eyeResetTimeoutRef.current);
     if (attentionResetTimeoutRef.current) clearTimeout(attentionResetTimeoutRef.current);
     if (meteringIntervalRef.current) clearInterval(meteringIntervalRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get("/api/daily-briefing")
+      .then((r) => {
+        const data = r.data as { shouldShow: boolean; briefing?: any };
+        if (data.shouldShow && data.briefing) {
+          setDailyBriefing(data.briefing);
+          setShowDailyBriefing(true);
+        }
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
+  const dismissDailyBriefing = useCallback(() => {
+    setShowDailyBriefing(false);
+    setDailyBriefing(null);
+    api.post("/api/daily-briefing/dismiss").catch(() => {});
   }, []);
 
   const { data: initialMessages } = useQuery({ queryKey: ["messages"], queryFn: () => api.get("/api/messages?limit=50").then((r) => r.data), staleTime: Infinity });
@@ -499,6 +527,15 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]} onTouchStart={handleScreenTouch} onTouchMove={handleScreenTouch}>
       <AchievementToast />
+      {dailyBriefing && (
+        <DailyBriefingModal
+          visible={showDailyBriefing}
+          briefing={dailyBriefing}
+          userName={user?.displayName || user?.username || ""}
+          onStart={dismissDailyBriefing}
+          onDismiss={dismissDailyBriefing}
+        />
+      )}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.logo}>bee-eyes</Text>
         <View style={styles.headerActions}>

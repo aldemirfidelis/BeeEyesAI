@@ -32,6 +32,8 @@ export const users = pgTable("users", {
   totalMessagesCount: integer("total_messages_count").notNull().default(0),
   personalityProfile: text("personality_profile"),
   expoPushToken: text("expo_push_token"),
+  city: text("city"),
+  lastDailyBriefingDate: text("last_daily_briefing_date"),
   lastActiveAt: timestamp("last_active_at").defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   isAdmin: boolean("is_admin").notNull().default(false),

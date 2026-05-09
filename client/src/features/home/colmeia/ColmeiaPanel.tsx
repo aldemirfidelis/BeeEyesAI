@@ -102,20 +102,21 @@ type ToolId = "calendar" | "finance" | "clock" | "notes";
 
 interface ColmeiaTool { id: ToolId; label: string; icon: React.ReactNode; color: string }
 
-function ColmeiaToolIcon({ children }: { children: React.ReactNode }) {
-  return <span className="flex h-7 w-7 items-center justify-center [&>svg]:h-5 [&>svg]:w-5">{children}</span>;
+function ColmeiaToolIcon({ src, alt }: { src: string; alt: string }) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      style={{ width: 36, height: 36, objectFit: "contain", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.25))" }}
+    />
+  );
 }
 
-function CalIcon()    { return <ColmeiaToolIcon><Calendar /></ColmeiaToolIcon>; }
-function MoneyIcon()  { return <ColmeiaToolIcon><DollarSign /></ColmeiaToolIcon>; }
-function BellIcon()   { return <ColmeiaToolIcon><BellRing /></ColmeiaToolIcon>; }
-function NoteIcon()   { return <ColmeiaToolIcon><StickyNote /></ColmeiaToolIcon>; }
-
 const COLMEIA_TOOLS: ColmeiaTool[] = [
-  { id: "calendar", label: "Calendário", icon: <CalIcon />,   color: "#FFD940" },
-  { id: "finance",  label: "Finanças",   icon: <MoneyIcon />, color: "#10B981" },
-  { id: "notes",    label: "Notas",      icon: <NoteIcon />,  color: "#8B5CF6" },
-  { id: "clock",    label: "Alarmes",    icon: <BellIcon />,  color: "#F97316" },
+  { id: "calendar", label: "Calendário", icon: <ColmeiaToolIcon src="/icons-colmeia/calendario.png"  alt="Calendário" />, color: "#FFD940" },
+  { id: "finance",  label: "Finanças",   icon: <ColmeiaToolIcon src="/icons-colmeia/financas.png"    alt="Finanças"   />, color: "#10B981" },
+  { id: "notes",    label: "Notas",      icon: <ColmeiaToolIcon src="/icons-colmeia/notas.png"       alt="Notas"      />, color: "#8B5CF6" },
+  { id: "clock",    label: "Alarmes",    icon: <ColmeiaToolIcon src="/icons-colmeia/alarmes.png"     alt="Alarmes"    />, color: "#F97316" },
 ];
 
 // 6 slots around center — null = "em breve"
@@ -132,7 +133,7 @@ const HEX_LAYOUT: Array<ToolId | null> = [
 const W_CTR = 140; // centerX of hub container
 const H_CTR = 155; // centerY
 const W_RADIUS = 100;
-const CELL = 76;   // hex cell size
+const CELL = 82;   // hex cell size
 const C_CELL = 96; // center cell size
 
 function degToRad(d: number) { return (d * Math.PI) / 180; }
@@ -160,7 +161,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
           boxShadow: "0 16px 34px -20px rgba(89,58,0,0.55), 0 0 22px 4px rgba(255,217,64,0.28)",
         }}
       >
-        <img src="/bee-logo.svg" alt="Bee" style={{ width: 56, height: 56, objectFit: "contain" }} />
+        <img src="/icons-colmeia/icone-central.png" alt="Bee" style={{ width: 56, height: 56, objectFit: "contain", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.3))" }} />
       </div>
 
       {/* Tool cells */}

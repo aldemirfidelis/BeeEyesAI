@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
+import DailyBriefingModal from "@/components/DailyBriefingModal";
 import ChatMessage from "@/components/ChatMessage";
 import MoodSelector from "@/components/MoodSelector";
 import AchievementPopup from "@/components/AchievementPopup";
@@ -146,6 +147,16 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Daily briefing state
+  const [dailyBriefing, setDailyBriefing] = useState<{
+    text: string;
+    weather: { temp: number; tempMin: number; tempMax: number; description: string; precipitationChance: number } | null;
+    city: string | null;
+    date: string;
+    dayOfWeek: string;
+  } | null>(null);
+  const [showDailyBriefing, setShowDailyBriefing] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -254,6 +265,45 @@ export default function Home() {
       });
 
   }, [token]);
+
+  // Check daily briefing once user is loaded
+  useEffect(() => {
+    if (!token || !user) return;
+
+    function fetchBriefing(lat?: number, lon?: number) {
+      const url = lat !== undefined && lon !== undefined
+        ? `/api/daily-briefing?lat=${lat}&lon=${lon}`
+        : "/api/daily-briefing";
+      apiFetch<{ shouldShow: boolean; briefing?: any }>(url, { headers: authHeaders() })
+        .then((res) => {
+          if (res.shouldShow && res.briefing) {
+            setDailyBriefing(res.briefing);
+            setShowDailyBriefing(true);
+          }
+        })
+        .catch(() => { /* briefing is non-critical */ });
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetchBriefing(pos.coords.latitude, pos.coords.longitude),
+        () => fetchBriefing(),
+        { timeout: 4000 }
+      );
+    } else {
+      fetchBriefing();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, user?.id]);
+
+  const dismissDailyBriefing = useCallback(() => {
+    setShowDailyBriefing(false);
+    setDailyBriefing(null);
+    apiFetch("/api/daily-briefing/dismiss", {
+      method: "POST",
+      headers: authHeaders(),
+    }).catch(() => {});
+  }, []);
 
   // Load friends list
   const loadFriends = useCallback(async () => {
@@ -1902,6 +1952,15 @@ export default function Home() {
         isVisible={showAchievement}
         onClose={() => setShowAchievement(false)}
       />
+
+      {showDailyBriefing && dailyBriefing && (
+        <DailyBriefingModal
+          briefing={dailyBriefing}
+          userName={user?.displayName || user?.username || ""}
+          onStart={dismissDailyBriefing}
+          onDismiss={dismissDailyBriefing}
+        />
+      )}
     </div>
   );
 }

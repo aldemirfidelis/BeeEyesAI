@@ -4,6 +4,7 @@ import { createAdminRouter } from "./admin";
 import { createAuthRouter } from "./auth";
 import { createColmeiaRouter, startAlarmReminderScheduler } from "./colmeia";
 import { createCommunitiesRouter } from "./communities";
+import { createDailyBriefingRouter } from "./daily-briefing";
 import { createMessagesRouter } from "./messages";
 import { createMoodRouter } from "./mood";
 import { createSocialRouter } from "./social";
@@ -14,6 +15,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(createAdminRouter());
   app.use(createAuthRouter());
   app.use(createColmeiaRouter());
+  app.use(createDailyBriefingRouter());
   app.use(createMessagesRouter());
   app.use(createMoodRouter());
   app.use(createSocialRouter());
