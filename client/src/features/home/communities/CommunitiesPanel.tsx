@@ -205,8 +205,8 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
   }
 
   return (
-    // Outer div: positioning context only — NO overflow here so absolute overlays stay visible
-    <div className="flex-1 flex flex-col min-h-0 relative">
+    // Outer div: h-full fills the TabsContent (which has flex-1 from the Tabs flex-col parent)
+    <div className="h-full flex flex-col relative">
 
       {/* ── Community detail view ─────────────────────────────── */}
       {(communityPostsLoading || selectedCommunity) && (

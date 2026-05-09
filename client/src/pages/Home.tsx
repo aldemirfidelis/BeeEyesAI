@@ -1631,7 +1631,7 @@ export default function Home() {
           />
         </TabsContent>
 
-        <TabsContent value="communities" className="flex-1 overflow-y-auto p-0 m-0 relative">
+        <TabsContent value="communities" className="flex-1 min-h-0 overflow-hidden p-0 m-0 relative">
           <CommunitiesPanel
             communities={communities}
             communitiesLoading={communitiesLoading}

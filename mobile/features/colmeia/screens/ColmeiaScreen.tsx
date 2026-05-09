@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet,
   ActivityIndicator, Alert, Linking, Modal, Platform, Dimensions, Vibration,
 } from "react-native";
+import { SvgXml } from "react-native-svg";
 import { DrumRollDatePicker } from "@mobile/components/DrumRollDatePicker";
 import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1425,6 +1426,36 @@ const noteStyles = StyleSheet.create({
   noteMeta: { fontSize: 11, marginTop: 8 },
 });
 
+// ── Bee SVG (sem fundo) ───────────────────────────────────────────────────────
+
+const BEE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <ellipse cx="256" cy="420" rx="90" ry="20" fill="#000000" opacity="0.12"/>
+  <path d="M 256 370 L 246 415 L 266 415 Z" fill="#141414" stroke="#141414" stroke-width="12" stroke-linejoin="round"/>
+  <g opacity="0.95">
+    <ellipse cx="160" cy="190" rx="60" ry="100" fill="#FFFFFF" transform="rotate(-35 160 190)" stroke="#141414" stroke-width="10"/>
+    <ellipse cx="352" cy="190" rx="60" ry="100" fill="#FFFFFF" transform="rotate(35 352 190)" stroke="#141414" stroke-width="10"/>
+  </g>
+  <path d="M 210 180 Q 180 100 130 120" fill="none" stroke="#141414" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="130" cy="120" r="16" fill="#141414"/>
+  <path d="M 302 180 Q 332 100 382 120" fill="none" stroke="#141414" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="382" cy="120" r="16" fill="#141414"/>
+  <ellipse cx="256" cy="260" rx="130" ry="140" fill="#FFD940" stroke="#141414" stroke-width="14"/>
+  <defs><clipPath id="bee-hub-clip"><ellipse cx="256" cy="260" rx="123" ry="133"/></clipPath></defs>
+  <g clip-path="url(#bee-hub-clip)">
+    <rect x="100" y="275" width="312" height="28" fill="#141414"/>
+    <rect x="100" y="335" width="312" height="28" fill="#141414"/>
+  </g>
+  <ellipse cx="186" cy="246" rx="16" ry="10" fill="#EEB900" opacity="0.8"/>
+  <ellipse cx="326" cy="246" rx="16" ry="10" fill="#EEB900" opacity="0.8"/>
+  <circle cx="206" cy="226" r="20" fill="#141414"/>
+  <circle cx="214" cy="218" r="7" fill="#FFFFFF"/>
+  <circle cx="198" cy="232" r="3" fill="#FFFFFF"/>
+  <circle cx="306" cy="226" r="20" fill="#141414"/>
+  <circle cx="314" cy="218" r="7" fill="#FFFFFF"/>
+  <circle cx="298" cy="232" r="3" fill="#FFFFFF"/>
+  <path d="M 244 246 Q 256 260 268 246" fill="none" stroke="#141414" stroke-width="8" stroke-linecap="round"/>
+</svg>`;
+
 // ── Colmeia Hub ───────────────────────────────────────────────────────────────
 
 const { width: HUB_SCREEN_W } = Dimensions.get("window");
@@ -1461,10 +1492,7 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         alignItems: "center", justifyContent: "center",
         shadowColor: "#FFD940", shadowOpacity: 0.9, shadowRadius: 22, elevation: 14,
       }}>
-        <Text style={{ fontSize: 38 }}>🐝</Text>
-        <Text style={{ fontSize: 10, color: "#FFD940", fontFamily: FONTS.display, fontWeight: "700", letterSpacing: 2, marginTop: 3 }}>
-          BEE
-        </Text>
+        <SvgXml xml={BEE_SVG} width={72} height={72} />
       </View>
 
       {/* Tool cells */}

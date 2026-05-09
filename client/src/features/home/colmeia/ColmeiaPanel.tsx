@@ -158,8 +158,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
           boxShadow: "0 0 22px 4px rgba(255,217,64,0.35)",
         }}
       >
-        <span style={{ fontSize: 32 }}>🐝</span>
-        <span style={{ fontSize: 9, color: "#FFD940", fontWeight: 800, letterSpacing: 2, marginTop: 2 }}>BEE</span>
+        <img src="/bee-logo.svg" alt="Bee" style={{ width: 56, height: 56, objectFit: "contain" }} />
       </div>
 
       {/* Tool cells */}
