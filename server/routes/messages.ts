@@ -3,6 +3,7 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
+import { inferExplicitToolActions } from "../ai-actions";
 import { db } from "../db";
 import { calendarEvents, financeTransactions, notes } from "../../shared/schema";
 import {
@@ -28,13 +29,7 @@ const APP_TIPS: { id: number; text: string }[] = [
   { id: 4,  text: "💡 Dica: eu lembro de tudo que você me conta. Quanto mais você compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestões para você." },
   { id: 5,  text: "💡 Dica: se quiser notícias relevantes, toque em 'Buscar notícias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
   { id: 6,  text: "💡 Dica: você pode conversar comigo sobre qualquer coisa — produtividade, reflexões, ideias, planos. Quanto mais natural a conversa, melhores minhas análises sobre você." },
-  { id: 7,  text: "💡 Dica: use comandos rápidos no chat. Digite /feed para o timeline, /comunidades para grupos, ou /noticias para manchetes personalizadas." },
   { id: 8,  text: "💡 Dica: mantenha sua sequência (streak) ativa todos os dias. Sequências de 3, 7 e 30 dias mostram que você é constante de verdade." },
-
-  // ── Feed ───────────────────────────────────────────────────────────────────
-  { id: 14, text: "💡 Dica: o Feed não é só uma timeline — é onde sua rede vê seu progresso. Publicar pequenas vitórias aumenta sua conexão com a comunidade e motiva os outros." },
-  { id: 15, text: "💡 Dica: você pode postar texto + foto no Feed. Toque no ícone de câmera ou galeria no compositor de post para adicionar uma imagem ao que está pensando." },
-  { id: 16, text: "💡 Dica: a IA comenta automaticamente nos posts do Feed com uma análise do sentimento e tom. É um jeito de ver como sua mensagem está sendo percebida." },
 
   // ── Comunidades ────────────────────────────────────────────────────────────
   { id: 17, text: "💡 Dica: Comunidades são grupos temáticos. Entre em comunidades alinhadas com seus objetivos — você encontra pessoas com os mesmos focos e objetivos que você." },
@@ -350,7 +345,11 @@ export function createMessagesRouter() {
       return;
     }
 
-    const { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
+    let { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
+    const explicitActions = inferExplicitToolActions(content);
+    createEvent ??= explicitActions.createEvent;
+    logFinance ??= explicitActions.logFinance;
+    saveNote ??= explicitActions.saveNote;
     await storage.createMessage({ userId, role: "assistant", content: cleanText });
 
     if (achievement) {
@@ -413,6 +412,7 @@ export function createMessagesRouter() {
             description: createEvent.description ?? null,
             startAt: startDate,
             endAt: createEvent.endAt ? new Date(createEvent.endAt) : null,
+            allDay: !!createEvent.allDay,
             location: createEvent.location ?? null,
           }).returning();
           if (event) res.write(`data: ${JSON.stringify({ type: "event_created", event })}\n\n`);

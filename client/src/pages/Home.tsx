@@ -24,10 +24,9 @@ import { FriendProfileModal } from "@/features/home/friends/FriendProfileModal";
 import { ChatWorkspace } from "@/features/home/chat/ChatWorkspace";
 import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } from "@/lib/theme";
 import { fileToCompressedDataUrl, fileToDataUrl, FEED_IMAGE_ACCEPT, isAcceptedFeedImage } from "@/lib/image";
-import FeedPostCard from "@/components/FeedPostCard";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
-import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ChatFeedSummaryPost, NetworkDigestMeta } from "@/features/home/types";
+import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem } from "@/features/home/types";
 import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
 
 const SENTIMENT_EMOJI: Record<string, string> = {
@@ -89,6 +88,7 @@ export default function Home() {
   const [pickingPostImage, setPickingPostImage] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [showPostInput, setShowPostInput] = useState(false);
+  const [colmeiaRefreshKey, setColmeiaRefreshKey] = useState(0);
   const [suggestions, setSuggestions] = useState<ConnectionSuggestion[]>([]);
   const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
 
@@ -860,13 +860,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [pulseEyeEvent, token]);
 
-  useEffect(() => {
-    if (!token) return;
-    handleAutomaticNetworkDigest();
-    const interval = setInterval(handleAutomaticNetworkDigest, 4 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [token]);
-
   // Load Google GIS script once
   useEffect(() => {
     const script = document.createElement("script");
@@ -958,6 +951,22 @@ export default function Home() {
     const content = (typeof voiceText === "string" ? voiceText : inputValue).trim();
     if (!content || isLoading || !token) return;
     const slashCommand = content.toLowerCase();
+
+    if (slashCommand === "/feed") {
+      setInputValue("");
+      setMobileTab("feed");
+      loadFeed();
+      return;
+    }
+
+    if (slashCommand === "/compartilhar") {
+      setInputValue("");
+      setShowPostInput(true);
+      setMobileTab("feed");
+      loadFeed();
+      return;
+    }
+
     const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };
     setMessages((prev) => [...prev, userMsg]);
     isNearBottomRef.current = true;
@@ -970,18 +979,8 @@ export default function Home() {
     setEyeExpression("attentive");
     pulseEyeEvent("user-typing", 900);
 
-    if (slashCommand === "/feed") {
-      setMobileTab("feed");
-      loadFeed();
-      injectAssistantMessage("Abrindo o feed para você. 📣");
-      return;
-    }
     if (slashCommand === "/notícias" || slashCommand === "/noticias") {
       handleNewsCommand();
-      return;
-    }
-    if (slashCommand === "/compartilhar") {
-      handleShareCommand();
       return;
     }
     if (slashCommand === "/inbox" || slashCommand === "/mensagens") {
@@ -1068,10 +1067,12 @@ export default function Home() {
               pulseEyeEvent("message-received", 2200);
               setTimeout(() => { setShowAchievement(false); setEyeExpression("happy"); }, 4000);
             } else if (event.type === "event_created") {
+              setColmeiaRefreshKey((value) => value + 1);
               setAchievementData({ title: "Evento criado! 📅", description: event.event?.title ?? "Evento adicionado ao calendário." });
               setShowAchievement(true);
               setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "finance_logged") {
+              setColmeiaRefreshKey((value) => value + 1);
               const tx = event.transaction;
               const label = tx?.type === "income" ? "Receita" : "Despesa";
               const amount = tx ? `R$ ${(tx.amountCents / 100).toFixed(2)}` : "";
@@ -1079,6 +1080,7 @@ export default function Home() {
               setShowAchievement(true);
               setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "note_saved") {
+              setColmeiaRefreshKey((value) => value + 1);
               const note = event.note;
               setAchievementData({ title: "Nota salva! 📝", description: note?.title ?? (note?.content?.slice(0, 60) + (note?.content?.length > 60 ? "…" : "")) });
               setShowAchievement(true);
@@ -1354,57 +1356,6 @@ export default function Home() {
     }
   };
 
-  const [showInlinePost, setShowInlinePost] = useState(false);
-
-  const handleShareCommand = () => {
-    setShowInlinePost((v) => !v);
-  };
-
-  async function handleAutomaticNetworkDigest() {
-    if (!token) return;
-
-    try {
-      const [newsRes, feedRes, suggestionsRes] = await Promise.all([
-        fetch("/api/news", { headers: authHeaders() }),
-        fetch("/api/feed?limit=5", { headers: authHeaders() }),
-        fetch("/api/connections/suggestions?limit=3", { headers: authHeaders() }),
-      ]);
-
-      const newsData = newsRes.ok ? await newsRes.json() : { items: [], query: "seus interesses" };
-      const feedPosts = feedRes.ok ? await feedRes.json() : [];
-      const suggestedConnections = suggestionsRes.ok ? await suggestionsRes.json() : [];
-
-      setFeed(feedPosts);
-      setSuggestions(suggestedConnections);
-
-      const hasNews = Array.isArray(newsData.items) && newsData.items.length > 0;
-      const hasFeed = Array.isArray(feedPosts) && feedPosts.length > 0;
-      const hasSuggestions = Array.isArray(suggestedConnections) && suggestedConnections.length > 0;
-
-      if (!hasNews && !hasFeed && !hasSuggestions) return;
-
-      const content = [
-        "Olha o que você perde.",
-        hasFeed ? `Tem ${feedPosts.length} atualização${feedPosts.length > 1 ? "ões" : ""} no seu feed.` : null,
-        hasNews ? `Separei notícias sobre ${newsData.query}.` : null,
-        hasSuggestions ? `Também achei ${suggestedConnections.length} sugest${suggestedConnections.length > 1 ? "ões" : "ão"} de conexão.` : null,
-      ].filter(Boolean).join(" ");
-
-      injectAssistantMessage(content, {
-        type: "network_digest",
-        query: newsData.query || "seus interesses",
-        newsItems: hasNews ? newsData.items.slice(0, 3) : [],
-        feedPosts: hasFeed ? feedPosts.slice(0, 3) : [],
-        suggestions: hasSuggestions ? suggestedConnections.slice(0, 3) : [],
-      } satisfies NetworkDigestMeta);
-
-      setEyeExpression("happy");
-      setTimeout(() => setEyeExpression("neutral"), 4000);
-    } catch {
-      // ignore automatic digest failures
-    }
-  }
-
   const handleConnect = async (targetUserId: string) => {
     if (connectingIds.has(targetUserId)) return;
     setConnectingIds((prev) => new Set(prev).add(targetUserId));
@@ -1533,7 +1484,7 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="colmeia" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
-          <ColmeiaPanel authHeaders={authHeaders} />
+          <ColmeiaPanel key={colmeiaRefreshKey} authHeaders={authHeaders} />
         </TabsContent>
 
         <TabsContent value="friends" className="flex-1 overflow-y-auto min-h-0 p-0 mt-0">
@@ -1687,11 +1638,6 @@ export default function Home() {
         inputRef={inputRef}
         inputValue={inputValue}
         isLoading={isLoading}
-        postText={postText}
-        postImageUrl={postImageUrl}
-        pickingPostImage={pickingPostImage}
-        showInlinePost={showInlinePost}
-        isPosting={isPosting}
         messageActionsRenderer={(message) => {
           if (message.role !== "assistant") return null;
           const meta = getMessageMeta(message.metadata);
@@ -1723,61 +1669,6 @@ export default function Home() {
             );
           }
 
-          if (meta.type === "feed_summary" && Array.isArray(meta.posts)) {
-            return (
-              <div className="space-y-2">
-                {(meta.posts as ChatFeedSummaryPost[]).map((post) => (
-                  <FeedPostCard key={post.id} post={{ ...post, commentsCount: post.commentsCount ?? 0 }} authHeaders={authHeaders} timeAgo={timeAgo} />
-                ))}
-                <div className="flex justify-end">
-                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowInlinePost(true)}>
-                    Compartilhar algo
-                  </Button>
-                </div>
-              </div>
-            );
-          }
-
-          if (meta.type === "network_digest") {
-            const digest = meta as NetworkDigestMeta;
-            return (
-              <div className="space-y-3">
-                {Array.isArray(digest.feedPosts) && digest.feedPosts.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feed</p>
-                    {digest.feedPosts.map((post) => (
-                      <FeedPostCard key={post.id} post={{ ...post, commentsCount: (post as any).commentsCount ?? 0 }} authHeaders={authHeaders} timeAgo={timeAgo} />
-                    ))}
-                  </div>
-                )}
-                {Array.isArray(digest.newsItems) && digest.newsItems.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Not?cias</p>
-                    {digest.newsItems.map((item, index) => (
-                      <NewsCard key={item.link + "-" + index} title={item.title} link={item.link} source={item.source} authHeaders={authHeaders} />
-                    ))}
-                  </div>
-                )}
-                {Array.isArray(digest.suggestions) && digest.suggestions.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rede</p>
-                    {digest.suggestions.map((suggestion) => (
-                      <div key={suggestion.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card/70 px-4 py-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold">{suggestion.displayName || suggestion.username}</p>
-                          <p className="mt-1 text-xs text-muted-foreground truncate">{suggestion.commonInterests.slice(0, 2).join(" ? ") || "Novo contato para conhecer"}</p>
-                        </div>
-                        <Button size="sm" variant="outline" className="h-8 text-xs" disabled={connectingIds.has(suggestion.id)} onClick={() => handleConnect(suggestion.id)}>
-                          Conectar
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
           return null;
         }}
         onToggleSettings={() => setShowSettingsScreen(true)}
@@ -1790,22 +1681,10 @@ export default function Home() {
           const maxScroll = Math.max(el.scrollHeight - el.clientHeight, 1);
           setEyeScrollProgress(el.scrollTop / maxScroll);
         }}
-        onInlinePostClose={() => setShowInlinePost(false)}
-        onPostTextChange={setPostText}
-        onPickPostImage={() => feedImageInputRef.current?.click()}
-        onRemovePostImage={clearPostImage}
-        onCreatePost={handleCreatePost}
         onInputChange={handleEyeInputChange}
         onInputFocusChange={handleEyeInputFocusChange}
         onSendMessage={handleSendMessage}
         onSendVoiceMessage={(text) => handleSendMessage(text)}
-        onQuickAction={(action) => {
-          if (action === "feed") { setMobileTab("feed"); loadFeed(); }
-          if (action === "colmeia") { setMobileTab("colmeia"); }
-          if (action === "news") handleNewsCommand();
-          if (action === "inbox") { setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); }
-          if (action === "communities") { setMobileTab("communities"); loadCommunities(communitySearch); }
-        }}
       />
 
       {/* ── Sidebar — sempre visível no desktop (384px), full-screen em outras tabs no mobile ── */}

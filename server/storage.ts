@@ -126,6 +126,7 @@ export interface IStorage {
   updateCommunity(id: string, ownerId: string, data: { name?: string; description?: string | null; imageUrl?: string | null }): Promise<Community | null>;
   getCommunityById(id: string, userId: string): Promise<(Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null>;
   getCommunityMembers(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; role: string; joinedAt: Date }[]>;
+  getCommunityMemberPushTokens(communityId: string, excludeUserId: string): Promise<string[]>;
   joinCommunity(communityId: string, userId: string): Promise<"joined" | "pending">;
   leaveCommunity(communityId: string, userId: string): Promise<void>;
   getPendingJoinRequests(communityId: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null; requestedAt: Date }[]>;
@@ -991,6 +992,21 @@ export class DrizzleStorage implements IStorage {
       .innerJoin(users, eq(communityMembers.userId, users.id))
       .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.status, "active")))
       .orderBy(communityMembers.joinedAt);
+  }
+
+  async getCommunityMemberPushTokens(communityId: string, excludeUserId: string): Promise<string[]> {
+    const rows = await db
+      .select({ token: users.expoPushToken })
+      .from(communityMembers)
+      .innerJoin(users, eq(communityMembers.userId, users.id))
+      .where(
+        and(
+          eq(communityMembers.communityId, communityId),
+          eq(communityMembers.status, "active"),
+          ne(communityMembers.userId, excludeUserId),
+        ),
+      );
+    return rows.map((r) => r.token).filter((t): t is string => !!t);
   }
 
   async joinCommunity(communityId: string, userId: string): Promise<"joined" | "pending"> {

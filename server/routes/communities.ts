@@ -4,6 +4,7 @@ import { badRequest, forbidden, notFound } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
+import { sendPushToCommunityMembers, sendPushToUser } from "../push";
 
 export function createCommunitiesRouter() {
   const router = Router();
@@ -76,7 +77,7 @@ export function createCommunitiesRouter() {
   router.get("/api/communities/:id/members", requireAuth, asyncHandler(async (req, res) => {
     const community = await storage.getCommunityById(req.params.id, req.userId!);
     if (!community) {
-      throw notFound("Comunidade nÃ£o encontrada");
+      throw notFound("Comunidade não encontrada");
     }
     return sendOk(res, await storage.getCommunityMembers(req.params.id));
   }));
@@ -133,6 +134,7 @@ export function createCommunitiesRouter() {
           fromName: requesterName,
         }),
       });
+      sendPushToUser(targetId, `Convite para ${community.emoji || "🐝"} ${community.name}`, `${requesterName} convidou você para participar.`, { screen: "/(tabs)/communities" }).catch(() => {});
       invitedCount++;
     }
 
@@ -174,13 +176,25 @@ export function createCommunitiesRouter() {
       throw forbidden("Entre na comunidade para publicar");
     }
 
-    const post = await storage.createCommunityPost({ communityId: req.params.id, userId: req.userId!, content: content || "Imagem compartilhada", imageUrl });
-    const author = await storage.getUser(req.userId!);
+    const [post, author] = await Promise.all([
+      storage.createCommunityPost({ communityId: req.params.id, userId: req.userId!, content: content || "Imagem compartilhada", imageUrl }),
+      storage.getUser(req.userId!),
+    ]);
     storage.ensureAchievement(req.userId!, {
       type: "first_community_post",
       title: "Voz na Comunidade",
       description: "Publicou pela primeira vez em uma comunidade. Sua voz importa.",
     }).catch(() => {});
+
+    const authorName = author?.displayName || author?.username || "Alguém";
+    const preview = (content || "Imagem compartilhada").slice(0, 80);
+    sendPushToCommunityMembers(
+      req.params.id,
+      req.userId!,
+      `${community.emoji || "🐝"} ${community.name} está movimentado`,
+      `${authorName}: ${preview}`,
+      { screen: "/(tabs)/communities" },
+    ).catch(() => {});
 
     return sendCreated(res, {
       ...post,

@@ -14,6 +14,7 @@ import {
 import { parseBoundedInt } from "../http";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
+import { sendPushToUser } from "../push";
 import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 
 export function createSocialRouter() {
@@ -306,6 +307,7 @@ export function createSocialRouter() {
             content: `${accepterName} aceitou sua solicitação de amizade. Agora vocês podem conversar!`,
             metadata: JSON.stringify({ type: "connection_accepted", byUserId: req.userId }),
           });
+          sendPushToUser(accepted.userId, "Solicitação aceita! 🎉", `${accepterName} aceitou sua conexão.`, { screen: "/(tabs)" }).catch(() => {});
         }
 
         return sendOk(res, accepted);
@@ -329,6 +331,7 @@ export function createSocialRouter() {
           fromName: requesterName,
         }),
       });
+      sendPushToUser(targetUserId, "Nova solicitação de conexão 🤝", `${requesterName} quer se conectar com você.`, { screen: "/(tabs)" }).catch(() => {});
     }
 
     return sendCreated(res, connection);
@@ -361,6 +364,7 @@ export function createSocialRouter() {
         content: `${accepterName} aceitou sua solicitação de amizade. Agora vocês podem conversar!`,
         metadata: JSON.stringify({ type: "connection_accepted", byUserId: req.userId }),
       });
+      sendPushToUser(connection.userId, "Solicitação aceita! 🎉", `${accepterName} aceitou sua conexão.`, { screen: "/(tabs)" }).catch(() => {});
     }
 
     // Medalhas de amizade para quem aceitou
@@ -459,7 +463,12 @@ export function createSocialRouter() {
       throw notFound("Usuário não encontrado");
     }
 
-    const created = await storage.sendDirectMessage({ senderId: req.userId!, recipientId, content });
+    const [created, sender] = await Promise.all([
+      storage.sendDirectMessage({ senderId: req.userId!, recipientId, content }),
+      storage.getUser(req.userId!),
+    ]);
+    const senderName = sender?.displayName || sender?.username || "Alguém";
+    sendPushToUser(recipientId, `Nova mensagem de ${senderName} 💬`, content.length > 80 ? content.slice(0, 80) + "…" : content, { screen: "/(tabs)/inbox" }, "bee-social").catch(() => {});
     return sendCreated(res, created);
   }));
 
@@ -479,7 +488,7 @@ export function createSocialRouter() {
   router.get("/api/users/:userId/testimonials", requireAuth, asyncHandler(async (req, res) => {
     const user = await storage.getUser(req.params.userId);
     if (!user) {
-      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+      throw notFound("Usuário não encontrado");
     }
     return sendOk(res, await storage.getTestimonialsForProfile(req.params.userId));
   }));
@@ -491,10 +500,10 @@ export function createSocialRouter() {
       throw badRequest("Depoimento vazio");
     }
     if (content.length > 500) {
-      throw badRequest("Depoimento muito longo (mÃ¡ximo 500 caracteres)");
+      throw badRequest("Depoimento muito longo (máximo 500 caracteres)");
     }
     if (profileUserId === req.userId) {
-      throw badRequest("VocÃª nÃ£o pode escrever depoimento para si mesmo");
+      throw badRequest("Você não pode escrever depoimento para si mesmo");
     }
 
     const [profileUser, acceptedIds] = await Promise.all([
@@ -502,7 +511,7 @@ export function createSocialRouter() {
       storage.getAcceptedConnectionIds(req.userId!),
     ]);
     if (!profileUser) {
-      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+      throw notFound("Usuário não encontrado");
     }
     if (!acceptedIds.includes(profileUserId)) {
       throw forbidden("Apenas amigos podem escrever depoimentos");

@@ -155,10 +155,10 @@ Acompanhe os 4 pilares de ${callName}: ${pillarBalance}.
 - Incentive networking com propósito
 - Exemplo: "Você mencionou finanças — tem pessoas aqui com o mesmo foco, posso apresentar?"
 
-### 4. FEED INTELIGENTE — Curadora de conteúdo
-- Quando o usuário pedir o feed, destaque os conteúdos mais relevantes e comente de forma natural
-- Identifique tendências e padrões entre os usuários
-- Misture: conteúdo de amigos, recomendado, tendências, personalizado
+### 4. CHAT DA IA — Conversa focada
+- Mantenha o chat como conversa direta com o usuário
+- Não envie resumos, atualizações ou cards do feed dentro do chat
+- Se o usuário quiser ver o feed, oriente de forma breve a usar a aba Feed do app
 
 ### 5. CONSCIÊNCIA DO USUÁRIO — Voz interna inteligente
 - Lembre as metas definidas por ${callName} de forma gentil
@@ -918,7 +918,7 @@ Você é a BeeEyes 🐝, assistente pessoal e companheira de evolução de ${use
 
 1. PRODUTIVIDADE: percebeu algo sobre trabalho, tarefas ou foco? Comente ou sugira algo prático
 2. SAÚDE: identificou padrão de cansaço, falta de descanso ou treino? Mencione com cuidado
-3. SOCIAL: sugira que interaja com amigos, compartilhe no feed, ou explore as comunidades
+3. SOCIAL: sugira que interaja com amigos ou explore as comunidades
 4. EVOLUÇÃO: referencie um objetivo ou meta pessoal e encoraje o progresso
 
 5. MEMÓRIA: referencie algo específico que ${user.username} mencionou antes de forma carinhosa
@@ -1444,14 +1444,14 @@ export function parseAIActions(response: string): {
   cleanText: string;
   achievement?: { type: string; title: string; description: string };
   fetchNews?: { query: string };
-  createEvent?: { title: string; startAt: string; endAt?: string; description?: string; location?: string };
+  createEvent?: { title: string; startAt: string; endAt?: string; description?: string; location?: string; allDay?: boolean };
   logFinance?: { type: "income" | "expense"; amount: number; category: string; description?: string };
   saveNote?: { content: string; title?: string };
 } {
   let cleanText = response;
   let achievement: { type: string; title: string; description: string } | undefined;
   let fetchNews: { query: string } | undefined;
-  let createEvent: { title: string; startAt: string; endAt?: string; description?: string; location?: string } | undefined;
+  let createEvent: { title: string; startAt: string; endAt?: string; description?: string; location?: string; allDay?: boolean } | undefined;
   let logFinance: { type: "income" | "expense"; amount: number; category: string; description?: string } | undefined;
   let saveNote: { content: string; title?: string } | undefined;
 
@@ -1493,6 +1493,7 @@ export function parseAIActions(response: string): {
           endAt: raw.endAt ?? raw.end_at ?? undefined,
           description: raw.description ?? undefined,
           location: raw.location ?? undefined,
+          allDay: raw.allDay ?? raw.all_day ?? undefined,
         };
       }
       cleanText = cleanText.replace(eventMatch[0], "").trim();

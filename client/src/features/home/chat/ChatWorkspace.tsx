@@ -4,9 +4,8 @@ import BeeEyes, { type BeeEyesEvent, type BeeEyesExpression } from "@/components
 import ChatMessage from "@/components/ChatMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { AnimatePresence } from "framer-motion";
-import { Bell, ImagePlus, Loader2, MessageCircle, Mic, MicOff, Search, Send, Settings, User, Users, X } from "lucide-react";
+import { Bell, Loader2, Mic, MicOff, Search, Send, User, Users, X } from "lucide-react";
 import type { Message, User as UserType } from "@/features/home/types";
 
 interface ChatWorkspaceProps {
@@ -31,26 +30,15 @@ interface ChatWorkspaceProps {
   inputRef: RefObject<HTMLInputElement>;
   inputValue: string;
   isLoading: boolean;
-  postText: string;
-  postImageUrl: string;
-  pickingPostImage: boolean;
-  showInlinePost: boolean;
-  isPosting: boolean;
   messageActionsRenderer: (message: Message) => ReactNode;
   onToggleSettings: () => void;
   onToggleSearch: () => void;
   onSearchQueryChange: (value: string) => void;
   onScrollStateChange: () => void;
-  onInlinePostClose: () => void;
-  onPostTextChange: (value: string) => void;
-  onPickPostImage: () => void;
-  onRemovePostImage: () => void;
-  onCreatePost: () => void;
   onInputChange: (value: string) => void;
   onInputFocusChange: (focused: boolean) => void;
   onSendMessage: () => void;
   onSendVoiceMessage: (text: string) => void;
-  onQuickAction: (action: "feed" | "colmeia" | "news" | "inbox" | "communities") => void;
 }
 
 function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { authHeaders: () => Record<string, string>; onClose: () => void; onNotificationClick: (item: any) => void }) {
@@ -147,11 +135,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     inputRef,
     inputValue,
     isLoading,
-    postText,
-    postImageUrl,
-    pickingPostImage,
-    showInlinePost,
-    isPosting,
     messageActionsRenderer,
     authHeaders,
     onGoToFriends,
@@ -159,16 +142,10 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     onToggleSearch,
     onSearchQueryChange,
     onScrollStateChange,
-    onInlinePostClose,
-    onPostTextChange,
-    onPickPostImage,
-    onRemovePostImage,
-    onCreatePost,
     onInputChange,
     onInputFocusChange,
     onSendMessage,
     onSendVoiceMessage,
-    onQuickAction,
   } = props;
 
   const handleMicToggle = useCallback(async () => {
@@ -353,17 +330,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
         </div>
 
         <div className="border-t p-3 md:p-4 bg-card/50 backdrop-blur-sm shrink-0 pb-safe">
-          {showInlinePost && (
-            <div className="max-w-4xl mx-auto mb-3 rounded-2xl border border-border bg-background/80 p-3 space-y-3">
-              <Textarea value={postText} onChange={(event) => onPostTextChange(event.target.value)} placeholder="Compartilhe uma atualização rápida com seus amigos..." className="min-h-[88px] resize-none text-sm" maxLength={500} />
-              <div className="flex justify-between gap-2">
-                <Button variant="ghost" className="text-xs" onClick={onInlinePostClose}>Fechar</Button>
-                <Button className="text-xs" disabled={!postText.trim() || isPosting} onClick={onCreatePost}>{isPosting ? "Publicando..." : "Publicar"}</Button>
-              </div>
-            </div>
-          )}
-
-
           {transcriptionError && (
             <p className="max-w-4xl mx-auto mb-2 text-xs text-destructive">
               Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.
