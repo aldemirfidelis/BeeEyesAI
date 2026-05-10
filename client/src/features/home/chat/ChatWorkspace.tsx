@@ -229,41 +229,64 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
   return (
     <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : ""}`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-primary/10 beeyes-glass-light dark:beeyes-glass">
-        <div className="flex items-center justify-between gap-2 px-3 py-2.5 md:px-6 md:py-3">
-          <div className="flex items-center gap-3">
+        <div className="relative flex items-center justify-between gap-2 px-3 py-3 md:px-6 md:py-4 min-h-[72px]">
+          {/* Left: logo + name */}
+          <div className="flex items-center gap-3 z-10 shrink-0">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-primary/55 bg-primary/10 beeyes-glow md:h-11 md:w-11">
               <img src="/beeyes-design/images/bee-icon.png" alt="bee-eyes" className="h-full w-full object-cover" />
             </span>
             <div>
-              <h1 className="font-display text-xl font-black leading-none beeyes-gradient-text md:text-xl">bee-eyes</h1>
+              <h1 className="font-display text-xl font-black leading-none beeyes-gradient-text">bee-eyes</h1>
               <p className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                Assistente pessoal inteligente
+                Online
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 relative">
+          {/* Center: BeeEyes absolutely centered in header */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
+            <div className="pointer-events-auto" style={{ transform: "scale(0.58)", transformOrigin: "center" }}>
+              <BeeEyes
+                expression={eyeExpression}
+                event={eyeEvent}
+                inputFocused={eyeInputFocused}
+                isTyping={eyeIsTyping}
+                scrollProgress={eyeScrollProgress}
+                engagementLevel={eyeEngagementLevel}
+              />
+            </div>
+          </div>
+
+          {/* Right: action buttons */}
+          <div className="flex items-center gap-1 relative z-10 shrink-0">
+            {/* Buscar */}
+            <button
+              type="button"
+              onClick={onToggleSearch}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+              aria-label="Buscar mensagens"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+
             {/* Alertas */}
             <button
               type="button"
               onClick={() => setShowNotifications((v) => !v)}
-              className="relative flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground md:px-2"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
             >
-              <div className="relative">
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[15px] h-[15px] bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
-                    {Math.min(unreadCount, 9)}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] font-semibold leading-none">Alertas</span>
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] bg-destructive text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+                  {Math.min(unreadCount, 9)}
+                </span>
+              )}
             </button>
             {showNotifications && (
-              <NotificationsDropdown 
-                authHeaders={authHeaders} 
-                onClose={() => setShowNotifications(false)} 
+              <NotificationsDropdown
+                authHeaders={authHeaders}
+                onClose={() => setShowNotifications(false)}
                 onNotificationClick={(item) => {
                   onSearchQueryChange(item.body);
                   setShowNotifications(false);
@@ -278,46 +301,28 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={onGoToFriends}
-              className="flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground md:px-2"
+              className="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
             >
               <Users className="w-5 h-5" />
-              <span className="text-[10px] font-semibold leading-none">Amigos</span>
             </button>
 
             {/* Perfil */}
             <button
               type="button"
               onClick={onToggleSettings}
-              className="flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground md:px-2"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
             >
               {profilePhotoUrl ? (
-                <img src={profilePhotoUrl} alt="Foto" className="w-6 h-6 rounded-full object-cover ring-2 ring-primary/25" />
+                <img src={profilePhotoUrl} alt="Foto" className="w-7 h-7 rounded-full object-cover ring-2 ring-primary/35" />
               ) : (
                 <User className="w-5 h-5" />
               )}
-              <span className="text-[10px] font-semibold leading-none">Perfil</span>
             </button>
           </div>
         </div>
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="bee-honeycomb relative flex h-[82px] shrink-0 items-center justify-center overflow-hidden border-b border-primary/10 bg-gradient-to-b from-primary/10 to-transparent md:h-[70px]">
-          <div style={{ transform: "scale(0.6)", transformOrigin: "center center", marginTop: -8 }}>
-            <BeeEyes
-              expression={eyeExpression}
-              event={eyeEvent}
-              inputFocused={eyeInputFocused}
-              isTyping={eyeIsTyping}
-              scrollProgress={eyeScrollProgress}
-              engagementLevel={eyeEngagementLevel}
-            />
-          </div>
-          <button type="button" onClick={onToggleSearch} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-card/70 shadow-xs hover:bg-primary/10 transition-colors" aria-label="Buscar mensagens">
-            <Search size={18} className="text-muted-foreground" />
-          </button>
-        </div>
-
         {showMsgSearch && (
           <div className="shrink-0 px-4 py-2 border-b border-border/60 bg-card/70 backdrop-blur flex items-center gap-2">
             <Search size={16} className="text-muted-foreground shrink-0" />
@@ -327,7 +332,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           </div>
         )}
 
-        <div ref={chatScrollRef} className="bee-honeycomb flex-1 overflow-y-auto px-6 pb-52 pt-4 md:bg-none md:p-6 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-4 pb-52 pt-4 md:px-6 md:pb-6 md:pt-4 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
           <div className="flex justify-center md:hidden">
             <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-sm ring-1 ring-border/60 backdrop-blur">
               Hoje, 10:24

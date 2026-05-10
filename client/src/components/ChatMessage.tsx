@@ -39,10 +39,10 @@ export default function ChatMessage({ role, content, timestamp, actions, profile
 
       <div className={`flex max-w-[82%] flex-col ${isUser ? "items-end" : "items-start"} md:max-w-[70%]`}>
         <div
-          className={`rounded-2xl px-4 py-2.5 ring-1 ${
+          className={`rounded-2xl px-4 py-2.5 shadow-lg ${
             isUser
-              ? "rounded-tr-md bg-[#F5A623] text-[#1A1A1A] shadow-lg ring-[#D98A00]/25"
-              : "rounded-tl-md bg-white text-[#1A1A1A] shadow-lg ring-[#E8DDC8] dark:bg-[#2D2D2D] dark:text-white dark:ring-white/10"
+              ? "rounded-tr-md beeyes-gradient-bg text-[#1A1A1A] ring-1 ring-[#D98A00]/20"
+              : "rounded-tl-md bg-white text-[#1A1A1A] ring-1 ring-[#E8DDC8] dark:bg-[#2D2D2D] dark:text-white dark:ring-white/10"
           }`}
         >
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>

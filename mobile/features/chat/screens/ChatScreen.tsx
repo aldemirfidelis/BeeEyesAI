@@ -580,9 +580,23 @@ export default function ChatScreen() {
           <Image source={require("../../../assets/beeyes-design/bee-icon.png")} style={styles.brandIcon} />
           <View>
             <Text style={styles.logo}>bee-eyes</Text>
-            <Text style={styles.brandStatus}>Assistente pessoal</Text>
+            <View style={styles.brandOnline}>
+              <View style={styles.brandOnlineDot} />
+              <Text style={styles.brandStatus}>Online</Text>
+            </View>
           </View>
         </View>
+
+        {/* BeeEyes absolutely centered in header */}
+        <View style={styles.headerEyes} pointerEvents="none">
+          <BeeEyes
+            expression={eyeExpression}
+            size={isKeyboardVisible ? 44 : 58}
+            attentionX={eyeAttention.x}
+            attentionY={eyeAttention.y}
+          />
+        </View>
+
         <View style={styles.headerActions}>
           <TouchableOpacity
             onPress={() => router.push("/notifications")}
@@ -595,7 +609,6 @@ export default function ChatScreen() {
                 <Text style={styles.headerBadgeText}>{Math.min(intelligentNotifications.length, 9)}</Text>
               </View>
             ) : null}
-            <Text style={styles.headerIconLabel}>Alertas</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push("/friends")}
@@ -603,7 +616,6 @@ export default function ChatScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="users" size={20} color={colors.muted} />
-            <Text style={styles.headerIconLabel}>Amigos</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push("/profile")}
@@ -611,24 +623,14 @@ export default function ChatScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="user" size={20} color={colors.muted} />
-            <Text style={styles.headerIconLabel}>Perfil</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={[styles.mascotBar, isKeyboardVisible && styles.mascotBarKeyboard]}>
-        <BeeEyes
-          expression={eyeExpression}
-          size={isKeyboardVisible ? 58 : 76}
-          attentionX={eyeAttention.x}
-          attentionY={eyeAttention.y}
-        />
-      </View>
-
       <KeyboardAvoidingView
         style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 96 : 90 }]}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         {allMessages.length === 0 ? (
           <View style={styles.emptyState}>
@@ -903,19 +905,22 @@ const stylesBackdrop = StyleSheet.create({
 function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card + "EE", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 10 },
-    brandMark: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 },
-    brandIcon: { width: 38, height: 38, borderRadius: 12, borderWidth: 2, borderColor: colors.primary + "88" },
-    logo: { fontFamily: FONTS.display, fontSize: 24, color: colors.foreground, fontWeight: "900", letterSpacing: -0.2 },
-    brandStatus: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginTop: 1 },
-    headerActions: { flexDirection: "row", gap: 6 },
-    headerIconBtn: { minWidth: 48, height: 42, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 2, backgroundColor: colors.secondary + "CC", borderWidth: 1, borderColor: colors.border },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card + "EE", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 10, position: "relative" },
+    brandMark: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1, zIndex: 1 },
+    brandIcon: { width: 36, height: 36, borderRadius: 11, borderWidth: 2, borderColor: colors.primary + "88" },
+    logo: { fontFamily: FONTS.display, fontSize: 20, color: colors.foreground, fontWeight: "900", letterSpacing: -0.2 },
+    brandOnline: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 },
+    brandOnlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
+    brandStatus: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800", color: colors.primary, textTransform: "uppercase" },
+    headerEyes: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", zIndex: 0 },
+    headerActions: { flexDirection: "row", gap: 4, zIndex: 1 },
+    headerIconBtn: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondary + "99", borderWidth: 1, borderColor: colors.border },
     headerIconLabel: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "600", color: colors.muted },
     headerBadge: { position: "absolute", top: -7, right: -10, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.destructive },
     headerBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "800", color: "#FFFFFF" },
-    mascotBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.primary + "12", borderBottomWidth: 1, borderBottomColor: colors.border },
-    mascotBarKeyboard: { paddingVertical: 4 },
-    mascotBarCenter: { flex: 1, gap: 2 },
+    mascotBar: { height: 0, overflow: "hidden" },
+    mascotBarKeyboard: {},
+    mascotBarCenter: {},
     presenceLabelCompact: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase" },
     insightBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.primary },
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
@@ -947,9 +952,9 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     dateChipWrap: { alignItems: "center", marginBottom: 18 },
     dateChip: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted, backgroundColor: colors.card + "CC", borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, overflow: "hidden" },
     messageList: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 28 },
-    inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 18, marginBottom: 8, padding: 5, gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
+    inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 6, paddingVertical: 5, gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
     composerKeyboard: { marginBottom: 4 },
-    input: { flex: 1, backgroundColor: colors.secondary, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 110, borderWidth: 1, borderColor: colors.border },
+    input: { flex: 1, backgroundColor: "transparent", paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 110 },
     sendButton: { minWidth: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 6 },
     sendButtonDisabled: { opacity: 0.4 },
     micButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
