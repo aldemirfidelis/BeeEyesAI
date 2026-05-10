@@ -24,6 +24,7 @@ export type BeeEyesExpression = BeeEyesEmotion | BeeEyesLegacyExpression;
 export type BeeEyesEvent =
   | "message-received"
   | "user-typing"
+  | "mission-complete"
   | "thinking"
   | "idle"
   | "input-focus";
@@ -41,7 +42,7 @@ interface BeeEyesProps {
 }
 
 interface EmotionPreset {
-  squint: number;   // 0=open, 1=closed
+  scaleY: number;
   pupilX: number;
   pupilY: number;
   movement: number;
@@ -54,14 +55,19 @@ interface MotionPoint {
   y: number;
 }
 
+// Hexagon points for eye body (56×56 space)
+const HEX_POINTS = "14,0 42,0 56,28 42,56 14,56 0,28";
+// Octagon points for pupil (28×28 space)
+const OCT_POINTS = "8,0 20,0 28,8 28,20 20,28 8,28 0,20 0,8";
+
 const EMOTION_PRESETS: Record<BeeEyesEmotion, EmotionPreset> = {
-  neutral:   { squint: 0.00, pupilX: 0,  pupilY: 0,  movement: 0.42, blink: [2800, 5200], glow: 0.02 },
-  happy:     { squint: 0.28, pupilX: 0,  pupilY: 3,  movement: 0.34, blink: [2600, 4700], glow: 0.06 },
-  curious:   { squint: 0.08, pupilX: 6,  pupilY: -3, movement: 0.54, blink: [2600, 4600], glow: 0.08 },
-  attentive: { squint: 0.06, pupilX: 0,  pupilY: -2, movement: 0.48, blink: [3000, 5200], glow: 0.07 },
-  excited:   { squint: 0.12, pupilX: 0,  pupilY: -2, movement: 0.58, blink: [2200, 3600], glow: 0.15 },
-  thinking:  { squint: 0.15, pupilX: 0,  pupilY: 2,  movement: 0.68, blink: [4200, 6800], glow: 0.03 },
-  tired:     { squint: 0.55, pupilX: 0,  pupilY: 3,  movement: 0.18, blink: [2400, 4200], glow: 0.01 },
+  neutral:   { scaleY: 1.0,  pupilX: 0,  pupilY: 0,  movement: 0.42, blink: [2800, 5200], glow: 0.02 },
+  happy:     { scaleY: 0.55, pupilX: 0,  pupilY: 4,  movement: 0.34, blink: [2600, 4700], glow: 0.06 },
+  curious:   { scaleY: 1.08, pupilX: 8,  pupilY: -4, movement: 0.54, blink: [2600, 4600], glow: 0.08 },
+  attentive: { scaleY: 1.06, pupilX: 0,  pupilY: -2, movement: 0.48, blink: [3000, 5200], glow: 0.07 },
+  excited:   { scaleY: 1.14, pupilX: 0,  pupilY: -2, movement: 0.58, blink: [2200, 3600], glow: 0.15 },
+  thinking:  { scaleY: 0.82, pupilX: 0,  pupilY: 2,  movement: 0.68, blink: [4200, 6800], glow: 0.03 },
+  tired:     { scaleY: 0.32, pupilX: 0,  pupilY: 4,  movement: 0.18, blink: [2400, 4200], glow: 0.01 },
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -78,41 +84,15 @@ function mapExpressionToEmotion(expression: BeeEyesExpression): BeeEyesEmotion {
 
 function getEventAdjustments(event: BeeEyesEvent | null) {
   switch (event) {
-    case "message-received": return { squint: -0.05, pupilY: -2, glow: 0.08 };
-    case "user-typing":      return { squint: -0.02, pupilY: 0,  glow: 0.03 };
-    case "thinking":         return { squint: 0.08,  pupilY: 2,  glow: 0 };
-    case "idle":             return { squint: 0.18,  pupilY: 3,  glow: -0.02 };
-    case "input-focus":      return { squint: -0.02, pupilY: 3,  glow: 0.02 };
-    default:                 return { squint: 0,     pupilY: 0,  glow: 0 };
+    case "message-received": return { scaleY: 0.1,  pupilY: -2, glow: 0.08 };
+    case "user-typing":      return { scaleY: 0.04, pupilY: 0,  glow: 0.03 };
+    case "mission-complete": return { scaleY: 0.14, pupilY: -3, glow: 0.24 };
+    case "thinking":         return { scaleY: -0.1, pupilY: 2,  glow: 0 };
+    case "idle":             return { scaleY: -0.2, pupilY: 3,  glow: -0.02 };
+    case "input-focus":      return { scaleY: 0.04, pupilY: 4,  glow: 0.02 };
+    default:                 return { scaleY: 0,    pupilY: 0,  glow: 0 };
   }
 }
-
-// Eye geometry constants
-const EYE_SIZE   = 48;
-const OUTER_R    = EYE_SIZE * 0.46;   // sclera radius
-const IRIS_R     = EYE_SIZE * 0.30;   // iris radius
-const PUPIL_R    = EYE_SIZE * 0.175;  // pupil radius
-const GLINT1_R   = EYE_SIZE * 0.072;  // main sparkle
-const GLINT2_R   = EYE_SIZE * 0.038;  // secondary sparkle
-const EYE_CX     = EYE_SIZE / 2;
-const EYE_CY     = EYE_SIZE / 2;
-const EYE_GAP    = EYE_SIZE * 0.46;
-const BROW_W     = EYE_SIZE * 0.095;  // brow stroke width
-const BROW_Y     = EYE_CY - OUTER_R * 1.18; // brow base Y (above eye, in SVG space)
-const BROW_HALF  = OUTER_R * 0.78;    // brow half-width
-
-// Per-emotion brow: archY = how much control pt deviates from BROW_Y (negative = arch up), ty = animate Y offset
-const BROW_CONFIGS: Record<BeeEyesEmotion | "sleepy" | "celebrating", { leftArch: number; rightArch: number; ty: number }> = {
-  neutral:     { leftArch: -3,  rightArch: -3,  ty: 0  },
-  happy:       { leftArch: -8,  rightArch: -8,  ty: -2 },
-  curious:     { leftArch: -10, rightArch: -3,  ty: -2 },
-  attentive:   { leftArch: -5,  rightArch: -5,  ty: -1 },
-  excited:     { leftArch: -11, rightArch: -11, ty: -4 },
-  thinking:    { leftArch: 2,   rightArch: -7,  ty: 0  },
-  tired:       { leftArch: 2,   rightArch: 2,   ty: 2  },
-  sleepy:      { leftArch: 2,   rightArch: 2,   ty: 3  },
-  celebrating: { leftArch: -12, rightArch: -12, ty: -5 },
-};
 
 export default function BeeEyes({
   expression = "neutral",
@@ -138,7 +118,7 @@ export default function BeeEyes({
 
   const normalizedEngagement = clamp(engagementLevel, 0, 1);
   const baseEmotion = emotion ?? mapExpressionToEmotion(expression);
-  const shouldIdle = isIdle && !inputFocused && !isTyping;
+  const shouldIdle = isIdle && !inputFocused && !isTyping && event !== "mission-complete";
   const activeEvent = shouldIdle ? "idle" : event;
   const effectiveEmotion: BeeEyesEmotion =
     shouldIdle ? "tired" : activeEvent === "thinking" ? "thinking" : baseEmotion;
@@ -256,9 +236,9 @@ export default function BeeEyes({
   }, [tremorIntensity]);
 
   // ── Derived values ───────────────────────────────────────
-  const squintFrac = clamp(
-    preset.squint + eventAdj.squint + (isBlinking ? 0.97 : 0) - normalizedEngagement * 0.03 - (inputFocused ? 0.02 : 0) - (isTyping ? 0.02 : 0),
-    0, 0.98,
+  const eyeScaleY = clamp(
+    (preset.scaleY + eventAdj.scaleY + normalizedEngagement * 0.04 + (inputFocused ? 0.02 : 0) + (isTyping ? 0.03 : 0)) * (isBlinking ? 0.05 : 1),
+    0.05, 1.2,
   );
 
   const glowStrength = clamp(
@@ -274,157 +254,159 @@ export default function BeeEyes({
   const focusY      = inputFocused ? 4 : 0;
   const typingBiasX = isTyping ? 1.2 : 0;
 
-  const basePupilX = clamp(pointerX + glanceX + tremor.x + clickNudge.x + typingBiasX, -6, 6);
-  const basePupilY = clamp(pointerY + glanceY + tremor.y + clickNudge.y + scrollY + focusY + preset.pupilY + eventAdj.pupilY, -5, 5);
+  const basePupilX = clamp(pointerX + glanceX + tremor.x + clickNudge.x + typingBiasX, -8, 8);
+  const basePupilY = clamp(pointerY + glanceY + tremor.y + clickNudge.y + scrollY + focusY + preset.pupilY + eventAdj.pupilY, -6, 6);
 
   // ── Shell / aura animations ──────────────────────────────
   const auraAnimate =
-    activeEvent === "message-received"
-      ? { opacity: [0.2, 0.48, 0.2], scale: [1, 1.05, 1] }
-      : { opacity: [0.12 + glowStrength * 0.5, 0.22 + glowStrength, 0.12 + glowStrength * 0.5], scale: [1, 1.03, 1] };
+    activeEvent === "mission-complete"
+      ? { opacity: [0.35, 0.85, 0.35], scale: [1, 1.14, 1] }
+      : activeEvent === "message-received"
+        ? { opacity: [0.2, 0.48, 0.2], scale: [1, 1.05, 1] }
+        : { opacity: [0.12 + glowStrength * 0.5, 0.22 + glowStrength, 0.12 + glowStrength * 0.5], scale: [1, 1.03, 1] };
 
-  const auraTransition = { duration: 2.8, repeat: Infinity, ease: "easeInOut" };
+  const auraTransition =
+    activeEvent === "mission-complete"
+      ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" }
+      : { duration: 2.8, repeat: Infinity, ease: "easeInOut" };
 
   const shellAnimate =
-    activeEvent === "message-received"
-      ? { y: [0, -2.5, 0], scale: [1, 1.02, 1] }
-      : activeEvent === "user-typing"
-        ? { x: [0, 2, -1.5, 0] }
-        : {};
+    activeEvent === "mission-complete"
+      ? { y: [0, -6, 0], scale: [1, 1.04, 1], rotate: [0, -1.2, 1.2, 0] }
+      : activeEvent === "message-received"
+        ? { y: [0, -2.5, 0], scale: [1, 1.02, 1] }
+        : activeEvent === "user-typing"
+          ? { x: [0, 2, -1.5, 0] }
+          : {};
 
   const shellTransition =
-    activeEvent === "message-received"
-      ? { duration: 0.55, ease: "easeInOut" }
-      : activeEvent === "user-typing"
-        ? { duration: 0.45, ease: "easeInOut" }
-        : { duration: 0.3 };
+    activeEvent === "mission-complete"
+      ? { duration: 0.8, ease: "easeInOut" }
+      : activeEvent === "message-received"
+        ? { duration: 0.55, ease: "easeInOut" }
+        : activeEvent === "user-typing"
+          ? { duration: 0.45, ease: "easeInOut" }
+          : { duration: 0.3 };
 
   const floatAmplitude = shouldIdle ? 1.2 : 2.8 + normalizedEngagement * 1.4;
   const floatDuration  = shouldIdle ? 6.2 : effectiveEmotion === "thinking" ? 5 : 4;
 
-  const bc = BROW_CONFIGS[effectiveEmotion] ?? BROW_CONFIGS.neutral;
+  const glowColor  = `rgba(245, 200, 66, ${0.1 + glowStrength * 0.5})`;
 
-  // Lid Y for squint: at squintFrac=0 → clipY = EYE_CY - OUTER_R (full eye open)
-  //                   at squintFrac=1 → clipY = EYE_CY + OUTER_R (eye fully closed)
-  const lidY = EYE_CY - OUTER_R + OUTER_R * 2 * squintFrac;
+  const isCelebrating = effectiveEmotion === "excited" || activeEvent === "mission-complete";
 
   return (
     <div className={cn("relative flex items-center justify-center", className)} aria-hidden="true">
       <motion.div
-        className="relative"
-        style={{ paddingTop: EYE_SIZE * 0.34 }}
+        className="relative flex items-center gap-2 px-3 py-3"
         animate={{ y: [0, -floatAmplitude, 0] }}
         transition={{ duration: floatDuration, repeat: Infinity, ease: "easeInOut" }}
       >
         {/* Ambient aura */}
         <motion.div
-          className="absolute left-0 right-0 rounded-full blur-2xl pointer-events-none"
-          style={{
-            height: EYE_SIZE * 0.6,
-            top: "50%",
-            transform: "translateY(-50%)",
-            background: "radial-gradient(ellipse, rgba(245,200,66,0.28) 0%, transparent 70%)",
-          }}
+          className="absolute inset-x-2 top-1/2 h-8 -translate-y-1/2 rounded-full blur-2xl"
+          style={{ background: "radial-gradient(ellipse, rgba(245,200,66,0.3) 0%, transparent 72%)" }}
           animate={auraAnimate}
           transition={auraTransition}
         />
 
-        <div style={{ display: "flex", alignItems: "center", gap: EYE_GAP }}>
-          {(["left", "right"] as const).map((side) => {
-            const pX = clamp(
-              basePupilX + preset.pupilX * (side === "left" ? 1 : -1) * 0.3 + (side === "left" ? -0.4 : 0.4),
-              -(IRIS_R - PUPIL_R) * 0.7,
-              (IRIS_R - PUPIL_R) * 0.7,
-            );
-            const pY = clamp(
-              basePupilY + (side === "left" ? -0.3 : 0.2),
-              -(IRIS_R - PUPIL_R) * 0.65,
-              (IRIS_R - PUPIL_R) * 0.65,
-            );
+        {(["left", "right"] as const).map((side) => {
+          const pX = clamp(basePupilX + preset.pupilX * (side === "left" ? 1 : -1) * 0.3 + (side === "left" ? -0.5 : 0.5), -8, 8);
+          const pY = clamp(basePupilY + (side === "left" ? -0.3 : 0.2), -6, 6);
 
-            const archY = side === "left" ? bc.leftArch : bc.rightArch;
-            const browCtrlY = BROW_Y + archY; // control pt of quadratic bezier
+          // Eyebrow curve: lower curveY = more arch up; higher = flatter/droopy
+          const browCurves: Record<string, { left: number; right: number; ty: number }> = {
+            neutral:     { left: 5,  right: 5,  ty: 0  },
+            happy:       { left: 2,  right: 2,  ty: -2 },
+            curious:     { left: 1,  right: 5,  ty: -3 },
+            attentive:   { left: 3,  right: 3,  ty: -1 },
+            excited:     { left: 1,  right: 1,  ty: -4 },
+            thinking:    { left: 6,  right: 2,  ty: 0  },
+            tired:       { left: 8,  right: 8,  ty: 2  },
+            sleepy:      { left: 8,  right: 8,  ty: 2  },
+            celebrating: { left: 1,  right: 1,  ty: -5 },
+          };
+          const bc = browCurves[effectiveEmotion] ?? browCurves.neutral;
+          const browCurveY = side === "left" ? bc.left : bc.right;
 
-            const gradId = `irisg-${side}`;
-            const clipId = `lid-${side}`;
+          return (
+            <motion.div
+              key={side}
+              className="relative"
+              animate={shellAnimate}
+              transition={shellTransition}
+            >
+              {/* Eyebrow */}
+              <motion.svg
+                width="56" height="14" viewBox="0 0 56 14"
+                style={{ display: "block", marginBottom: -2 }}
+                animate={{ y: bc.ty }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
+                <path
+                  d={`M 10 10 Q 28 ${browCurveY} 46 10`}
+                  fill="none"
+                  stroke="#1a1a1a"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                />
+              </motion.svg>
 
-            return (
               <motion.div
-                key={side}
-                animate={shellAnimate}
-                transition={shellTransition}
-                style={{ position: "relative", width: EYE_SIZE, height: EYE_SIZE }}
+                style={{ transformOrigin: "center center" }}
+                animate={{ scaleY: eyeScaleY }}
+                transition={{ duration: isBlinking ? 0.08 : 0.28, ease: "easeInOut" }}
               >
                 <svg
-                  width={EYE_SIZE}
-                  height={EYE_SIZE}
-                  viewBox={`0 0 ${EYE_SIZE} ${EYE_SIZE}`}
-                  style={{ overflow: "visible" }}
+                  width="56"
+                  height="56"
+                  viewBox="0 0 56 56"
+                  style={{
+                    display: "block",
+                    filter: glowStrength > 0.04
+                      ? `drop-shadow(0 0 ${4 + glowStrength * 10}px ${glowColor})`
+                      : undefined,
+                  }}
                 >
-                  <defs>
-                    <radialGradient id={gradId} cx="40%" cy="35%" r="65%">
-                      <stop offset="0%"   stopColor="#FFE566" />
-                      <stop offset="45%"  stopColor="#F5A623" />
-                      <stop offset="100%" stopColor="#D4851A" />
-                    </radialGradient>
-                    <clipPath id={clipId}>
-                      <rect x={EYE_CX - OUTER_R - 2} y={lidY} width={(OUTER_R + 2) * 2} height={(OUTER_R + 2) * 2} />
-                    </clipPath>
-                  </defs>
-
-                  {/* Eyebrow */}
-                  <motion.path
-                    d={`M ${EYE_CX - BROW_HALF} ${BROW_Y} Q ${EYE_CX} ${browCtrlY} ${EYE_CX + BROW_HALF} ${BROW_Y}`}
-                    fill="none"
-                    stroke="#8B5E0A"
-                    strokeWidth={BROW_W}
-                    strokeLinecap="round"
-                    animate={{ y: bc.ty }}
-                    transition={{ duration: 0.35, ease: "easeInOut" }}
-                  />
-
-                  {/* Sclera */}
-                  <circle
-                    cx={EYE_CX}
-                    cy={EYE_CY}
-                    r={OUTER_R}
-                    fill="#F5EED8"
-                    style={{ filter: `drop-shadow(0 3px 10px rgba(0,0,0,0.20))${glowStrength > 0.05 ? ` drop-shadow(0 0 ${4 + glowStrength * 12}px rgba(245,200,66,${glowStrength * 0.55}))` : ""}` }}
-                  />
-
-                  {/* Lid-clipped: iris + pupil + sparkles */}
-                  <g clipPath={`url(#${clipId})`}>
-                    {/* Iris */}
-                    <circle cx={EYE_CX} cy={EYE_CY} r={IRIS_R} fill={`url(#${gradId})`} />
-                    {/* Iris depth ring */}
-                    <circle cx={EYE_CX} cy={EYE_CY} r={IRIS_R * 0.62} fill="#D4851A" opacity="0.25" />
-                    {/* Pupil */}
-                    <circle cx={EYE_CX + pX} cy={EYE_CY + pY} r={PUPIL_R} fill="#1A1005" />
-                    {/* Main sparkle */}
-                    <circle
-                      cx={EYE_CX + pX + PUPIL_R * 0.42}
-                      cy={EYE_CY + pY - PUPIL_R * 0.50}
-                      r={GLINT1_R}
-                      fill="white"
-                      opacity="0.95"
-                    />
-                    {/* Secondary sparkle */}
-                    <circle
-                      cx={EYE_CX + pX - PUPIL_R * 0.30}
-                      cy={EYE_CY + pY - PUPIL_R * 0.62}
-                      r={GLINT2_R}
-                      fill="white"
-                      opacity="0.60"
-                    />
+                  {/* Eye body — hexagon */}
+                  <polygon points={HEX_POINTS} fill="#1a1a1a" />
+                  {/* Pupil — octagon amber */}
+                  <g transform={`translate(${14 + pX}, ${14 + pY})`}>
+                    <polygon points={OCT_POINTS} fill="#F5C842" />
                   </g>
-
-                  {/* Sclera rim */}
-                  <circle cx={EYE_CX} cy={EYE_CY} r={OUTER_R} fill="none" stroke="rgba(0,0,0,0.07)" strokeWidth="1" />
+                  {/* Shine */}
+                  <rect
+                    x={isCelebrating ? 8 : 12}
+                    y={isCelebrating ? 8 : 12}
+                    width={10}
+                    height={10}
+                    rx={2}
+                    fill="white"
+                    opacity={0.9}
+                  />
                 </svg>
               </motion.div>
-            );
-          })}
-        </div>
+
+              {/* Mission-complete sparkles */}
+              {activeEvent === "mission-complete" && (
+                <>
+                  <motion.div
+                    className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full blur-[1px]"
+                    style={{ background: "rgba(245,200,66,0.9)" }}
+                    animate={{ opacity: [0, 1, 0], y: [0, -10, -18], scale: [0.8, 1.2, 0.3] }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0 : 0.18 }}
+                  />
+                  <motion.div
+                    className="absolute left-1 top-2 h-2 w-2 rounded-full"
+                    style={{ background: "rgba(255,255,255,0.92)" }}
+                    animate={{ opacity: [0, 1, 0], y: [0, -8, -14], x: [0, side === "left" ? -4 : 4, 0], scale: [0.6, 1.1, 0.2] }}
+                    transition={{ duration: 1.1, repeat: Infinity, ease: "easeOut", delay: side === "left" ? 0.25 : 0.4 }}
+                  />
+                </>
+              )}
+            </motion.div>
+          );
+        })}
       </motion.div>
     </div>
   );
