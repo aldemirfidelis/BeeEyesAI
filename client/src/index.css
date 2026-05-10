@@ -445,32 +445,28 @@
 
   .bee-app-shell {
     background:
-      radial-gradient(circle at 16% 18%, hsl(var(--primary) / 0.16), transparent 26%),
-      radial-gradient(circle at 82% 8%, hsl(var(--accent) / 0.38), transparent 26%),
-      linear-gradient(120deg, hsl(var(--background)) 0%, hsl(var(--background) / 0.94) 100%);
+      radial-gradient(circle at 16% 18%, hsl(var(--primary) / 0.14), transparent 26%),
+      radial-gradient(circle at 82% 8%, hsl(var(--accent) / 0.24), transparent 26%),
+      linear-gradient(120deg, #FAFAF5 0%, hsl(var(--background)) 100%);
   }
 
   .dark .bee-app-shell {
     background:
-      radial-gradient(circle at 16% 18%, hsl(var(--primary) / 0.12), transparent 28%),
-      radial-gradient(circle at 82% 8%, hsl(var(--accent) / 0.16), transparent 28%),
-      linear-gradient(120deg, hsl(var(--background)) 0%, hsl(42 18% 8%) 100%);
+      radial-gradient(circle at 12% 14%, hsl(var(--primary) / 0.16), transparent 30%),
+      radial-gradient(circle at 86% 10%, hsl(38 86% 52% / 0.11), transparent 28%),
+      linear-gradient(120deg, #111111 0%, #1A1A1A 50%, #17120A 100%);
   }
 
   .bee-honeycomb {
     background-image:
-      linear-gradient(30deg, hsl(var(--primary) / 0.10) 12%, transparent 12.5%, transparent 87%, hsl(var(--primary) / 0.10) 87.5%, hsl(var(--primary) / 0.10)),
-      linear-gradient(150deg, hsl(var(--primary) / 0.10) 12%, transparent 12.5%, transparent 87%, hsl(var(--primary) / 0.10) 87.5%, hsl(var(--primary) / 0.10)),
-      linear-gradient(30deg, hsl(var(--primary) / 0.10) 12%, transparent 12.5%, transparent 87%, hsl(var(--primary) / 0.10) 87.5%, hsl(var(--primary) / 0.10)),
-      linear-gradient(150deg, hsl(var(--primary) / 0.10) 12%, transparent 12.5%, transparent 87%, hsl(var(--primary) / 0.10) 87.5%, hsl(var(--primary) / 0.10));
-    background-position: 0 0, 0 0, 18px 31px, 18px 31px;
-    background-size: 36px 62px;
+      url("data:image/svg+xml,%3Csvg width='60' height='104' viewBox='0 0 60 104' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 17.32v34.64L30 69.28 0 51.96V17.32L30 0z' fill='%23F5A623' fill-opacity='0.08' fill-rule='evenodd'/%3E%3C/svg%3E");
+    background-size: 60px 104px;
   }
 
   .bee-surface {
-    background: hsl(var(--card) / 0.82);
-    border: 1px solid hsl(var(--card-border) / 0.82);
-    box-shadow: var(--shadow-md);
+    background: hsl(var(--card) / 0.88);
+    border: 1px solid hsl(var(--card-border, var(--border)) / 0.72);
+    box-shadow: 0 24px 60px -42px rgba(32, 22, 7, 0.55), 0 1px 0 hsl(var(--primary) / 0.06) inset;
     backdrop-filter: blur(18px) saturate(1.25);
     -webkit-backdrop-filter: blur(18px) saturate(1.25);
   }
@@ -492,5 +488,95 @@
       transform: translateY(-1px);
       box-shadow: var(--shadow-lg);
     }
+  }
+
+  .beeyes-bg-hex-pattern {
+    background-color: #1A1A1A;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='104' viewBox='0 0 60 104' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 17.32v34.64L30 69.28 0 51.96V17.32L30 0z' fill='%232D2D2D' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E");
+  }
+
+  .beeyes-bg-hex-pattern-light {
+    background-color: #FAFAF5;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='104' viewBox='0 0 60 104' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 17.32v34.64L30 69.28 0 51.96V17.32L30 0z' fill='%23F5A623' fill-opacity='0.07' fill-rule='evenodd'/%3E%3C/svg%3E");
+  }
+
+  .beeyes-glass {
+    background: rgba(45, 45, 45, 0.70);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  }
+
+  .beeyes-glass-light {
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(245, 166, 35, 0.15);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  }
+
+  .beeyes-gradient-text {
+    background: linear-gradient(135deg, #FFD700 0%, #F5A623 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .beeyes-gradient-bg {
+    background: linear-gradient(135deg, #F5A623 0%, #D4851A 100%);
+  }
+
+  .beeyes-glow {
+    box-shadow: 0 0 18px rgba(245, 166, 35, 0.34);
+  }
+
+  .beeyes-scrollbar::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+
+  .beeyes-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .beeyes-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(245, 166, 35, 0.34);
+    border-radius: 999px;
+  }
+
+  .beeyes-nav-glass {
+    background: rgba(26, 26, 26, 0.85);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .beeyes-nav-glass-light {
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid rgba(245, 166, 35, 0.20);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .beeyes-tool-card-dark,
+  .beeyes-tool-card-light {
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+
+  .beeyes-tool-card-dark {
+    background: rgba(45, 45, 45, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .beeyes-tool-card-light {
+    background: rgba(255, 255, 255, 0.90);
+    border: 1px solid rgba(245, 166, 35, 0.15);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .beeyes-tool-card-dark:hover,
+  .beeyes-tool-card-light:hover {
+    border-color: rgba(245, 166, 35, 0.44);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(245, 166, 35, 0.16);
   }
 }

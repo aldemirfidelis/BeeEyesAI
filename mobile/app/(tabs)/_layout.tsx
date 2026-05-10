@@ -21,15 +21,20 @@ function TabIcon({
       style={{
         alignItems: "center",
         justifyContent: "center",
-        width: 46,
-        height: 34,
-        borderRadius: 12,
-        backgroundColor: focused ? color + "24" : "transparent",
+        width: focused ? 48 : 42,
+        height: focused ? 36 : 34,
+        borderRadius: 14,
+        backgroundColor: focused ? "#F5A623" : "transparent",
         borderWidth: focused ? 1 : 0,
-        borderColor: focused ? color + "33" : "transparent",
+        borderColor: focused ? "#FFD70055" : "transparent",
+        shadowColor: focused ? "#F5A623" : "transparent",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: focused ? 0.24 : 0,
+        shadowRadius: 12,
+        elevation: focused ? 5 : 0,
       }}
     >
-      <Feather name={name} size={focused ? 22 : 20} color={color} />
+      <Feather name={name} size={focused ? 22 : 20} color={focused ? "#1A1A1A" : color} />
     </View>
   );
 }
@@ -41,8 +46,8 @@ export default function TabsLayout() {
   const isDark = themeMode === "dark";
 
   const tabBarBackground = isDark
-    ? "rgba(32,26,16,0.96)"
-    : "rgba(255,255,255,0.96)";
+    ? "rgba(26,26,26,0.88)"
+    : "rgba(255,255,255,0.95)";
 
   return (
     <Tabs
@@ -50,25 +55,25 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: tabBarBackground,
-          borderTopColor: colors.border,
+          borderTopColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(245,166,35,0.20)",
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 86 : 76,
-          paddingBottom: Platform.OS === "ios" ? 22 : 10,
-          paddingTop: 8,
+          height: Platform.OS === "ios" ? 92 : 82,
+          paddingBottom: Platform.OS === "ios" ? 24 : 12,
+          paddingTop: 10,
           marginHorizontal: 12,
           marginBottom: Platform.OS === "ios" ? 6 : 10,
-          borderRadius: 24,
+          borderRadius: 28,
           position: "absolute",
           overflow: "hidden",
-          // Subtle top shadow line for depth
           shadowColor: isDark ? "#000" : "#4B3508",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: isDark ? 0.45 : 0.12,
-          shadowRadius: 18,
-          elevation: 18,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: isDark ? 0.48 : 0.14,
+          shadowRadius: 22,
+          elevation: 20,
         },
-        tabBarActiveTintColor: colors.primaryDark,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
+        tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: "700",

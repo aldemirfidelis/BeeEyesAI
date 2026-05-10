@@ -1753,7 +1753,7 @@ export default function Home() {
   );
 
   return (
-    <div className="bee-app-shell flex flex-col md:flex-row h-[100dvh] bg-background text-foreground overflow-hidden">
+    <div className="bee-app-shell beeyes-bg-hex-pattern-light dark:beeyes-bg-hex-pattern flex flex-col md:flex-row h-[100dvh] bg-background text-foreground overflow-hidden">
 
       <ChatWorkspace
         mobileTab={mobileTab}
@@ -1853,7 +1853,7 @@ export default function Home() {
       />
 
       {/* ── Sidebar — sempre visível no desktop (384px), full-screen em outras tabs no mobile ── */}
-      <aside className={`bee-surface min-h-0 md:m-3 md:ml-0 md:rounded-2xl overflow-hidden ${
+      <aside className={`bee-surface beeyes-glass-light dark:beeyes-glass min-h-0 md:m-3 md:ml-0 md:rounded-[1.75rem] overflow-hidden ${
         mobileTab !== "chat"
           ? "flex flex-col flex-1 min-h-0 md:w-[420px] md:flex-none"
           : "hidden md:flex md:w-[420px] md:flex-col"
@@ -1862,7 +1862,7 @@ export default function Home() {
       </aside>
 
       {/* ── Bottom nav (mobile only) ── */}
-      <nav className="md:hidden fixed bottom-3 left-3 right-3 rounded-2xl border border-border/70 bg-card/92 shadow-2xl backdrop-blur-xl z-20 flex overflow-hidden">
+      <nav className="md:hidden fixed bottom-3 left-3 right-3 rounded-[1.75rem] border border-primary/15 bg-card/92 shadow-2xl backdrop-blur-xl z-20 flex overflow-hidden beeyes-nav-glass-light dark:beeyes-nav-glass">
         {([
           { tab: "chat",        label: "Chat",        icon: <MessageCircle className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("chat"); } },
           { tab: "feed",        label: "Feed",        icon: <LayoutGrid    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); } },
@@ -1873,9 +1873,9 @@ export default function Home() {
           <button
             key={tab}
             onClick={onClick}
-            className={`relative flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${mobileTab === tab ? "text-foreground" : "text-muted-foreground"}`}
+            className={`relative flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${mobileTab === tab ? "text-primary" : "text-muted-foreground"}`}
           >
-            <span className={`flex h-8 w-10 items-center justify-center rounded-lg transition-all ${mobileTab === tab ? "bg-primary text-primary-foreground shadow-sm" : ""}`}>
+            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition-all ${mobileTab === tab ? "beeyes-gradient-bg text-[#1A1A1A] beeyes-glow shadow-sm" : ""}`}>
               {icon}
             </span>
             <span className="text-[10px] leading-tight w-full text-center truncate px-0.5">{label}</span>

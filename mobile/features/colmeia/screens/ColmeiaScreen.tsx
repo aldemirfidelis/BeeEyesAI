@@ -1456,6 +1456,7 @@ const HEX_SIZE    = 96;
 const CENTER_SIZE = 116;
 const HUB_HEIGHT  = 420;
 const ICON_ZOOM   = 1.12;
+const CENTER_ICON_ZOOM = 1;
 
 function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) => void }) {
   const hubWidth = Math.min(HUB_SCREEN_W, 390);
@@ -1484,8 +1485,8 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
       }}>
         <Image
           source={require("../../../assets/icons-colmeia/icone-central.png")}
-          style={{ width: CENTER_SIZE, height: CENTER_SIZE, transform: [{ scale: ICON_ZOOM }] }}
-          resizeMode="cover"
+          style={{ width: CENTER_SIZE, height: CENTER_SIZE, transform: [{ scale: CENTER_ICON_ZOOM }] }}
+          resizeMode="contain"
         />
       </View>
 
@@ -1559,11 +1560,24 @@ export default function ColmeiaScreen() {
       </View>
 
       {activeSection === null ? (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24, alignItems: "center" }}>
-          <ColmeiaHub colors={colors} onSelect={setActiveSection} />
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: "center", fontFamily: FONTS.sans, fontWeight: "700" }}>
-            Selecione uma ferramenta
-          </Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.toolsContent, { paddingBottom: insets.bottom + 108 }]}>
+          <View style={styles.toolsIntro}>
+            <View>
+              <Text style={styles.toolsTitle}>Sua Colmeia</Text>
+              <Text style={styles.toolsSubtitle}>Ferramentas pessoais da Bee</Text>
+            </View>
+            <View style={styles.toolsBadge}>
+              <Text style={styles.toolsBadgeText}>{COLMEIA_TOOLS.length} ativas</Text>
+            </View>
+          </View>
+          <View style={styles.toolsGrid}>
+            {COLMEIA_TOOLS.map((tool) => (
+              <TouchableOpacity key={tool.id} activeOpacity={0.78} onPress={() => setActiveSection(tool.id)} style={styles.toolCard}>
+                <Image source={tool.img} style={styles.toolCardImage} resizeMode="contain" />
+                <Text style={styles.toolCardLabel}>{tool.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </ScrollView>
       ) : (
         <ScrollView
@@ -1591,7 +1605,7 @@ function makeStyles(colors: any) {
       paddingHorizontal: 20,
       paddingTop: 16,
       paddingBottom: 14,
-      backgroundColor: colors.card,
+      backgroundColor: colors.card + "EE",
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       shadowColor: "#4B3508",
@@ -1611,6 +1625,16 @@ function makeStyles(colors: any) {
       color: colors.muted,
       marginTop: 2,
     },
+    toolsContent: { padding: 20 },
+    toolsIntro: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
+    toolsTitle: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "900", color: colors.foreground },
+    toolsSubtitle: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
+    toolsBadge: { borderWidth: 1, borderColor: colors.primary + "44", backgroundColor: colors.primary + "18", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+    toolsBadgeText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "800", color: colors.primaryDark },
+    toolsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+    toolCard: { width: "47.8%", aspectRatio: 1, borderRadius: 22, borderWidth: 1, borderColor: colors.primary + "26", backgroundColor: colors.card + "F2", alignItems: "center", justifyContent: "center", gap: 12, shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 6 },
+    toolCardImage: { width: 72, height: 72 },
+    toolCardLabel: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "800", color: colors.foreground },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 16 },
   });

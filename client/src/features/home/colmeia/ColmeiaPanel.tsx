@@ -125,6 +125,7 @@ const HUB_H = 426;
 const CELL = 100;
 const C_CELL = 118;
 const ICON_ZOOM = 1.12;
+const CENTER_ICON_ZOOM = 1;
 const CENTER_POS = { left: 121, top: 150 };
 const TOOL_POSITIONS: Record<ToolId, { left: number; top: number }> = {
   calendar: { left: 130, top: 18 },
@@ -151,7 +152,7 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
         <img
           src="/icons-colmeia/icone-central.png"
           alt="Bee"
-          style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
+          style={{ width: "100%", height: "100%", objectFit: "contain", transform: `scale(${CENTER_ICON_ZOOM})` }}
         />
       </div>
 
@@ -1147,9 +1148,30 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {activeSection === null ? (
-          <div className="flex flex-col items-center py-7 gap-3">
-            <ColmeiaHub onSelect={setActiveSection} />
-            <p className="rounded-full border border-border/60 bg-card/70 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-xs">Selecione uma ferramenta</p>
+          <div className="p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black tracking-tight">Sua Colmeia</h3>
+                <p className="text-xs text-muted-foreground">Ferramentas pessoais da Bee</p>
+              </div>
+              <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">
+                {COLMEIA_TOOLS.length} ativas
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {COLMEIA_TOOLS.map((tool) => (
+                <button
+                  key={tool.id}
+                  onClick={() => setActiveSection(tool.id)}
+                  className="beeyes-tool-card-light dark:beeyes-tool-card-dark group flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl p-4 text-center"
+                >
+                  <span className="flex h-16 w-16 items-center justify-center">
+                    <img src={tool.src} alt={tool.label} className="h-full w-full object-contain drop-shadow-md transition-transform group-hover:scale-105" />
+                  </span>
+                  <span className="text-xs font-bold text-foreground">{tool.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <>

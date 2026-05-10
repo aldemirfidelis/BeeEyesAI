@@ -542,7 +542,13 @@ export default function ChatScreen() {
         />
       )}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.logo}>bee-eyes</Text>
+        <View style={styles.brandMark}>
+          <Image source={require("../../../assets/beeyes-design/bee-icon.png")} style={styles.brandIcon} />
+          <View>
+            <Text style={styles.logo}>bee-eyes</Text>
+            <Text style={styles.brandStatus}>Online</Text>
+          </View>
+        </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/notifications")}>
             <View>
@@ -559,12 +565,15 @@ export default function ChatScreen() {
           <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/profile")}><Feather name="user" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>{t("chat_profile")}</Text></TouchableOpacity>
         </View>
       </View>
-      {/* Compact mascot bar — hidden when keyboard is open */}
-      {!isKeyboardVisible && (
-        <View style={styles.mascotBar}>
-          <BeeEyes expression={eyeExpression} size={62} attentionX={eyeAttention.x} attentionY={eyeAttention.y} />
-        </View>
-      )}
+      {/* Compact mascot bar */}
+      <View style={[styles.mascotBar, isKeyboardVisible && styles.mascotBarKeyboard]}>
+        <BeeEyes
+          expression={eyeExpression}
+          size={isKeyboardVisible ? 44 : 62}
+          attentionX={eyeAttention.x}
+          attentionY={eyeAttention.y}
+        />
+      </View>
 
       {/* Insight modal */}
       <Modal visible={showInsight} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowInsight(false)}>
@@ -608,8 +617,8 @@ export default function ChatScreen() {
       </Modal>
 
       <KeyboardAvoidingView
-        style={[styles.chatArea, { paddingBottom: Platform.OS === "ios" ? 92 : 86 }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.chatArea, { paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 92 : 86 }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {allMessages.length === 0 ? (
@@ -671,7 +680,7 @@ export default function ChatScreen() {
         )}
 
         {isRecording || isTranscribing ? (
-          <View style={styles.recordingRow}>
+          <View style={[styles.recordingRow, isKeyboardVisible && styles.composerKeyboard]}>
             {/* Cancel — trash icon */}
             <TouchableOpacity
               onPress={handleCancelRecording}
@@ -714,7 +723,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.inputRow}>
+          <View style={[styles.inputRow, isKeyboardVisible && styles.composerKeyboard]}>
             <TextInput
               style={styles.input}
               value={inputValue}
@@ -839,14 +848,18 @@ function NewsDigestCard({ meta, styles }: { meta: NewsDigestMeta; styles: Return
 function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card, shadowColor: "#4B3508", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 18, elevation: 8 },
-    logo: { fontFamily: FONTS.display, fontSize: 25, color: colors.foreground, fontWeight: "800" },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card + "EE", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 10 },
+    brandMark: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 },
+    brandIcon: { width: 38, height: 38, borderRadius: 12, borderWidth: 2, borderColor: colors.primary + "88" },
+    logo: { fontFamily: FONTS.display, fontSize: 24, color: colors.foreground, fontWeight: "900", letterSpacing: -0.2 },
+    brandStatus: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginTop: 1 },
     headerActions: { flexDirection: "row", gap: 6 },
-    headerIconBtn: { minWidth: 48, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 2, backgroundColor: colors.secondary + "88" },
+    headerIconBtn: { minWidth: 48, height: 42, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 2, backgroundColor: colors.secondary + "CC", borderWidth: 1, borderColor: colors.border },
     headerIconLabel: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "600", color: colors.muted },
     headerBadge: { position: "absolute", top: -7, right: -10, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.destructive },
     headerBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "800", color: "#FFFFFF" },
-    mascotBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.primary + "10", borderBottomWidth: 1, borderBottomColor: colors.border },
+    mascotBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.primary + "12", borderBottomWidth: 1, borderBottomColor: colors.border },
+    mascotBarKeyboard: { paddingVertical: 4 },
     mascotBarCenter: { flex: 1, gap: 2 },
     presenceLabelCompact: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase" },
     insightBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.primary },
@@ -877,8 +890,9 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
     emptyText: { fontFamily: FONTS.sans, fontSize: 16, color: colors.muted, textAlign: "center", lineHeight: 26 },
     messageList: { padding: 16, paddingBottom: 24 },
-    inputRow: { flexDirection: "row", alignItems: "flex-end", marginHorizontal: 12, marginBottom: 10, padding: 8, gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 24, backgroundColor: colors.card, shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 10 },
-    input: { flex: 1, backgroundColor: colors.background, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 11, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 120, borderWidth: 1, borderColor: colors.border },
+    inputRow: { flexDirection: "row", alignItems: "flex-end", marginHorizontal: 12, marginBottom: 10, padding: 6, gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 22, elevation: 12 },
+    composerKeyboard: { marginBottom: 4 },
+    input: { flex: 1, backgroundColor: colors.secondary, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 120, borderWidth: 1, borderColor: colors.border },
     sendButton: { minWidth: 48, height: 44, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 6 },
     sendButtonDisabled: { opacity: 0.4 },
     micButton: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },

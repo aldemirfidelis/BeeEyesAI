@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
+import { Image, View, Text, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { FONTS, getThemeColors } from "../lib/theme";
 import { useUIStore } from "../stores/uiStore";
@@ -20,6 +20,9 @@ export default function ChatMessage({ role, content, createdAt }: ChatMessagePro
       entering={FadeInDown.duration(200)}
       style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}
     >
+      {!isUser ? (
+        <Image source={require("../assets/beeyes-design/bee-icon.png")} style={styles.assistantAvatar} />
+      ) : null}
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
         <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
           {content}
@@ -47,6 +50,16 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   assistantContainer: {
     alignSelf: "flex-start",
     alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 8,
+  },
+  assistantAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: colors.primary + "44",
   },
   bubble: {
     borderRadius: 18,
@@ -68,6 +81,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   assistantBubble: {
     backgroundColor: colors.card,
     borderBottomLeftRadius: 4,
+    shadowOpacity: 0.10,
   },
   text: {
     fontSize: 15,
