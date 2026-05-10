@@ -1862,7 +1862,7 @@ export default function Home() {
       </aside>
 
       {/* ── Bottom nav (mobile only) ── */}
-      <nav className="md:hidden fixed bottom-3 left-3 right-3 rounded-[1.75rem] border border-primary/15 bg-card/92 shadow-2xl backdrop-blur-xl z-20 flex overflow-hidden beeyes-nav-glass-light dark:beeyes-nav-glass">
+      <nav className="md:hidden fixed bottom-3 left-3 right-3 rounded-[1.75rem] border border-primary/15 bg-card/92 shadow-2xl backdrop-blur-xl z-40 flex overflow-visible beeyes-nav-glass-light dark:beeyes-nav-glass">
         {([
           { tab: "feed",        label: "Feed",        icon: <LayoutGrid    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); } },
           { tab: "colmeia",     label: "Colmeia",     icon: <Hexagon       className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("colmeia"); } },

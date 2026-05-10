@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, ActivityIndicator, Dimensions, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
@@ -575,8 +575,58 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </Modal>
 
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.brandMark}>
+          <Image source={require("../../../assets/beeyes-design/bee-icon.png")} style={styles.brandIcon} />
+          <View>
+            <Text style={styles.logo}>bee-eyes</Text>
+            <Text style={styles.brandStatus}>Assistente pessoal</Text>
+          </View>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => router.push("/notifications")}
+            style={styles.headerIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="bell" size={20} color={colors.muted} />
+            {intelligentNotifications.length > 0 ? (
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeText}>{Math.min(intelligentNotifications.length, 9)}</Text>
+              </View>
+            ) : null}
+            <Text style={styles.headerIconLabel}>Alertas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/friends")}
+            style={styles.headerIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="users" size={20} color={colors.muted} />
+            <Text style={styles.headerIconLabel}>Amigos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/profile")}
+            style={styles.headerIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="user" size={20} color={colors.muted} />
+            <Text style={styles.headerIconLabel}>Perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={[styles.mascotBar, isKeyboardVisible && styles.mascotBarKeyboard]}>
+        <BeeEyes
+          expression={eyeExpression}
+          size={isKeyboardVisible ? 58 : 76}
+          attentionX={eyeAttention.x}
+          attentionY={eyeAttention.y}
+        />
+      </View>
+
       <KeyboardAvoidingView
-        style={[styles.chatArea, { paddingTop: insets.top + 10, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 96 : 90 }]}
+        style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 96 : 90 }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >

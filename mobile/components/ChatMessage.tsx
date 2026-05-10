@@ -48,6 +48,8 @@ export default function ChatMessage({ role, content, createdAt }: ChatMessagePro
 }
 
 function makeStyles(colors: ReturnType<typeof getThemeColors>) {
+  const isDark = colors.background === "#1A1A1A";
+
   return StyleSheet.create({
     container: {
       marginVertical: 6,
@@ -107,13 +109,13 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       maxWidth: "100%",
     },
     userBubble: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primaryDark + "33",
+      backgroundColor: "#F5A623",
+      borderColor: "#D98A00",
       borderBottomRightRadius: 5,
     },
     assistantBubble: {
-      backgroundColor: colors.card,
-      borderColor: colors.border,
+      backgroundColor: isDark ? "#2D2D2D" : "#FFFFFF",
+      borderColor: isDark ? "#3A3A3A" : "#E8DDC8",
       borderBottomLeftRadius: 5,
     },
     text: {
@@ -126,7 +128,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       fontWeight: "700",
     },
     assistantText: {
-      color: colors.foreground,
+      color: isDark ? "#FFFFFF" : "#1A1A1A",
       fontFamily: FONTS.sans,
     },
     timestamp: {

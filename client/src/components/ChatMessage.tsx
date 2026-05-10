@@ -41,8 +41,8 @@ export default function ChatMessage({ role, content, timestamp, actions, profile
         <div
           className={`rounded-2xl px-4 py-2.5 ring-1 ${
             isUser
-              ? "beeyes-gradient-bg rounded-tr-md text-[#1A1A1A] shadow-lg ring-primary/20"
-              : "rounded-tl-md bg-card/92 text-card-foreground shadow-lg ring-border/70 backdrop-blur"
+              ? "rounded-tr-md bg-[#F5A623] text-[#1A1A1A] shadow-lg ring-[#D98A00]/25"
+              : "rounded-tl-md bg-white text-[#1A1A1A] shadow-lg ring-[#E8DDC8] dark:bg-[#2D2D2D] dark:text-white dark:ring-white/10"
           }`}
         >
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>

@@ -228,14 +228,14 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
   return (
     <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : ""}`}>
-      <header className="sticky top-0 z-10 hidden shrink-0 border-b border-primary/10 beeyes-glass-light dark:beeyes-glass md:block">
-        <div className="flex items-center justify-between px-4 py-3 md:px-6">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-primary/10 beeyes-glass-light dark:beeyes-glass">
+        <div className="flex items-center justify-between gap-2 px-3 py-2.5 md:px-6 md:py-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-primary/55 bg-primary/10 beeyes-glow">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-primary/55 bg-primary/10 beeyes-glow md:h-11 md:w-11">
               <img src="/beeyes-design/images/bee-icon.png" alt="bee-eyes" className="h-full w-full object-cover" />
             </span>
             <div>
-              <h1 className="font-display text-xl font-black leading-none beeyes-gradient-text">bee-eyes</h1>
+              <h1 className="font-display text-xl font-black leading-none beeyes-gradient-text md:text-xl">bee-eyes</h1>
               <p className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase text-muted-foreground">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                 Assistente pessoal inteligente
@@ -248,7 +248,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={() => setShowNotifications((v) => !v)}
-              className="relative flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+              className="relative flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground md:px-2"
             >
               <div className="relative">
                 <Bell className="w-5 h-5" />
@@ -278,7 +278,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={onGoToFriends}
-              className="hidden sm:flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+              className="flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground md:px-2"
             >
               <Users className="w-5 h-5" />
               <span className="text-[10px] font-semibold leading-none">Amigos</span>
@@ -288,7 +288,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={onToggleSettings}
-              className="flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+              className="flex h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground md:px-2"
             >
               {profilePhotoUrl ? (
                 <img src={profilePhotoUrl} alt="Foto" className="w-6 h-6 rounded-full object-cover ring-2 ring-primary/25" />
@@ -302,7 +302,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="bee-honeycomb relative hidden shrink-0 items-center justify-center overflow-hidden border-b border-primary/10 bg-gradient-to-b from-primary/10 to-transparent md:flex" style={{ height: 70 }}>
+        <div className="bee-honeycomb relative flex h-[82px] shrink-0 items-center justify-center overflow-hidden border-b border-primary/10 bg-gradient-to-b from-primary/10 to-transparent md:h-[70px]">
           <div style={{ transform: "scale(0.6)", transformOrigin: "center center", marginTop: -8 }}>
             <BeeEyes
               expression={eyeExpression}
@@ -327,7 +327,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           </div>
         )}
 
-        <div ref={chatScrollRef} className="bee-honeycomb flex-1 overflow-y-auto px-6 pb-36 pt-4 md:bg-none md:p-6 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
+        <div ref={chatScrollRef} className="bee-honeycomb flex-1 overflow-y-auto px-6 pb-52 pt-4 md:bg-none md:p-6 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
           <div className="flex justify-center md:hidden">
             <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-sm ring-1 ring-border/60 backdrop-blur">
               Hoje, 10:24
@@ -342,7 +342,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           <div ref={chatEndRef} />
         </div>
 
-        <div className="fixed bottom-[76px] left-3 right-3 z-30 border-primary/10 bg-transparent p-0 md:static md:border-t md:p-4 md:beeyes-glass-light md:dark:beeyes-glass shrink-0 pb-safe">
+        <div className="fixed bottom-[120px] left-3 right-3 z-20 border-primary/10 bg-transparent p-0 md:static md:border-t md:p-4 md:beeyes-glass-light md:dark:beeyes-glass shrink-0 pb-safe">
           {transcriptionError && (
             <p className="max-w-4xl mx-auto mb-2 text-xs text-destructive">
               Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.
