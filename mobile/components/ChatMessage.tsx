@@ -20,14 +20,24 @@ export default function ChatMessage({ role, content, createdAt }: ChatMessagePro
       entering={FadeInDown.duration(200)}
       style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}
     >
-      {!isUser ? (
-        <Image source={require("../assets/beeyes-design/bee-icon.png")} style={styles.assistantAvatar} />
-      ) : null}
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-        <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
-          {content}
-        </Text>
+      <View style={[styles.row, isUser && styles.userRow]}>
+        {!isUser ? (
+          <Image source={require("../assets/beeyes-design/bee-icon.png")} style={styles.assistantAvatar} />
+        ) : null}
+
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+          <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
+            {content}
+          </Text>
+        </View>
+
+        {isUser ? (
+          <View style={styles.userAvatar}>
+            <Text style={styles.userAvatarText}>AL</Text>
+          </View>
+        ) : null}
       </View>
+
       {createdAt && (
         <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
           {new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -39,73 +49,97 @@ export default function ChatMessage({ role, content, createdAt }: ChatMessagePro
 
 function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   return StyleSheet.create({
-  container: {
-    marginVertical: 4,
-    maxWidth: "84%",
-  },
-  userContainer: {
-    alignSelf: "flex-end",
-    alignItems: "flex-end",
-  },
-  assistantContainer: {
-    alignSelf: "flex-start",
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: 8,
-  },
-  assistantAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: colors.primary + "44",
-  },
-  bubble: {
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#4B3508",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  userBubble: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark + "33",
-    borderBottomRightRadius: 4,
-  },
-  assistantBubble: {
-    backgroundColor: colors.card,
-    borderBottomLeftRadius: 4,
-    shadowOpacity: 0.10,
-  },
-  text: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  userText: {
-    color: "#1A1A1A",
-    fontFamily: FONTS.sans,
-  },
-  assistantText: {
-    color: colors.foreground,
-    fontFamily: FONTS.sans,
-  },
-  timestamp: {
-    fontSize: 11,
-    color: colors.muted,
-    marginTop: 2,
-    paddingHorizontal: 4,
-  },
-  userTimestamp: {
-    textAlign: "right",
-  },
-  assistantTimestamp: {
-    textAlign: "left",
-  },
+    container: {
+      marginVertical: 6,
+      width: "100%",
+    },
+    userContainer: {
+      alignItems: "flex-end",
+    },
+    assistantContainer: {
+      alignItems: "flex-start",
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 8,
+      maxWidth: "88%",
+    },
+    userRow: {
+      justifyContent: "flex-end",
+    },
+    assistantAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: colors.primary + "44",
+    },
+    userAvatar: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.primary,
+      shadowColor: colors.primaryDark,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.24,
+      shadowRadius: 10,
+      elevation: 5,
+    },
+    userAvatarText: {
+      fontFamily: FONTS.sans,
+      fontSize: 11,
+      fontWeight: "900",
+      color: "#fff",
+    },
+    bubble: {
+      borderRadius: 16,
+      paddingHorizontal: 15,
+      paddingVertical: 12,
+      borderWidth: 1,
+      shadowColor: "#4B3508",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.10,
+      shadowRadius: 14,
+      elevation: 4,
+      maxWidth: "100%",
+    },
+    userBubble: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primaryDark + "33",
+      borderBottomRightRadius: 5,
+    },
+    assistantBubble: {
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+      borderBottomLeftRadius: 5,
+    },
+    text: {
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    userText: {
+      color: "#1A1A1A",
+      fontFamily: FONTS.sans,
+      fontWeight: "700",
+    },
+    assistantText: {
+      color: colors.foreground,
+      fontFamily: FONTS.sans,
+    },
+    timestamp: {
+      fontSize: 11,
+      color: colors.muted,
+      marginTop: 3,
+      paddingHorizontal: 40,
+    },
+    userTimestamp: {
+      textAlign: "right",
+    },
+    assistantTimestamp: {
+      textAlign: "left",
+    },
   });
 }

@@ -1864,18 +1864,22 @@ export default function Home() {
       {/* ── Bottom nav (mobile only) ── */}
       <nav className="md:hidden fixed bottom-3 left-3 right-3 rounded-[1.75rem] border border-primary/15 bg-card/92 shadow-2xl backdrop-blur-xl z-20 flex overflow-hidden beeyes-nav-glass-light dark:beeyes-nav-glass">
         {([
-          { tab: "chat",        label: "Chat",        icon: <MessageCircle className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("chat"); } },
           { tab: "feed",        label: "Feed",        icon: <LayoutGrid    className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("feed"); loadFeed(); } },
           { tab: "colmeia",     label: "Colmeia",     icon: <Hexagon       className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("colmeia"); } },
+          { tab: "chat",        label: "Chat",        icon: <MessageCircle className="w-6 h-6" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("chat"); } },
           { tab: "inbox",       label: "Mensagens",   icon: <MessageSquare className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("inbox"); loadDMConversations(); loadConversationSuggestions(); } },
           { tab: "communities", label: "Comunidades", icon: <Users2        className="w-5 h-5" />, onClick: () => { setShowSettingsScreen(false); setMobileTab("communities"); loadCommunities(communitySearch); } },
         ] as const).map(({ tab, label, icon, onClick }) => (
           <button
             key={tab}
             onClick={onClick}
-            className={`relative flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${mobileTab === tab ? "text-primary" : "text-muted-foreground"}`}
+            className={`relative flex-1 min-w-0 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${mobileTab === tab ? "text-primary" : "text-muted-foreground"} ${tab === "chat" ? "overflow-visible" : ""}`}
           >
-            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition-all ${mobileTab === tab ? "beeyes-gradient-bg text-[#1A1A1A] beeyes-glow shadow-sm" : ""}`}>
+            <span className={`flex items-center justify-center rounded-xl transition-all ${
+              tab === "chat"
+                ? `-mt-8 h-14 w-14 rounded-full border-[6px] border-background ${mobileTab === tab ? "beeyes-gradient-bg text-white beeyes-glow shadow-xl" : "bg-card text-muted-foreground shadow-lg"}`
+                : `h-8 w-10 ${mobileTab === tab ? "beeyes-gradient-bg text-[#1A1A1A] beeyes-glow shadow-sm" : ""}`
+            }`}>
               {icon}
             </span>
             <span className="text-[10px] leading-tight w-full text-center truncate px-0.5">{label}</span>

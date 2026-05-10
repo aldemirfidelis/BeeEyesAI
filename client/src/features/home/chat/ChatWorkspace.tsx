@@ -228,7 +228,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
   return (
     <div className={`flex-1 flex flex-col min-h-0 ${mobileTab !== "chat" ? "hidden md:flex" : ""}`}>
-      <header className="sticky top-0 z-10 shrink-0 border-b border-primary/10 beeyes-glass-light dark:beeyes-glass">
+      <header className="sticky top-0 z-10 hidden shrink-0 border-b border-primary/10 beeyes-glass-light dark:beeyes-glass md:block">
         <div className="flex items-center justify-between px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-primary/55 bg-primary/10 beeyes-glow">
@@ -302,7 +302,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="bee-honeycomb flex items-center justify-center border-b border-primary/10 bg-gradient-to-b from-primary/10 to-transparent shrink-0 relative overflow-hidden" style={{ height: 70 }}>
+        <div className="bee-honeycomb relative hidden shrink-0 items-center justify-center overflow-hidden border-b border-primary/10 bg-gradient-to-b from-primary/10 to-transparent md:flex" style={{ height: 70 }}>
           <div style={{ transform: "scale(0.6)", transformOrigin: "center center", marginTop: -8 }}>
             <BeeEyes
               expression={eyeExpression}
@@ -327,23 +327,28 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           </div>
         )}
 
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
+        <div ref={chatScrollRef} className="bee-honeycomb flex-1 overflow-y-auto px-6 pb-36 pt-4 md:bg-none md:p-6 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
+          <div className="flex justify-center md:hidden">
+            <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-sm ring-1 ring-border/60 backdrop-blur">
+              Hoje, 10:24
+            </span>
+          </div>
           <AnimatePresence mode="popLayout">
             {visibleMessages.map((message) => (
-              <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} />
+              <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} profilePhotoUrl={profilePhotoUrl} />
             ))}
             {streamingText && <ChatMessage key="streaming" role="assistant" content={`${streamingText}▌`} timestamp={new Date()} />}
           </AnimatePresence>
           <div ref={chatEndRef} />
         </div>
 
-        <div className="border-t border-primary/10 p-3 md:p-4 beeyes-glass-light dark:beeyes-glass shrink-0 pb-safe">
+        <div className="fixed bottom-[76px] left-3 right-3 z-30 border-primary/10 bg-transparent p-0 md:static md:border-t md:p-4 md:beeyes-glass-light md:dark:beeyes-glass shrink-0 pb-safe">
           {transcriptionError && (
             <p className="max-w-4xl mx-auto mb-2 text-xs text-destructive">
               Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.
             </p>
           )}
-          <div className="flex gap-2 max-w-4xl mx-auto rounded-full border border-primary/15 bg-background/82 p-2 shadow-lg backdrop-blur-xl">
+          <div className="mx-auto flex max-w-4xl gap-2 rounded-full border border-primary/20 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
             <Input
               ref={inputRef}
               value={inputValue}

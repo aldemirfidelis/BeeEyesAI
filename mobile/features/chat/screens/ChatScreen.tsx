@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, ActivityIndicator, Dimensions, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
@@ -22,7 +22,7 @@ import DailyBriefingModal from "@mobile/components/DailyBriefingModal";
 import { UserAvatar } from "@mobile/components/UserAvatar";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { type ConnectionRequestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNewsDigestMeta, parseMessageMeta } from "@mobile/lib/social";
-import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
+import type { IntelligentNotification, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
 
 type AppRoute = "/feed" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
@@ -155,16 +155,8 @@ export default function ChatScreen() {
     staleTime: 45000,
     refetchInterval: 90000,
   });
-  const { data: notificationCenter = [] } = useQuery<NotificationCenterItem[]>({
-    queryKey: ["notifications-center"],
-    queryFn: () => api.get("/api/notifications/center").then((r) => r.data),
-    staleTime: 45000,
-    refetchInterval: 90000,
-  });
   const chatMessages = Array.isArray(messages) ? messages : [];
   const intelligentNotifications = Array.isArray(notifications) ? notifications : [];
-  const notificationItems = Array.isArray(notificationCenter) ? notificationCenter : [];
-  const unreadNotificationCount = notificationItems.filter((item) => !item.read).length;
 
   const pulseEyeExpression = useCallback((expression: EyeExpression, fallback: EyeExpression = "neutral", duration = 1600) => {
     setEyeExpression(expression);
@@ -531,6 +523,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]} onTouchStart={handleScreenTouch} onTouchMove={handleScreenTouch}>
+      <HoneycombBackdrop colors={colors} />
       <AchievementToast />
       {dailyBriefing && (
         <DailyBriefingModal
@@ -541,40 +534,6 @@ export default function ChatScreen() {
           onDismiss={dismissDailyBriefing}
         />
       )}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.brandMark}>
-          <Image source={require("../../../assets/beeyes-design/bee-icon.png")} style={styles.brandIcon} />
-          <View>
-            <Text style={styles.logo}>bee-eyes</Text>
-            <Text style={styles.brandStatus}>Online</Text>
-          </View>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/notifications")}>
-            <View>
-              <Feather name="bell" size={20} color={colors.muted} />
-              {unreadNotificationCount > 0 ? (
-                <View style={styles.headerBadge}>
-                  <Text style={styles.headerBadgeText}>{Math.min(unreadNotificationCount, 9)}</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.headerIconLabel}>{t("chat_alerts")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/friends")}><Feather name="users" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>{t("chat_friends")}</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push("/profile")}><Feather name="user" size={20} color={colors.muted} /><Text style={styles.headerIconLabel}>{t("chat_profile")}</Text></TouchableOpacity>
-        </View>
-      </View>
-      {/* Compact mascot bar */}
-      <View style={[styles.mascotBar, isKeyboardVisible && styles.mascotBarKeyboard]}>
-        <BeeEyes
-          expression={eyeExpression}
-          size={isKeyboardVisible ? 44 : 62}
-          attentionX={eyeAttention.x}
-          attentionY={eyeAttention.y}
-        />
-      </View>
-
       {/* Insight modal */}
       <Modal visible={showInsight} animationType="slide" transparent presentationStyle="overFullScreen" onRequestClose={() => setShowInsight(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowInsight(false)}>
@@ -617,7 +576,7 @@ export default function ChatScreen() {
       </Modal>
 
       <KeyboardAvoidingView
-        style={[styles.chatArea, { paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 92 : 86 }]}
+        style={[styles.chatArea, { paddingTop: insets.top + 10, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 96 : 90 }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
@@ -662,6 +621,11 @@ export default function ChatScreen() {
             }}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messageList}
+            ListHeaderComponent={
+              <View style={styles.dateChipWrap}>
+                <Text style={styles.dateChip}>Hoje, 10:24</Text>
+              </View>
+            }
             onScroll={(e) => {
               const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
               isAtBottomRef.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
@@ -747,6 +711,32 @@ export default function ChatScreen() {
 
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function HoneycombBackdrop({ colors }: { colors: ReturnType<typeof getThemeColors> }) {
+  const rows = Array.from({ length: 9 });
+  const cells = Array.from({ length: 5 });
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      {rows.map((_, row) => (
+        <View key={row} style={[stylesBackdrop.row, { top: row * 104, left: row % 2 === 0 ? -34 : -78 }]}>
+          {cells.map((__, cell) => (
+            <View
+              key={cell}
+              style={[
+                stylesBackdrop.cell,
+                {
+                  borderColor: colors.primary + "0E",
+                  backgroundColor: colors.primary + "08",
+                },
+              ]}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -845,6 +835,21 @@ function NewsDigestCard({ meta, styles }: { meta: NewsDigestMeta; styles: Return
   );
 }
 
+const stylesBackdrop = StyleSheet.create({
+  row: {
+    position: "absolute",
+    flexDirection: "row",
+    gap: 0,
+  },
+  cell: {
+    width: 88,
+    height: 52,
+    borderWidth: 1,
+    transform: [{ rotate: "30deg" }],
+    marginRight: -8,
+  },
+});
+
 function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -889,13 +894,15 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     chatArea: { flex: 1 },
     emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
     emptyText: { fontFamily: FONTS.sans, fontSize: 16, color: colors.muted, textAlign: "center", lineHeight: 26 },
-    messageList: { padding: 16, paddingBottom: 24 },
-    inputRow: { flexDirection: "row", alignItems: "flex-end", marginHorizontal: 12, marginBottom: 10, padding: 6, gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 22, elevation: 12 },
+    dateChipWrap: { alignItems: "center", marginBottom: 18 },
+    dateChip: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted, backgroundColor: colors.card + "CC", borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, overflow: "hidden" },
+    messageList: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 28 },
+    inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 18, marginBottom: 8, padding: 5, gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
     composerKeyboard: { marginBottom: 4 },
-    input: { flex: 1, backgroundColor: colors.secondary, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 120, borderWidth: 1, borderColor: colors.border },
-    sendButton: { minWidth: 48, height: 44, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 6 },
+    input: { flex: 1, backgroundColor: colors.secondary, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 110, borderWidth: 1, borderColor: colors.border },
+    sendButton: { minWidth: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 6 },
     sendButtonDisabled: { opacity: 0.4 },
-    micButton: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
+    micButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
     micButtonRecording: { backgroundColor: colors.destructive },
     recordingRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 24, backgroundColor: colors.card, minHeight: 64 },
     recCancelBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
