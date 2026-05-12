@@ -151,7 +151,7 @@ export default function LoginScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)");
+      router.replace(data.user?.onboardingCompleted ? "/(tabs)" : "/onboarding");
     } catch (err: any) {
       Alert.alert(t("error"), err.response?.data?.message || t("login_failed"));
     } finally {
@@ -166,7 +166,7 @@ export default function LoginScreen() {
       await SecureStore.setItemAsync("bee_token", data.token);
       setToken(data.token);
       setUser(data.user);
-      router.replace("/(tabs)");
+      router.replace(data.user?.onboardingCompleted ? "/(tabs)" : "/onboarding");
     } catch (err: any) {
       Alert.alert(t("error"), err.response?.data?.message || t("login_google_failed"));
     } finally {

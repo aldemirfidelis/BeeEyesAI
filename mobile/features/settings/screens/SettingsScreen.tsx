@@ -23,6 +23,7 @@ import * as ImagePicker from "expo-image-picker";
 import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
 import { PRIVACY_POLICY, TERMS_OF_USE } from "@mobile/lib/legalTexts";
 import { api, getApiErrorMessage } from "@mobile/lib/api";
+import { applyAppLanguage } from "@mobile/lib/i18n";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { useUIStore } from "@mobile/stores/uiStore";
@@ -55,6 +56,7 @@ export default function SettingsScreen() {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [language, setLanguage] = useState("pt-BR");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -70,17 +72,19 @@ export default function SettingsScreen() {
     if (!me) return;
     setDisplayName(me.displayName ?? "");
     setBio(me.bio ?? "");
-  }, [me?.id]);
+    setLanguage(me.language ?? "pt-BR");
+  }, [me?.id, me?.displayName, me?.bio, me?.language]);
 
   const anonymousUnlocked = hasAnonymousProfileVisitsUnlocked(me ?? authUser);
   const anonymousEnabled = Boolean(me?.anonymousProfileVisitsEnabled ?? authUser?.anonymousProfileVisitsEnabled);
 
   const updatePreferences = useMutation({
-    mutationFn: (payload: Partial<Pick<MeResponse, "anonymousProfileVisitsEnabled" | "displayName" | "bio">>) =>
+    mutationFn: (payload: Partial<Pick<MeResponse, "anonymousProfileVisitsEnabled" | "displayName" | "bio" | "language">>) =>
       api.patch("/api/me/preferences", payload).then((response) => response.data as MeResponse),
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["me"], updatedUser);
       if (authUser) setAuthUser({ ...authUser, ...updatedUser, level: updatedUser.level ?? authUser.level, xp: updatedUser.xp ?? authUser.xp, currentStreak: updatedUser.currentStreak ?? authUser.currentStreak });
+      applyAppLanguage(updatedUser.language);
       setFeedback(t("settings_preferences_updated"));
     },
     onError: (error: unknown) => setFeedback(getApiErrorMessage(error, t("settings_update_error"))),
@@ -132,6 +136,11 @@ export default function SettingsScreen() {
       return;
     }
     updatePreferences.mutate({ anonymousProfileVisitsEnabled: value });
+  }
+
+  function handleLanguageSelect(nextLanguage: string) {
+    setLanguage(nextLanguage);
+    updatePreferences.mutate({ language: nextLanguage });
   }
 
   return (
@@ -196,6 +205,11 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t("settings_language")}</Text>
           <Text style={styles.cardSubTitle}>{t("settings_language_info")}</Text>
+          <View style={styles.segmentRow}>
+            <Segment label="Portugues Brasil" active={language === "pt-BR"} onPress={() => handleLanguageSelect("pt-BR")} styles={styles} />
+            <Segment label="Espanol" active={language === "es"} onPress={() => handleLanguageSelect("es")} styles={styles} />
+            <Segment label="English" active={language === "en"} onPress={() => handleLanguageSelect("en")} styles={styles} />
+          </View>
         </View>
 
         <View style={styles.card}>

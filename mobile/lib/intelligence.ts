@@ -18,10 +18,12 @@ export interface IntelligentNotification {
 export interface NotificationCenterItem {
   id: string;
   category: "alert" | "activity" | "social";
-  source: "intelligent" | "proactive" | "visit" | "connection";
+  source: "intelligent" | "proactive" | "visit" | "connection" | "community" | "direct_message";
   title: string;
   body: string;
   tone: "danger" | "warning" | "positive" | "neutral";
   createdAt: string;
   read: boolean;
+  fromUserId?: string;
+  fromName?: string;
 }

@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,7 @@ import type { NotificationCenterItem } from "@mobile/lib/intelligence";
 import { timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
+import type { PendingDMUser } from "@mobile/stores/uiStore";
 
 export default function NotificationsScreen() {
   const { t } = useTranslation();
@@ -19,11 +20,13 @@ export default function NotificationsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
 
+  const setPendingDMUser = useUIStore((state) => state.setPendingDMUser);
+
   const { data: notifications = [] } = useQuery<NotificationCenterItem[]>({
     queryKey: ["notifications-center"],
     queryFn: () => api.get("/api/notifications/center").then((r) => r.data),
-    staleTime: 45 * 1000,
-    refetchInterval: 90 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
     retry: false,
   });
 
@@ -36,11 +39,37 @@ export default function NotificationsScreen() {
 
   const safeNotifications = Array.isArray(notifications) ? notifications : [];
 
-  useEffect(() => {
-    const unreadIds = safeNotifications.filter((item) => !item.read).map((item) => item.id);
-    if (unreadIds.length === 0 || markNotificationsRead.isPending) return;
-    markNotificationsRead.mutate(unreadIds);
-  }, [markNotificationsRead.isPending, markNotificationsRead.mutate, safeNotifications]);
+  function iconForNotification(item: NotificationCenterItem): React.ComponentProps<typeof Feather>["name"] {
+    if (item.source === "direct_message") return "message-circle";
+    if (item.source === "connection") return "user-plus";
+    if (item.source === "community") return "users";
+    if (item.source === "visit") return "eye";
+    return "bell";
+  }
+
+  function handleNotificationPress(item: NotificationCenterItem) {
+    if (!item.read && !markNotificationsRead.isPending) {
+      markNotificationsRead.mutate([item.id]);
+    }
+
+    if (item.source === "direct_message" && item.fromUserId) {
+      const dmUser: PendingDMUser = {
+        id: item.fromUserId,
+        username: item.fromName || item.fromUserId,
+        displayName: item.fromName || null,
+        level: 1,
+        avatarUrl: null,
+      };
+      setPendingDMUser(dmUser);
+      router.push("/(tabs)/inbox" as never);
+      return;
+    }
+
+    if (item.source === "connection") { router.push("/friends" as never); return; }
+    if (item.source === "community") { router.push("/communities" as never); return; }
+    if (item.source === "visit") { router.push("/profile" as never); return; }
+    router.push("/" as never);
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -57,7 +86,8 @@ export default function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {safeNotifications.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>{t("notifications_empty_title")}</Text>
+            <Feather name="bell" size={32} color={colors.muted} style={{ alignSelf: "center", marginBottom: 8 }} />
+            <Text style={styles.emptyTitle}>Nenhum alerta no momento.</Text>
             <Text style={styles.emptyText}>{t("notifications_empty_text")}</Text>
           </View>
         ) : (
@@ -65,7 +95,7 @@ export default function NotificationsScreen() {
             <TouchableOpacity
               key={item.id}
               activeOpacity={0.7}
-              onPress={() => router.navigate("/")}
+              onPress={() => handleNotificationPress(item)}
               style={[
                 styles.notificationCard,
                 item.tone === "danger"
@@ -79,13 +109,21 @@ export default function NotificationsScreen() {
               ]}
             >
               <View style={styles.notificationHeader}>
-                <Text style={styles.notificationTitle}>{item.title}</Text>
+                <View style={styles.notificationTitleRow}>
+                  <Feather name={iconForNotification(item)} size={14} color={item.source === "direct_message" ? colors.primary : colors.muted} />
+                  <Text style={styles.notificationTitle}>{item.title}</Text>
+                  {!item.read && <View style={styles.unreadDot} />}
+                </View>
                 <Text style={styles.notificationTime}>{timeAgo(item.createdAt)}</Text>
               </View>
               <Text style={styles.notificationBody}>{item.body}</Text>
-              <Text style={styles.notificationSource}>
-                {item.category === "social" ? t("notifications_social") : item.category === "activity" ? t("notifications_activity") : t("notifications_alert")} · {item.source}
-              </Text>
+              {item.source === "direct_message" ? (
+                <Text style={styles.notificationAction}>Abrir conversa →</Text>
+              ) : (
+                <Text style={styles.notificationSource}>
+                  {item.category === "social" ? t("notifications_social") : item.category === "activity" ? t("notifications_activity") : t("notifications_alert")} · {item.source}
+                </Text>
+              )}
             </TouchableOpacity>
           ))
         )}
@@ -128,9 +166,17 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     notificationPositive: { backgroundColor: colors.success + "33", borderColor: colors.success + "88" },
     notificationUnread: { shadowColor: colors.foreground, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 },
     notificationHeader: { flexDirection: "row", justifyContent: "space-between", gap: 12, alignItems: "center" },
+    notificationTitleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
     notificationTitle: { flex: 1, fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: colors.foreground },
     notificationTime: { fontFamily: FONTS.mono, fontSize: 11, color: colors.muted },
     notificationBody: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground },
     notificationSource: { fontFamily: FONTS.mono, fontSize: 11, color: colors.muted, textTransform: "lowercase" },
+    notificationAction: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "600", color: colors.primary },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
   });
 }

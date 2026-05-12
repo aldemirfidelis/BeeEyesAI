@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@mobile/lib/api";
@@ -29,11 +31,38 @@ function ConversationList({
   colors: any; styles: any; insets: any;
 }) {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const conversationsQuery = useQuery<DMConversation[]>({
     queryKey: ["dm-conversations"],
     queryFn: () => api.get("/api/dm/conversations").then((r) => r.data),
     refetchInterval: 7000,
   });
+
+  const deleteConversation = useMutation({
+    mutationFn: (userId: string) => api.delete(`/api/dm/${userId}`).then((r) => r.data),
+    onSuccess: (_data, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+      queryClient.removeQueries({ queryKey: ["dm-messages", userId] });
+    },
+    onError: () => {
+      Alert.alert("Erro", "Não foi possível apagar a conversa.");
+    },
+  });
+
+  function handleDeleteConversation(conversation: DMConversation) {
+    Alert.alert(
+      "Apagar conversa",
+      `Apagar toda a conversa com ${displayNameOf(conversation.user)}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Apagar",
+          style: "destructive",
+          onPress: () => deleteConversation.mutate(conversation.user.id),
+        },
+      ],
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -50,28 +79,38 @@ function ConversationList({
           data={conversationsQuery.data}
           keyExtractor={(item) => item.user.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.convRow} onPress={() => onSelect(item)} activeOpacity={0.7}>
-              <View style={styles.convAvatarWrap}>
-                <UserAvatar name={displayNameOf(item.user)} avatarUrl={item.user.avatarUrl} size={56} backgroundColor={colors.secondary} color={colors.foreground} />
-                {item.unreadCount > 0 && <View style={styles.onlineDot} />}
-              </View>
-              <View style={styles.convBody}>
-                <View style={styles.convTopRow}>
-                  <Text style={[styles.convName, item.unreadCount > 0 && styles.convNameUnread]}>
-                    {displayNameOf(item.user)}
+            <View style={styles.convRow}>
+              <TouchableOpacity style={styles.convMainContent} onPress={() => onSelect(item)} activeOpacity={0.7}>
+                <View style={styles.convAvatarWrap}>
+                  <UserAvatar name={displayNameOf(item.user)} avatarUrl={item.user.avatarUrl} size={56} backgroundColor={colors.secondary} color={colors.foreground} />
+                  {item.unreadCount > 0 && <View style={styles.onlineDot} />}
+                </View>
+                <View style={styles.convBody}>
+                  <View style={styles.convTopRow}>
+                    <Text style={[styles.convName, item.unreadCount > 0 && styles.convNameUnread]}>
+                      {displayNameOf(item.user)}
+                    </Text>
+                    <Text style={styles.convTime}>{timeAgo(item.lastMessageAt)}</Text>
+                  </View>
+                  <Text style={[styles.convPreview, item.unreadCount > 0 && styles.convPreviewUnread]} numberOfLines={1}>
+                    {item.lastMessageFromMe ? "Você: " : ""}{item.lastMessage}
                   </Text>
-                  <Text style={styles.convTime}>{timeAgo(item.lastMessageAt)}</Text>
                 </View>
-                <Text style={[styles.convPreview, item.unreadCount > 0 && styles.convPreviewUnread]} numberOfLines={1}>
-                  {item.lastMessageFromMe ? "Você: " : ""}{item.lastMessage}
-                </Text>
-              </View>
-              {item.unreadCount > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+                {item.unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDeleteConversation(item)}
+                style={styles.deleteBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Apagar conversa"
+              >
+                <Feather name="trash-2" size={16} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
           )}
           contentContainerStyle={{ paddingBottom: 20 }}
         />
@@ -94,6 +133,7 @@ function ChatScreen({
   colors: any; styles: any; insets: any;
 }) {
   const queryClient = useQueryClient();
+  const tabBarHeight = useBottomTabBarHeight();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<ScrollView>(null);
 
@@ -167,7 +207,7 @@ function ChatScreen({
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityLabel="Apagar conversa"
         >
-          <Feather name="more-horizontal" size={22} color={colors.muted} />
+          <Feather name="trash-2" size={20} color={colors.muted} />
         </TouchableOpacity>
       </View>
 
@@ -204,7 +244,7 @@ function ChatScreen({
           )}
         </ScrollView>
 
-        <View style={[styles.inputRow, { paddingBottom: insets.bottom + 6 }]}>
+        <View style={[styles.inputRow, { paddingBottom: tabBarHeight > 0 ? tabBarHeight + (Platform.OS === "ios" ? 12 : 16) : insets.bottom + 6 }]}>
           <TextInput
             style={styles.input}
             value={draft}
@@ -229,10 +269,27 @@ function ChatScreen({
 
 export default function InboxScreen() {
   const themeMode = useUIStore((state) => state.themeMode);
+  const pendingDMUser = useUIStore((state) => state.pendingDMUser);
+  const setPendingDMUser = useUIStore((state) => state.setPendingDMUser);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<DMConversation | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (pendingDMUser) {
+        setSelected({
+          user: pendingDMUser,
+          lastMessage: "",
+          lastMessageAt: new Date().toISOString(),
+          lastMessageFromMe: false,
+          unreadCount: 0,
+        });
+        setPendingDMUser(null);
+      }
+    }, [pendingDMUser, setPendingDMUser]),
+  );
 
   if (selected) {
     return (
@@ -285,9 +342,19 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     convRow: {
       flexDirection: "row",
       alignItems: "center",
+    },
+    convMainContent: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
       paddingHorizontal: 16,
       paddingVertical: 10,
       gap: 14,
+    },
+    deleteBtn: {
+      paddingRight: 16,
+      paddingLeft: 8,
+      paddingVertical: 10,
     },
     convAvatarWrap: { position: "relative" },
     onlineDot: {

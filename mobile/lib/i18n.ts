@@ -14,6 +14,17 @@ function detectLanguage(): string {
   return "pt";
 }
 
+export function normalizeAppLanguage(value?: string | null): "pt" | "en" | "es" {
+  const lang = (value ?? "").split("-")[0].toLowerCase();
+  if (lang === "es") return "es";
+  if (lang === "en") return "en";
+  return "pt";
+}
+
+export function applyAppLanguage(value?: string | null) {
+  return i18n.changeLanguage(normalizeAppLanguage(value));
+}
+
 i18n.use(initReactI18next).init({
   compatibilityJSON: "v4",
   lng: detectLanguage(),

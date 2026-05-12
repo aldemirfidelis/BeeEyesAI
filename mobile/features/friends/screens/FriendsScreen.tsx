@@ -4,13 +4,16 @@ import {
   TextInput, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { useState, useCallback, useRef } from "react";
+import { router } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Feather } from "@expo/vector-icons";
 import { api } from "@mobile/lib/api";
 import type { ConnectionSuggestion } from "@mobile/lib/social";
 import { COLORS, FONTS } from "@mobile/lib/theme";
 import { UserAvatar } from "@mobile/components/UserAvatar";
+import { useUIStore } from "@mobile/stores/uiStore";
 
 interface SearchUser {
   id: string;
@@ -76,6 +79,7 @@ export default function FriendsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const setPendingDMUser = useUIStore((s) => s.setPendingDMUser);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [profile, setProfile] = useState<FriendProfile | null>(null);
@@ -193,6 +197,17 @@ export default function FriendsScreen() {
         },
       ]
     );
+  };
+
+  const handleSendMessage = (friend: Friend) => {
+    setPendingDMUser({
+      id: friend.id,
+      username: friend.username,
+      displayName: friend.displayName,
+      level: friend.level,
+      avatarUrl: friend.avatarUrl,
+    });
+    router.push("/(tabs)/inbox");
   };
 
   const handleCancelRequest = async (targetUserId: string) => {
@@ -447,13 +462,24 @@ export default function FriendsScreen() {
                     <Text style={styles.lastActive}>Ativo {timeAgo(friend.lastActiveAt)}</Text>
                   )}
                 </View>
+                <Feather name="chevron-right" size={16} color={COLORS.muted} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.removeFriendBtn}
-                onPress={() => handleRemoveFriend(friend.id)}
-              >
-                <Text style={styles.removeFriendText}>✕</Text>
-              </TouchableOpacity>
+              <View style={styles.friendActions}>
+                <TouchableOpacity
+                  style={styles.removeFriendBtnNew}
+                  onPress={() => handleRemoveFriend(friend.id)}
+                >
+                  <Feather name="user-minus" size={13} color="#EF4444" />
+                  <Text style={styles.removeFriendTextNew}>Remover</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.messageFriendBtn}
+                  onPress={() => handleSendMessage(friend)}
+                >
+                  <Feather name="message-circle" size={13} color={COLORS.primary} />
+                  <Text style={styles.messageFriendBtnText}>Enviar mensagem</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           );
         })}
@@ -723,9 +749,52 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderRadius: 16,
     padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  friendActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  removeFriendBtnNew: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  removeFriendTextNew: {
+    fontFamily: FONTS.sans,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#EF4444",
+  },
+  messageFriendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + "18",
+  },
+  messageFriendBtnText: {
+    fontFamily: FONTS.sans,
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
   removeFriendBtn: {
     width: 30,

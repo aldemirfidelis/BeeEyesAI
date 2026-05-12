@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
+import { applyAppLanguage } from "../lib/i18n";
 import { useUIStore } from "./uiStore";
 
 interface UserBasic {
@@ -34,7 +35,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   setToken: (token) => set({ token }),
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    applyAppLanguage(user.language);
+    set({ user });
+  },
 
   logout: async () => {
     try {

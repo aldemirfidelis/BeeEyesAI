@@ -11,12 +11,21 @@ interface Achievement {
   description: string;
 }
 
+export interface PendingDMUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  level: number;
+  avatarUrl?: string | null;
+}
+
 interface UIState {
   eyeExpression: EyeExpression;
   achievement: Achievement | null;
   themeMode: ThemeMode;
   profileImageUri: string | null;
   isPreferencesReady: boolean;
+  pendingDMUser: PendingDMUser | null;
   setEyeExpression: (expr: EyeExpression) => void;
   showAchievement: (achievement: Achievement) => void;
   clearAchievement: () => void;
@@ -24,6 +33,7 @@ interface UIState {
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setProfileImageUri: (uri: string | null) => Promise<void>;
   clearProfileImage: () => Promise<void>;
+  setPendingDMUser: (user: PendingDMUser | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -32,8 +42,10 @@ export const useUIStore = create<UIState>((set) => ({
   themeMode: "light",
   profileImageUri: null,
   isPreferencesReady: false,
+  pendingDMUser: null,
 
   setEyeExpression: (expr) => set({ eyeExpression: expr }),
+  setPendingDMUser: (user) => set({ pendingDMUser: user }),
   showAchievement: (achievement) => set({ achievement }),
   clearAchievement: () => set({ achievement: null }),
 

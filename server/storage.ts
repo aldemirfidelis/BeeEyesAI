@@ -50,6 +50,7 @@ export interface IStorage {
   updateMessageMetadata(id: string, userId: string, data: { content: string; metadata: string }): Promise<Message | undefined>;
   getNotificationReadsByUser(userId: string): Promise<NotificationRead[]>;
   markNotificationsAsRead(data: InsertNotificationRead[]): Promise<void>;
+  getRecentAssistantMessages(userId: string, sinceMinutes: number): Promise<Message[]>;
 
   // Mood
   getMoodEntriesByUser(userId: string, days?: number): Promise<MoodEntry[]>;
@@ -349,6 +350,16 @@ export class DrizzleStorage implements IStorage {
       .onConflictDoNothing({
         target: [notificationReads.userId, notificationReads.notificationId],
       });
+  }
+
+  async getRecentAssistantMessages(userId: string, sinceMinutes: number): Promise<Message[]> {
+    const since = new Date(Date.now() - sinceMinutes * 60 * 1000);
+    return db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.userId, userId), eq(messages.role, "assistant"), gte(messages.createdAt, since)))
+      .orderBy(desc(messages.createdAt))
+      .limit(30);
   }
 
   async getMoodEntriesByUser(userId: string, days = 30): Promise<MoodEntry[]> {

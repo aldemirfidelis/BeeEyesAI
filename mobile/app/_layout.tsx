@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from "../stores/authStore";
 import { useUIStore } from "../stores/uiStore";
 import { getThemeColors } from "../lib/theme";
+import { applyAppLanguage } from "../lib/i18n";
 
 export default function RootLayout() {
   const { initialize, isLoading, token } = useAuthStore();
@@ -32,8 +33,12 @@ export default function RootLayout() {
         try {
           const { api } = await import("../lib/api");
           const { data } = await api.get("/api/me");
+          useAuthStore.getState().setUser(data);
+          applyAppLanguage(data?.language);
           serverAvatarUrl = data?.avatarUrl ?? null;
-        } catch { /* ignore */ }
+        } catch {
+          await useAuthStore.getState().logout();
+        }
       }
       initializePreferences(serverAvatarUrl);
     });

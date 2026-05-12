@@ -23,7 +23,7 @@ import DailyBriefingModal from "@mobile/components/DailyBriefingModal";
 import { UserAvatar } from "@mobile/components/UserAvatar";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { type ConnectionRequestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNewsDigestMeta, parseMessageMeta } from "@mobile/lib/social";
-import type { IntelligentNotification, ScoreSnapshot } from "@mobile/lib/intelligence";
+import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
 
 type AppRoute = "/feed" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
@@ -208,8 +208,17 @@ export default function ChatScreen() {
     staleTime: 45000,
     refetchInterval: 90000,
   });
+  const { data: notificationCenter = [] } = useQuery<NotificationCenterItem[]>({
+    queryKey: ["notifications-center"],
+    queryFn: () => api.get("/api/notifications/center").then((r) => r.data),
+    staleTime: 45000,
+    refetchInterval: 90000,
+  });
   const chatMessages = Array.isArray(messages) ? messages : [];
   const intelligentNotifications = Array.isArray(notifications) ? notifications : [];
+  const unreadNotificationCount = Array.isArray(notificationCenter)
+    ? notificationCenter.filter((item) => !item.read).length
+    : 0;
   const currentUserName = me?.displayName || user?.displayName || me?.username || user?.username || "Usuario";
   const currentUserAvatarUrl = me?.avatarUrl || user?.avatarUrl || profileImageUri || null;
 
@@ -697,9 +706,9 @@ export default function ChatScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="bell" size={20} color={colors.muted} />
-            {intelligentNotifications.length > 0 ? (
+            {unreadNotificationCount > 0 ? (
               <View style={styles.headerBadge}>
-                <Text style={styles.headerBadgeText}>{Math.min(intelligentNotifications.length, 9)}</Text>
+                <Text style={styles.headerBadgeText}>{Math.min(unreadNotificationCount, 9)}</Text>
               </View>
             ) : null}
             <Text style={styles.headerIconLabel}>Alertas</Text>

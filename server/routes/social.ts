@@ -443,6 +443,25 @@ export function createSocialRouter() {
 
     const conversation = await storage.getDirectMessagesBetweenUsers(req.userId!, req.params.userId, 200);
     await storage.markDirectMessagesAsRead(req.userId!, req.params.userId);
+
+    // Mark associated DM notification center entries as read (non-blocking)
+    storage.getRecentAssistantMessages(req.userId!, 60 * 24 * 7).then(async (recent) => {
+      const dmNotifIds = recent
+        .filter((m) => {
+          try {
+            const meta = JSON.parse(m.metadata || "{}");
+            return meta.type === "direct_message" && meta.fromUserId === req.params.userId;
+          } catch { return false; }
+        })
+        .map((m) => ({ userId: req.userId!, notificationId: `dm-${m.id}` }));
+      if (dmNotifIds.length > 0) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[BeeAlerts] Marking DM notifications as read:", dmNotifIds.length);
+        }
+        await storage.markNotificationsAsRead(dmNotifIds);
+      }
+    }).catch(() => {});
+
     return sendOk(res, conversation);
   }));
 
@@ -470,7 +489,40 @@ export function createSocialRouter() {
       storage.getUser(req.userId!),
     ]);
     const senderName = sender?.displayName || sender?.username || "Alguém";
+
     sendPushToUser(recipientId, `Nova mensagem de ${senderName} 💬`, content.length > 80 ? content.slice(0, 80) + "…" : content, { screen: "/(tabs)/inbox" }, "bee-social").catch(() => {});
+
+    // Create notification center entry — skip if there's already an unread one from this sender in the last 10 min
+    storage.getRecentAssistantMessages(recipientId, 10).then((recent) => {
+      const alreadyNotified = recent.some((m) => {
+        try {
+          const meta = JSON.parse(m.metadata || "{}");
+          return meta.type === "direct_message" && meta.fromUserId === req.userId;
+        } catch { return false; }
+      });
+      if (!alreadyNotified) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[BeeAlerts] Direct message received:", created.id);
+        }
+        const preview = content.length > 60 ? content.slice(0, 60) + "…" : content;
+        return storage.createMessage({
+          userId: recipientId,
+          role: "assistant",
+          content: `${senderName}: ${preview}`,
+          metadata: JSON.stringify({
+            type: "direct_message",
+            fromUserId: req.userId,
+            fromName: senderName,
+            dmMessageId: created.id,
+          }),
+        }).then((alert) => {
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[BeeAlerts] Alert created:", alert.id);
+          }
+        });
+      }
+    }).catch(() => {});
+
     return sendCreated(res, created);
   }));
 

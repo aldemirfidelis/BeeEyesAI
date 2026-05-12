@@ -93,12 +93,14 @@ export function createMessagesRouter() {
   type NotificationCenterItem = {
     id: string;
     category: "alert" | "activity" | "social";
-    source: "intelligent" | "proactive" | "visit" | "connection" | "community";
+    source: "intelligent" | "proactive" | "visit" | "connection" | "community" | "direct_message";
     title: string;
     body: string;
     tone: "danger" | "warning" | "positive" | "neutral";
     createdAt: string;
     read: boolean;
+    fromUserId?: string;
+    fromName?: string;
   };
 
   async function getUserActivitySnapshot(userId: string) {
@@ -257,6 +259,21 @@ export function createMessagesRouter() {
           tone: "positive" as const,
           createdAt: new Date(message.createdAt).toISOString(),
           read: false,
+        }];
+      }
+
+      if (metadata.type === "direct_message") {
+        return [{
+          id: `dm-${message.id}`,
+          category: "social" as const,
+          source: "direct_message" as const,
+          title: "Nova mensagem direta",
+          body: message.content,
+          tone: "neutral" as const,
+          createdAt: new Date(message.createdAt).toISOString(),
+          read: false,
+          fromUserId: String(metadata.fromUserId || ""),
+          fromName: String(metadata.fromName || ""),
         }];
       }
 
