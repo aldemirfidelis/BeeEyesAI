@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, MessageCircle, Globe, UserPlus, Heart, Users, X, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon } from "lucide-react";
+import { Send, Plus, MessageCircle, Globe, UserPlus, Heart, Users, X, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon, ThumbsUp, ThumbsDown, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
 import { AuthScreen } from "@/features/home/auth/AuthScreen";
@@ -795,6 +795,15 @@ export default function Home() {
     }
   };
 
+  const handleDeleteCommunityPost = async (postId: string) => {
+    const res = await fetch(`/api/communities/posts/${postId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("Não foi possível apagar a mensagem.");
+    setCommunityPosts((prev) => prev.filter((post) => post.id !== postId));
+  };
+
   const handleCreateCommunity = async () => {
     if (!newCommunity.name.trim() || creatingCommunity) return;
     setCreatingCommunity(true);
@@ -1499,6 +1508,26 @@ export default function Home() {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
 
+  const handleAssistantDislike = () => {
+    injectAssistantMessage("Anotado. Essa resposta foi uma torrada sem manteiga, eu melhoro a próxima.");
+  };
+
+  const handleShareAssistantToFeed = async (content: string) => {
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ content: `Mensagem da Bee:\n\n${content}`, imageUrl: null }),
+      });
+      if (!res.ok) throw new Error("share failed");
+      injectAssistantMessage("Compartilhei no Feed. Já deixei com cara de post, sem perder o tempero.");
+      loadFeed();
+    } catch {
+      if (navigator.share) navigator.share({ text: content }).catch(() => {});
+      else alert("Não foi possível compartilhar agora.");
+    }
+  };
+
   const handleNewsCommand = async () => {
     injectAssistantMessage("Buscando notícias para você... 📰");
     try {
@@ -1711,6 +1740,7 @@ export default function Home() {
             communitiesLoading={communitiesLoading}
             communitySearch={communitySearch}
             selectedCommunity={selectedCommunity}
+            currentUserId={user?.id}
             communityPosts={communityPosts}
             communityPostsLoading={communityPostsLoading}
             communityPostInput={communityPostInput}
@@ -1749,6 +1779,7 @@ export default function Home() {
                 alert("Não foi possível apagar a comunidade.");
               }
             }}
+            onDeleteCommunityPost={handleDeleteCommunityPost}
             pendingRequests={pendingRequests}
             friends={friends}
             friendsLoading={friendsLoading}
@@ -1803,47 +1834,72 @@ export default function Home() {
         isLoading={isLoading}
         messageActionsRenderer={(message) => {
           if (message.role !== "assistant") return null;
+          const baseActions = (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => pulseEyeEvent("message-received", 900)}>
+                <ThumbsUp className="h-3 w-3" />
+                Curti
+              </button>
+              <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground" onClick={handleAssistantDislike}>
+                <ThumbsDown className="h-3 w-3" />
+                Não curti
+              </button>
+              <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => handleShareAssistantToFeed(message.content)}>
+                <Share2 className="h-3 w-3" />
+                Feed
+              </button>
+            </div>
+          );
           const meta = getMessageMeta(message.metadata);
-          if (!meta) return null;
+          if (!meta) return baseActions;
 
           if (meta.type === "connection_request" && meta.connectionId) {
             const connectionMeta = getConnectionRequestMeta(message.metadata);
-            if (!connectionMeta) return null;
+            if (!connectionMeta) return baseActions;
             const isBusy = processingConnectionRequestId === connectionMeta.connectionId;
             return (
-              <div className="flex gap-2">
-                <Button size="sm" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "accept")}>
-                  {isBusy ? "Processando..." : "Aceitar"}
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "reject")}>
-                  Recusar
-                </Button>
+              <div className="space-y-2">
+                {baseActions}
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "accept")}>
+                    {isBusy ? "Processando..." : "Aceitar"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!processingConnectionRequestId} onClick={() => handleConnectionDecision(message.id, connectionMeta.connectionId, "reject")}>
+                    Recusar
+                  </Button>
+                </div>
               </div>
             );
           }
 
           if (meta.type === "holiday_alarm_confirmation" && meta.alarmDraft) {
             return (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "create")}>
-                  Despertar mesmo assim
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "skip")}>
-                  Nao despertar no feriado
-                </Button>
+              <div className="space-y-2">
+                {baseActions}
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "create")}>
+                    Despertar mesmo assim
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "skip")}>
+                    Nao despertar no feriado
+                  </Button>
+                </div>
               </div>
             );
           }
 
           if (meta.type === "reactivate_alarm_confirmation" && meta.alarmId) {
             return (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="h-8 text-xs" onClick={() => handleAlarmReactivationDecision(message.id, meta, "activate")}>
-                  Reativar alarme
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleAlarmReactivationDecision(message.id, meta, "keep_paused")}>
-                  Manter pausado
-                </Button>
+              <div className="space-y-2">
+                {baseActions}
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" className="h-8 text-xs" onClick={() => handleAlarmReactivationDecision(message.id, meta, "activate")}>
+                    Reativar alarme
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleAlarmReactivationDecision(message.id, meta, "keep_paused")}>
+                    Manter pausado
+                  </Button>
+                </div>
               </div>
             );
           }
@@ -1851,6 +1907,7 @@ export default function Home() {
           if ((meta.type === "news" || meta.type === "news_digest") && Array.isArray(meta.items)) {
             return (
               <div className="space-y-2">
+                {baseActions}
                 {(meta.items as NewsItem[]).map((item, index) => (
                   <NewsCard key={item.link + "-" + index} title={item.title} link={item.link} source={item.source} authHeaders={authHeaders} />
                 ))}
@@ -1858,7 +1915,7 @@ export default function Home() {
             );
           }
 
-          return null;
+          return baseActions;
         }}
         onToggleSettings={() => setShowSettingsScreen(true)}
         onToggleSearch={() => { setShowMsgSearch((value) => !value); setMsgSearchQuery(""); }}
@@ -1906,7 +1963,7 @@ export default function Home() {
             }`}>
               {icon}
             </span>
-            <span className="text-[10px] leading-tight w-full text-center truncate px-0.5">{label}</span>
+            <span className="text-[9px] leading-tight w-full text-center px-0.5">{label}</span>
           </button>
         ))}
       </nav>

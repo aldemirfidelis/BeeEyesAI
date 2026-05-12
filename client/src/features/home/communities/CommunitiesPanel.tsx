@@ -14,6 +14,7 @@ interface CommunitiesPanelProps {
   communitiesLoading: boolean;
   communitySearch: string;
   selectedCommunity: (Community & { isMember: boolean; memberRole?: string; memberStatus?: string }) | null;
+  currentUserId?: string;
   pendingRequests: { id: string; username: string; displayName: string | null; avatarUrl?: string | null; requestedAt: string }[];
   friends: Friend[];
   friendsLoading?: boolean;
@@ -50,6 +51,7 @@ interface CommunitiesPanelProps {
   onSaveEditCommunity: () => void;
   onCancelEditCommunity: () => void;
   onDeleteCommunity: (communityId: string, name: string) => void;
+  onDeleteCommunityPost: (postId: string) => Promise<void>;
   authHeaders: () => Record<string, string>;
   timeAgo: (value: string | Date) => string;
 }
@@ -154,7 +156,7 @@ function ImagePicker({
 
 export function CommunitiesPanel(props: CommunitiesPanelProps) {
   const {
-    communities, communitiesLoading, communitySearch, selectedCommunity,
+    communities, communitiesLoading, communitySearch, selectedCommunity, currentUserId,
     communityPosts, communityPostsLoading, communityPostInput, communityPostImageUrl, pickingCommunityPostImage, communityPostSending,
     showCreateCommunity, newCommunity, creatingCommunity, communityJoining,
     editingCommunity, savingCommunity,
@@ -162,7 +164,7 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
     onCloseCommunity, onCommunityPostInputChange, onPickCommunityPostImage, onRemoveCommunityPostImage, onSendCommunityPost,
     onShowCreateCommunity, onNewCommunityChange, onCreateCommunity,
     onOpenEditCommunity, onEditCommunityChange, onSaveEditCommunity, onCancelEditCommunity,
-    onDeleteCommunity, authHeaders, timeAgo, onOpenFriendProfile,
+    onDeleteCommunity, onDeleteCommunityPost, authHeaders, timeAgo, onOpenFriendProfile,
     pendingRequests, onApproveRequest, onRejectRequest,
   } = props;
 
@@ -347,6 +349,8 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
                     communityEmoji={selectedCommunity.emoji}
                     authHeaders={authHeaders}
                     timeAgo={timeAgo}
+                    isOwner={currentUserId === post.userId || selectedCommunity.memberRole === "owner"}
+                    onDelete={onDeleteCommunityPost}
                     onOpenProfile={onOpenFriendProfile}
                   />
                 ))}
@@ -465,14 +469,13 @@ export function CommunitiesPanel(props: CommunitiesPanelProps) {
               <div className="flex gap-2">
                 <Input
                   placeholder="🐝"
-                  className="w-14 text-center text-xl"
+                  className="hidden"
                   value={newCommunity.emoji}
                   onChange={(e) => onNewCommunityChange({ ...newCommunity, emoji: e.target.value })}
                   maxLength={2}
                 />
                 <Input
                   placeholder="Nome da comunidade *"
-                  className="flex-1"
                   value={newCommunity.name}
                   onChange={(e) => onNewCommunityChange({ ...newCommunity, name: e.target.value })}
                 />

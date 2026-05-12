@@ -136,6 +136,7 @@ export interface IStorage {
   rejectJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
   getCommunityPosts(communityId: string, userId: string, limit?: number, offset?: number): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
   createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost>;
+  deleteCommunityPost(postId: string, userId: string): Promise<boolean>;
   getUserCommunities(userId: string): Promise<Community[]>;
   toggleCommunityPostLike(postId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
   getCommunityPostComments(postId: string, userId: string): Promise<(CommunityPostComment & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean })[]>;
@@ -1119,6 +1120,21 @@ export class DrizzleStorage implements IStorage {
   async createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost> {
     const [post] = await db.insert(communityPosts).values(data).returning();
     return post;
+  }
+
+  async deleteCommunityPost(postId: string, userId: string): Promise<boolean> {
+    const [post] = await db.select().from(communityPosts).where(eq(communityPosts.id, postId));
+    if (!post) return false;
+
+    const [membership] = await db
+      .select({ role: communityMembers.role })
+      .from(communityMembers)
+      .where(and(eq(communityMembers.communityId, post.communityId), eq(communityMembers.userId, userId)));
+
+    if (post.userId !== userId && membership?.role !== "owner") return false;
+
+    const deleted = await db.delete(communityPosts).where(eq(communityPosts.id, postId)).returning({ id: communityPosts.id });
+    return deleted.length > 0;
   }
 
   async getUserCommunities(userId: string): Promise<Community[]> {

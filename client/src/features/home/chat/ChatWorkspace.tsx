@@ -244,9 +244,9 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             </div>
           </div>
 
-          {/* Center: BeeEyes absolutely centered in header */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
-            <div className="pointer-events-auto" style={{ transform: "scale(0.58)", transformOrigin: "center" }}>
+          {/* Center: BeeEyes constrained between brand and actions on small screens */}
+          <div className="absolute left-36 right-32 top-0 bottom-0 flex items-center justify-center pointer-events-none md:inset-0" style={{ zIndex: 5 }}>
+            <div className="pointer-events-auto scale-[0.48] md:scale-[0.58] origin-center">
               <BeeEyes
                 expression={eyeExpression}
                 event={eyeEvent}
@@ -260,16 +260,6 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-1 relative z-10 shrink-0">
-            {/* Buscar */}
-            <button
-              type="button"
-              onClick={onToggleSearch}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
-              aria-label="Buscar mensagens"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-
             {/* Alertas */}
             <button
               type="button"
@@ -301,7 +291,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             <button
               type="button"
               onClick={onGoToFriends}
-              className="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+              aria-label="Amigos"
             >
               <Users className="w-5 h-5" />
             </button>
@@ -323,8 +314,19 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
       </header>
 
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="shrink-0 px-4 pt-2">
+          <button
+            type="button"
+            onClick={onToggleSearch}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-card/80 hover:text-foreground"
+            aria-label="Buscar mensagens"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span>Buscar</span>
+          </button>
+        </div>
         {showMsgSearch && (
-          <div className="shrink-0 px-4 py-2 border-b border-border/60 bg-card/70 backdrop-blur flex items-center gap-2">
+          <div className="shrink-0 mx-4 mb-2 rounded-2xl border border-border/60 bg-card/80 px-3 py-2 backdrop-blur flex items-center gap-2">
             <Search size={16} className="text-muted-foreground shrink-0" />
             <input autoFocus type="text" value={msgSearchQuery} onChange={(event) => onSearchQueryChange(event.target.value)} placeholder="Buscar nas mensagens..." className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
             {msgSearchQuery && <button type="button" onClick={() => onSearchQueryChange("")} className="text-muted-foreground hover:text-foreground">Limpar</button>}
@@ -332,7 +334,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           </div>
         )}
 
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-4 pb-52 pt-4 md:px-6 md:pb-6 md:pt-4 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-4 pb-32 pt-4 md:px-6 md:pb-6 md:pt-4 space-y-3 beeyes-scrollbar" onScroll={onScrollStateChange}>
           <div className="flex justify-center md:hidden">
             <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-sm ring-1 ring-border/60 backdrop-blur">
               Hoje, 10:24
@@ -347,7 +349,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           <div ref={chatEndRef} />
         </div>
 
-        <div className="fixed bottom-[120px] left-3 right-3 z-20 border-primary/10 bg-transparent p-0 md:static md:border-t md:p-4 md:beeyes-glass-light md:dark:beeyes-glass shrink-0 pb-safe">
+        <div className="fixed bottom-[96px] left-3 right-3 z-20 border-primary/10 bg-transparent p-0 md:static md:border-t md:p-4 md:beeyes-glass-light md:dark:beeyes-glass shrink-0 pb-safe">
           {transcriptionError && (
             <p className="max-w-4xl mx-auto mb-2 text-xs text-destructive">
               Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.

@@ -125,14 +125,17 @@ export function createDailyBriefingRouter() {
 
     const lat = req.query.lat ? parseFloat(req.query.lat as string) : null;
     const lon = req.query.lon ? parseFloat(req.query.lon as string) : null;
+    const queryCity = typeof req.query.city === "string" && req.query.city.trim()
+      ? req.query.city.trim()
+      : null;
 
     let weather = null;
-    let resolvedCity = user.city ?? null;
+    let resolvedCity = queryCity ?? user.city ?? null;
 
     if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
       weather = await fetchWeatherForCoords(lat, lon);
-    } else if (user.city) {
-      weather = await fetchWeatherForCity(user.city);
+    } else if (resolvedCity) {
+      weather = await fetchWeatherForCity(resolvedCity);
     }
 
     const personality = await storage.getPersonality(userId);

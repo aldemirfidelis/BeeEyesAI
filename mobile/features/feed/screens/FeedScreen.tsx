@@ -390,6 +390,16 @@ export default function FeedScreen() {
           </View>
         </View>
 
+        <View style={styles.fixedComposerWrap}>
+          <TouchableOpacity style={styles.composerTrigger} onPress={openComposer} activeOpacity={0.75}>
+            <UserAvatar name={authorName} avatarUrl={user?.avatarUrl || profileImageUri} size={36} backgroundColor={colors.primary} color="#1A1A1A" />
+            <Text style={styles.composerTriggerPlaceholder}>O que você está pensando?</Text>
+            <View style={styles.composerTriggerPhotoBtn}>
+              <Feather name="image" size={16} color={colors.primaryDark} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <FlatList
           data={feed}
           keyExtractor={(item) => item.id}
@@ -401,7 +411,7 @@ export default function FeedScreen() {
           removeClippedSubviews
           ListHeaderComponent={
             <View>
-              <TouchableOpacity style={styles.composerTrigger} onPress={openComposer} activeOpacity={0.75}>
+              <TouchableOpacity style={[styles.composerTrigger, { display: "none" }]} onPress={openComposer} activeOpacity={0.75}>
                 <UserAvatar name={authorName} avatarUrl={user?.avatarUrl || profileImageUri} size={36} backgroundColor={colors.primary} color="#1A1A1A" />
                 <Text style={styles.composerTriggerPlaceholder}>O que você está pensando?</Text>
                 <View style={styles.composerTriggerPhotoBtn}>
@@ -620,7 +630,7 @@ function PostCard({
         onPress: async () => {
           try {
             await api.delete(`/api/posts/${post.id}`);
-            queryClient.setQueryData<FeedPost[]>(["feed"], (prev = []) => prev.filter((p) => p.id !== post.id));
+            queryClient.invalidateQueries({ queryKey: ["feed"] });
           } catch {
             Alert.alert("Erro", "Não foi possível apagar o post.");
           }
@@ -743,23 +753,25 @@ function PostCard({
           onPress={handleLikePress}
           disabled={isLiking}
         >
-          <Text style={styles.actionBtnText}>{liked ? "❤️" : "🤍"} {likesCount > 0 ? likesCount : ""}</Text>
+          <Feather name="heart" size={15} color={liked ? colors.destructive : colors.muted} />
+          {likesCount > 0 ? <Text style={styles.actionBtnText}>{likesCount}</Text> : null}
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, expanded && styles.commentBtnActive]}
           onPress={handleToggleComments}
         >
-          <Text style={styles.actionBtnText}>💬 {commentsCount > 0 ? commentsCount : ""}</Text>
+          <Feather name="message-circle" size={15} color={expanded ? colors.primaryDark : colors.muted} />
+          {commentsCount > 0 ? <Text style={styles.actionBtnText}>{commentsCount}</Text> : null}
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-          <Text style={styles.actionBtnText}>↗</Text>
+          <Feather name="share-2" size={15} color={colors.muted} />
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
         <TouchableOpacity
           style={[styles.actionBtn, bookmarked && styles.bookmarkBtnActive]}
           onPress={() => setBookmarked((v) => !v)}
         >
-          <Text style={styles.actionBtnText}>{bookmarked ? "🔖" : "🏷"}</Text>
+          <Feather name="bookmark" size={15} color={bookmarked ? colors.success : colors.muted} />
         </TouchableOpacity>
       </View>
 
@@ -868,6 +880,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     newPostBtnText: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 13, color: "#1A1A1A" },
     content: { padding: 16, gap: 12, paddingBottom: 32 },
+    fixedComposerWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 2 },
 
     // ── Composer trigger row ──
     composerTrigger: {
@@ -1086,6 +1099,9 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     forYouHint: { fontFamily: FONTS.sans, fontSize: 11, lineHeight: 17, color: colors.muted },
     postActions: { flexDirection: "row", alignItems: "center", gap: 12 },
     actionBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 8,

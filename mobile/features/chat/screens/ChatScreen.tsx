@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Animated, ActivityIndicator, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { FlashList } from "@shopify/flash-list";
@@ -26,9 +27,43 @@ import type { IntelligentNotification, ScoreSnapshot } from "@mobile/lib/intelli
 import type { EyeExpression } from "@mobile/stores/uiStore";
 
 type AppRoute = "/feed" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
+type BriefingLocation = { latitude: number; longitude: number; city: string | null };
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+async function getBriefingLocation(): Promise<BriefingLocation | null> {
+  try {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (!permission.granted) return null;
+
+    const position = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    }).catch(() => Location.getLastKnownPositionAsync());
+
+    if (!position) return null;
+
+    let city: string | null = null;
+    try {
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      const cityName = place?.city || place?.subregion || place?.district || null;
+      city = [cityName, place?.region].filter(Boolean).join(", ") || null;
+    } catch {
+      city = null;
+    }
+
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      city,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Optimized for Whisper: mono reduces noise and file size by 50%, MAX quality preserves speech clarity
@@ -68,6 +103,8 @@ export default function ChatScreen() {
 
   const [inputValue, setInputValue] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [msgSearchQuery, setMsgSearchQuery] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState(false);
@@ -124,15 +161,31 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (!user) return;
-    api.get("/api/daily-briefing")
-      .then((r) => {
+    let cancelled = false;
+
+    const fetchDailyBriefing = async () => {
+      try {
+        const location = await getBriefingLocation();
+        const r = await api.get("/api/daily-briefing", {
+          params: location
+            ? {
+                lat: location.latitude,
+                lon: location.longitude,
+                city: location.city ?? undefined,
+              }
+            : undefined,
+        });
+        if (cancelled) return;
         const data = r.data as { shouldShow: boolean; briefing?: any };
         if (data.shouldShow && data.briefing) {
           setDailyBriefing(data.briefing);
           setShowDailyBriefing(true);
         }
-      })
-      .catch(() => {});
+      } catch {}
+    };
+
+    fetchDailyBriefing();
+    return () => { cancelled = true; };
   }, [user?.id]);
 
   const dismissDailyBriefing = useCallback(() => {
@@ -522,6 +575,44 @@ export default function ChatScreen() {
   }
 
   const allMessages = [...chatMessages, ...(isTyping && streamingContent ? [{ id: "streaming", role: "assistant" as const, content: `${streamingContent}...`, createdAt: new Date().toISOString(), metadata: null }] : [])];
+  const visibleMessages = msgSearchQuery.trim()
+    ? allMessages.filter((message) => message.content.toLowerCase().includes(msgSearchQuery.trim().toLowerCase()))
+    : allMessages;
+
+  function handleAssistantLike() {
+    pulseEyeExpression("happy", "neutral", 1400);
+  }
+
+  function handleAssistantDislike() {
+    addMessage({
+      id: `feedback-${Date.now()}`,
+      role: "assistant",
+      content: "Anotado. Essa resposta saiu meio pão de ontem, vou caprichar mais na próxima.",
+      createdAt: new Date().toISOString(),
+      metadata: JSON.stringify({ feedback: "dislike" }),
+    });
+    pulseEyeExpression("curious", "neutral", 1800);
+  }
+
+  async function handleAssistantShare(content: string) {
+    try {
+      await api.post("/api/posts", { content: `Mensagem da Bee:\n\n${content}`, imageUrl: null });
+      addMessage({
+        id: `shared-${Date.now()}`,
+        role: "assistant",
+        content: "Compartilhei isso no Feed. Dei uma ajeitada para ficar com cara de post.",
+        createdAt: new Date().toISOString(),
+        metadata: JSON.stringify({ sharedToFeed: true }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["feed"] });
+    } catch {
+      try {
+        await Share.share({ message: content });
+      } catch {
+        Alert.alert("Não consegui compartilhar", "Tente novamente em instantes.");
+      }
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]} onTouchStart={handleScreenTouch} onTouchMove={handleScreenTouch}>
@@ -638,8 +729,43 @@ export default function ChatScreen() {
         </View>
       </View>
 
+      <View style={styles.searchToolbar}>
+        <TouchableOpacity
+          style={styles.searchToggle}
+          onPress={() => {
+            setShowMsgSearch((value) => !value);
+            setMsgSearchQuery("");
+          }}
+        >
+          <Feather name="search" size={14} color={colors.muted} />
+          <Text style={styles.searchToggleText}>Buscar</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showMsgSearch ? (
+        <View style={styles.searchPanel}>
+          <Feather name="search" size={16} color={colors.muted} />
+          <TextInput
+            autoFocus
+            style={styles.searchInput}
+            value={msgSearchQuery}
+            onChangeText={setMsgSearchQuery}
+            placeholder="Buscar nas mensagens..."
+            placeholderTextColor={colors.muted}
+          />
+          {msgSearchQuery ? (
+            <TouchableOpacity onPress={() => setMsgSearchQuery("")}>
+              <Text style={styles.searchClear}>Limpar</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity onPress={() => { setShowMsgSearch(false); setMsgSearchQuery(""); }}>
+            <Feather name="x" size={18} color={colors.muted} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <KeyboardAvoidingView
-        style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 112 : 100 }]}
+        style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 86 : 76 }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
@@ -650,7 +776,7 @@ export default function ChatScreen() {
         ) : (
           <FlashList
             ref={listRef}
-            data={allMessages}
+            data={visibleMessages}
             renderItem={({ item }) => {
               const meta = parseMessageMeta(item.metadata);
               let rawMeta: Record<string, unknown> = {};
@@ -666,6 +792,22 @@ export default function ChatScreen() {
                     createdAt={item.createdAt}
                     userName={currentUserName}
                     userAvatarUrl={currentUserAvatarUrl}
+                    actions={item.role === "assistant" && item.id !== "streaming" ? (
+                      <View style={styles.assistantActionRow}>
+                        <TouchableOpacity style={styles.assistantActionBtn} onPress={handleAssistantLike}>
+                          <Feather name="thumbs-up" size={13} color={colors.muted} />
+                          <Text style={styles.assistantActionText}>Curti</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.assistantActionBtn} onPress={handleAssistantDislike}>
+                          <Feather name="thumbs-down" size={13} color={colors.muted} />
+                          <Text style={styles.assistantActionText}>Não curti</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.assistantActionBtn} onPress={() => handleAssistantShare(item.content)}>
+                          <Feather name="share-2" size={13} color={colors.muted} />
+                          <Text style={styles.assistantActionText}>Feed</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
                   />
                   {isConnectionRequestMeta(meta) ? <ConnectionRequestCard styles={styles} pending={resolveConnection.isPending} meta={meta} onAccept={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "accept" })} onReject={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "reject" })} /> : null}
                   {rawMeta.type === "holiday_alarm_confirmation" ? (
@@ -968,7 +1110,16 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     emptyText: { fontFamily: FONTS.sans, fontSize: 16, color: colors.muted, textAlign: "center", lineHeight: 26 },
     dateChipWrap: { alignItems: "center", marginBottom: 18 },
     dateChip: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted, backgroundColor: colors.card + "CC", borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, overflow: "hidden" },
-    messageList: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 28 },
+    searchToolbar: { paddingHorizontal: 18, paddingTop: 6, paddingBottom: 2, backgroundColor: colors.background + "00" },
+    searchToggle: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.card + "AA", borderWidth: 1, borderColor: colors.border },
+    searchToggleText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted },
+    searchPanel: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 18, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.card + "F0", borderWidth: 1, borderColor: colors.border },
+    searchInput: { flex: 1, fontFamily: FONTS.sans, fontSize: 14, color: colors.foreground, paddingVertical: 2 },
+    searchClear: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.primaryDark },
+    messageList: { flexGrow: 1, justifyContent: "flex-end", paddingHorizontal: 24, paddingTop: 4, paddingBottom: 10 },
+    assistantActionRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+    assistantActionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.card + "DD", borderWidth: 1, borderColor: colors.border },
+    assistantActionText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted },
     inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 6, paddingVertical: 5, gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
     composerKeyboard: { marginBottom: 4 },
     input: { flex: 1, backgroundColor: "transparent", paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 110 },

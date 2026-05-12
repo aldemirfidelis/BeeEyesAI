@@ -16,6 +16,12 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permita que o BeeEyes use sua localização para mostrar a previsão do tempo no resumo do dia."
+        }
+      ],
       "@react-native-google-signin/google-signin",
       [
         "expo-notifications",

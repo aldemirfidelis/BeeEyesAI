@@ -24,6 +24,7 @@ import { api } from "@mobile/lib/api";
 import { Community, CommunityMember, CommunityPost, displayNameOf, timeAgo } from "@mobile/lib/social";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
+import { useAuthStore } from "@mobile/stores/authStore";
 import { UserAvatar } from "@mobile/components/UserAvatar";
 import { UserProfileModal } from "@mobile/components/UserProfileModal";
 
@@ -270,11 +271,12 @@ function CommunityList({
 
 // ── Community Detail ──────────────────────────────────────────────────────────
 function CommunityDetail({
-  community, onBack, colors, styles, insets, onOpenProfile,
+  community, onBack, colors, styles, insets, currentUserId, onOpenProfile,
 }: {
   community: Community;
   onBack: () => void;
   colors: any; styles: any; insets: any;
+  currentUserId?: string;
   onOpenProfile: (userId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -456,6 +458,16 @@ function CommunityDetail({
     },
     onError: (error: any) => {
       Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel salvar.");
+    },
+  });
+
+  const deletePost = useMutation({
+    mutationFn: (postId: string) => api.delete(`/api/communities/posts/${postId}`).then((r) => r.data),
+    onSuccess: (_, postId) => {
+      queryClient.setQueryData<CommunityPost[]>(["community-posts", community.id], (prev = []) => prev.filter((post) => post.id !== postId));
+    },
+    onError: () => {
+      Alert.alert("Erro", "Não foi possível apagar a mensagem.");
     },
   });
 
@@ -730,6 +742,9 @@ function CommunityDetail({
                 colors={colors}
                 communityName={detail.name}
                 communityEmoji={detail.emoji}
+                currentUserId={currentUserId}
+                canDelete={currentUserId === post.userId || isOwner}
+                onDelete={(postId) => deletePost.mutate(postId)}
                 onOpenProfile={onOpenProfile}
               />
             ))
@@ -833,6 +848,7 @@ function CommunityDetail({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function CommunitiesScreen() {
+  const { user } = useAuthStore();
   const themeMode = useUIStore((state) => state.themeMode);
   const insets = useSafeAreaInsets();
   const colors = getThemeColors(themeMode);
@@ -875,6 +891,7 @@ export default function CommunitiesScreen() {
           colors={colors}
           styles={styles}
           insets={insets}
+          currentUserId={user?.id}
           onOpenProfile={setProfileUserId}
         />
       ) : (
@@ -901,7 +918,7 @@ export default function CommunitiesScreen() {
           {/* KAV só envolve o sheet — empurra o conteúdo acima do teclado */}
           <KeyboardAvoidingView
             style={styles.modalKeyboardSheet}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
           >
             <ScrollView
@@ -945,7 +962,7 @@ export default function CommunitiesScreen() {
                 returnKeyType="next"
               />
               <TextInput
-                style={styles.modalInput}
+                style={[styles.modalInput, { display: "none" }]}
                 value={communityForm.emoji}
                 onChangeText={(v) => setCommunityForm((p) => ({ ...p, emoji: v || "🐝" }))}
                 placeholder="Emoji (ex: 🐝)"
@@ -1003,12 +1020,15 @@ export default function CommunitiesScreen() {
 
 // ── Post Card ─────────────────────────────────────────────────────────────────
 function CommunityPostCard({
-  post, colors, communityName, communityEmoji, onOpenProfile,
+  post, colors, communityName, communityEmoji, currentUserId, canDelete, onDelete, onOpenProfile,
 }: {
   post: CommunityPost;
   colors: ReturnType<typeof getThemeColors>;
   communityName: string;
   communityEmoji: string;
+  currentUserId?: string;
+  canDelete?: boolean;
+  onDelete: (postId: string) => void;
   onOpenProfile: (userId: string) => void;
 }) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -1023,6 +1043,7 @@ function CommunityPostCard({
   const [sending, setSending] = useState(false);
   const [recommending, setRecommending] = useState(false);
   const [recommended, setRecommended] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
   const authorName = displayNameOf(post);
 
   async function handleLike() {
@@ -1088,8 +1109,27 @@ function CommunityPostCard({
     }
   }
 
+  function handleDelete() {
+    Alert.alert("Apagar mensagem", "Apagar esta mensagem da comunidade?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Apagar", style: "destructive", onPress: () => onDelete(post.id) },
+    ]);
+  }
+
   return (
     <View style={styles.postCard}>
+      {canDelete ? (
+        <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+          <TouchableOpacity style={styles.postMenuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
+            <View style={styles.postMenuSheet}>
+              <TouchableOpacity style={styles.postMenuItem} onPress={() => { setMenuVisible(false); handleDelete(); }}>
+                <Feather name="trash-2" size={16} color={colors.destructive} />
+                <Text style={[styles.postMenuItemText, { color: colors.destructive }]}>Apagar mensagem</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      ) : null}
       <View style={styles.postHeader}>
         <TouchableOpacity onPress={() => onOpenProfile(post.userId)}>
           <UserAvatar name={authorName} avatarUrl={post.avatarUrl} size={36} backgroundColor={colors.secondary} color={colors.foreground} />
@@ -1098,6 +1138,11 @@ function CommunityPostCard({
           <Text style={styles.postAuthor}>{authorName}</Text>
           <Text style={styles.postTime}>{timeAgo(post.createdAt)}</Text>
         </TouchableOpacity>
+        {canDelete ? (
+          <TouchableOpacity onPress={() => setMenuVisible(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="more-horizontal" size={20} color={colors.muted} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <Text style={styles.postContent}>{post.content}</Text>
@@ -1460,6 +1505,10 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     postContent: { fontFamily: FONTS.sans, color: colors.foreground, fontSize: 14, lineHeight: 21 },
     postImage: { width: "100%", height: 190, borderRadius: 14, backgroundColor: colors.background },
     postActions: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+    postMenuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
+    postMenuSheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingVertical: 8, paddingBottom: 32 },
+    postMenuItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 16 },
+    postMenuItemText: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "600", color: colors.foreground },
     actionBtn: {
       borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
       backgroundColor: colors.background,

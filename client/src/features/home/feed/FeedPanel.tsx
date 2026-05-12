@@ -78,7 +78,7 @@ export function FeedPanel(props: FeedPanelProps) {
 
   return (
     <>
-      <div className="bee-honeycomb p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-card/55">
+      <div className="sticky top-0 z-20 bee-honeycomb p-4 border-b border-border/60 flex items-center justify-between gap-3 bg-card/95 backdrop-blur">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-display text-lg font-semibold">Feed</h2>
@@ -114,7 +114,7 @@ export function FeedPanel(props: FeedPanelProps) {
       </div>
 
       {showPostInput && (
-        <div className="border-b border-border/60 bg-card/72 backdrop-blur">
+        <div className="sticky top-[73px] z-20 border-b border-border/60 bg-card/95 backdrop-blur">
           <Textarea
             value={postText}
             onChange={(event) => onPostTextChange(event.target.value)}

@@ -218,6 +218,12 @@ export function createCommunitiesRouter() {
     return sendOk(res, await storage.toggleCommunityPostLike(req.params.postId, req.userId!));
   }));
 
+  router.delete("/api/communities/posts/:postId", requireAuth, asyncHandler(async (req, res) => {
+    const deleted = await storage.deleteCommunityPost(req.params.postId, req.userId!);
+    if (!deleted) throw forbidden("Post não encontrado ou sem permissão");
+    return sendOk(res, { ok: true });
+  }));
+
   router.get("/api/communities/posts/:postId/comments", requireAuth, asyncHandler(async (req, res) => {
     return sendOk(res, await storage.getCommunityPostComments(req.params.postId, req.userId!));
   }));

@@ -1609,6 +1609,7 @@ Instruções:
 - Comece com uma saudação personalizada (bom dia/boa tarde/boa noite conforme a hora: ${new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit" })}h de Brasília)
 - Mencione o nome ${input.userName}
 - Se houver dados de clima, inclua uma sugestão prática (ex: "leve um guarda-chuva", "beba mais água", "aproveite o sol")
+- Se não houver dados de clima, não peça cidade nem localização; apenas siga com um resumo sem previsão do tempo
 - Inclua uma sugestão de foco para o dia baseada nos interesses
 - Termine com uma frase motivacional curta e genuína
 - Seja acolhedora, objetiva e natural — como uma amiga próxima mandando mensagem

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Image, View, Text, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { FONTS, getThemeColors } from "../lib/theme";
@@ -10,9 +11,10 @@ interface ChatMessageProps {
   createdAt?: string;
   userName?: string;
   userAvatarUrl?: string | null;
+  actions?: ReactNode;
 }
 
-export default function ChatMessage({ role, content, createdAt, userName = "Usuario", userAvatarUrl }: ChatMessageProps) {
+export default function ChatMessage({ role, content, createdAt, userName = "Usuario", userAvatarUrl, actions }: ChatMessageProps) {
   const isUser = role === "user";
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
@@ -51,6 +53,7 @@ export default function ChatMessage({ role, content, createdAt, userName = "Usua
           {new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </Text>
       )}
+      {actions ? <View style={[styles.actions, isUser ? styles.userActions : styles.assistantActions]}>{actions}</View> : null}
     </Animated.View>
   );
 }
@@ -144,6 +147,16 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     assistantTimestamp: {
       textAlign: "left",
+    },
+    actions: {
+      marginTop: 4,
+      paddingHorizontal: 40,
+    },
+    userActions: {
+      alignSelf: "flex-end",
+    },
+    assistantActions: {
+      alignSelf: "flex-start",
     },
   });
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, MessageCircle, Share2, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, ChevronUp, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -37,10 +37,12 @@ interface CommunityPostCardProps {
   communityEmoji: string;
   authHeaders: () => Record<string, string>;
   timeAgo: (date: string | Date) => string;
+  isOwner?: boolean;
+  onDelete?: (postId: string) => Promise<void>;
   onOpenProfile?: (userId: string) => void;
 }
 
-export default function CommunityPostCard({ post: initialPost, communityName, communityEmoji, authHeaders, timeAgo, onOpenProfile }: CommunityPostCardProps) {
+export default function CommunityPostCard({ post: initialPost, communityName, communityEmoji, authHeaders, timeAgo, isOwner = false, onDelete, onOpenProfile }: CommunityPostCardProps) {
   const [liked, setLiked] = useState(initialPost.liked);
   const [likesCount, setLikesCount] = useState(initialPost.likesCount);
   const [commentsCount, setCommentsCount] = useState(initialPost.commentsCount);
@@ -52,6 +54,8 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
   const [sending, setSending] = useState(false);
   const [recommending, setRecommending] = useState(false);
   const [recommended, setRecommended] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const authorName = initialPost.displayName || initialPost.username || "UsuÃ¡rio";
 
@@ -144,17 +148,46 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
     }
   };
 
+  const handleDelete = async () => {
+    if (!onDelete || deleting) return;
+    if (!window.confirm("Apagar esta mensagem da comunidade?")) return;
+    setDeleting(true);
+    try {
+      await onDelete(initialPost.id);
+    } finally {
+      setDeleting(false);
+      setMenuOpen(false);
+    }
+  };
+
   return (
     <div className="bg-secondary/30 rounded-xl overflow-hidden" data-testid={`community-post-card-${initialPost.id}`}>
       {/* Header + Content */}
       <div className="p-4 space-y-2">
-        <button type="button" className="flex items-center gap-2 text-left" onClick={() => initialPost.userId && onOpenProfile?.(initialPost.userId)}>
-          <UserAvatar name={authorName} avatarUrl={initialPost.avatarUrl} className="w-7 h-7" fallbackClassName="bg-primary text-primary-foreground" />
-          <div>
-            <p className="text-xs font-semibold hover:underline">{authorName}</p>
-            <p className="text-xs text-muted-foreground">{timeAgo(initialPost.createdAt)}</p>
-          </div>
-        </button>
+        <div className="flex items-start gap-2">
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => initialPost.userId && onOpenProfile?.(initialPost.userId)}>
+            <UserAvatar name={authorName} avatarUrl={initialPost.avatarUrl} className="w-7 h-7" fallbackClassName="bg-primary text-primary-foreground" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold hover:underline truncate">{authorName}</p>
+              <p className="text-xs text-muted-foreground">{timeAgo(initialPost.createdAt)}</p>
+            </div>
+          </button>
+          {isOwner && onDelete ? (
+            <div className="relative">
+              <button type="button" onClick={() => setMenuOpen((value) => !value)} className="rounded-full p-1.5 text-muted-foreground hover:bg-background hover:text-foreground" aria-label="Opções do post">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {menuOpen ? (
+                <div className="absolute right-0 top-8 z-20 w-40 rounded-xl border border-border bg-card p-1 shadow-xl">
+                  <button type="button" onClick={handleDelete} disabled={deleting} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50">
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deleting ? "Apagando..." : "Apagar"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <p className="text-sm leading-relaxed">{initialPost.content}</p>
         {initialPost.imageUrl && (
           <img

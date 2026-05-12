@@ -80,27 +80,31 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 9,
           fontFamily: FONTS.sans,
           fontWeight: "700",
           letterSpacing: 0,
           marginTop: 2,
+          width: 74,
+          textAlign: "center",
         },
         tabBarItemStyle: {
           flex: 1,
           paddingTop: 2,
+          minWidth: 64,
         },
+        tabBarAllowFontScaling: false,
       }}
     >
       <Tabs.Screen name="feed" options={{ title: t("tab_feed"), tabBarIcon: icon("home") }} />
       <Tabs.Screen name="colmeia" options={{ title: t("tab_colmeia"), tabBarIcon: icon("hexagon") }} />
       <Tabs.Screen name="index" options={{ title: t("tab_chat"), tabBarIcon: icon("message-circle", true) }} />
-      <Tabs.Screen name="friends" options={{ title: t("chat_friends"), tabBarIcon: icon("users") }} />
-      <Tabs.Screen name="profile" options={{ title: t("chat_profile"), tabBarIcon: icon("user"), tabBarStyle: { display: "none" } }} />
+      <Tabs.Screen name="inbox" options={{ title: t("tab_inbox"), tabBarIcon: icon("message-square") }} />
+      <Tabs.Screen name="communities" options={{ title: t("tab_communities"), tabBarIcon: icon("users") }} />
 
       <Tabs.Screen name="notifications" options={{ href: null }} />
-      <Tabs.Screen name="inbox" options={{ href: null }} />
-      <Tabs.Screen name="communities" options={{ href: null }} />
+      <Tabs.Screen name="friends" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="mood" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="news" options={{ href: null }} />
