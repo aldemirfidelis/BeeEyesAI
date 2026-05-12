@@ -13,6 +13,7 @@ interface PasswordStrength {
 interface AuthScreenProps {
   authMode: "login" | "register";
   authUsername: string;
+  authEmail: string;
   authPassword: string;
   authDisplayName: string;
   authGender: string;
@@ -23,12 +24,14 @@ interface AuthScreenProps {
   strength: PasswordStrength | null;
   onAuthModeChange: (mode: "login" | "register") => void;
   onUsernameChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onDisplayNameChange: (value: string) => void;
   onGenderChange: (value: string) => void;
   onTogglePassword: () => void;
   onSubmit: () => void;
   onGoogleLogin: () => void;
+  onPasswordResetRequest: (email: string) => Promise<void>;
   onClearError: () => void;
 }
 
@@ -36,6 +39,7 @@ export function AuthScreen(props: AuthScreenProps) {
   const {
     authMode,
     authUsername,
+    authEmail,
     authPassword,
     authDisplayName,
     authGender,
@@ -46,12 +50,14 @@ export function AuthScreen(props: AuthScreenProps) {
     strength,
     onAuthModeChange,
     onUsernameChange,
+    onEmailChange,
     onPasswordChange,
     onDisplayNameChange,
     onGenderChange,
     onTogglePassword,
     onSubmit,
     onGoogleLogin,
+    onPasswordResetRequest,
     onClearError,
   } = props;
   const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
@@ -142,6 +148,17 @@ export function AuthScreen(props: AuthScreenProps) {
             {authMode === "register" && (
               <>
                 <div>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">E-mail</label>
+                  <Input
+                    type="email"
+                    placeholder="voce@email.com"
+                    value={authEmail}
+                    onChange={(event) => onEmailChange(event.target.value)}
+                    className="h-12 rounded-lg"
+                    autoCapitalize="none"
+                  />
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Nome de exibição (opcional)</label>
                   <Input
                     placeholder="Como você quer ser chamado?"
@@ -184,7 +201,7 @@ export function AuthScreen(props: AuthScreenProps) {
               <div className="relative">
                 <Input
                   type={authShowPassword ? "text" : "password"}
-                  placeholder={authMode === "register" ? "mínimo 6 caracteres" : "••••••••"}
+                  placeholder={authMode === "register" ? "minimo 8 caracteres, letra e numero" : "••••••••"}
                   value={authPassword}
                   onChange={(event) => onPasswordChange(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && onSubmit()}
@@ -208,6 +225,16 @@ export function AuthScreen(props: AuthScreenProps) {
               )}
             </div>
           </div>
+
+          {authMode === "login" && (
+            <button
+              type="button"
+              className="-mt-3 mb-4 w-full text-right text-xs font-semibold text-yellow-700 hover:underline"
+              onClick={() => onPasswordResetRequest(authUsername)}
+            >
+              Esqueci minha senha
+            </button>
+          )}
 
           {authError && (
             <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-destructive mb-4 text-center bg-destructive/10 py-2 px-3 rounded-lg border border-destructive/20">

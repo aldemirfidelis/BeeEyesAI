@@ -62,7 +62,7 @@ function WheelColumn({ items, selected, onChange, width, colors }: WheelColumnPr
           return (
             <View key={item.value} style={{ height: ITEM_H, justifyContent: "center", alignItems: "center", width }}>
               <Text style={{
-                fontSize: dist === 0 ? 22 : 16,
+                fontSize: dist === 0 ? 21 : 16,
                 fontWeight: dist === 0 ? "600" : "400",
                 opacity: dist === 0 ? 1 : Math.max(0.18, 1 - dist * 0.32),
                 color: colors.foreground,
@@ -127,12 +127,13 @@ export function DrumRollDatePicker({
   const minuteItems: Item[] = range(0, 59).map((v) => ({ value: v, label: String(v).padStart(2, "0") }));
 
   const { width: screenW } = Dimensions.get("window");
-  const contentW = screenW - 48; // modal horizontal padding
-  const dateW = contentW * 0.56;
-  const timeW = contentW * 0.44;
+  const sheetW = screenW - 48; // overlay horizontal padding
+  const contentW = sheetW - 48; // sheet horizontal padding
+  const dateW = contentW * 0.62;
+  const timeW = contentW * 0.34;
   const dayW = Math.floor(dateW * 0.26);
-  const monthW = Math.floor(dateW * 0.44);
-  const yearW = Math.floor(dateW * 0.30);
+  const monthW = Math.floor(dateW * 0.40);
+  const yearW = Math.floor(dateW * 0.34);
   const colonW = 14;
   const halfTimeW = Math.floor((timeW - colonW) / 2);
 

@@ -5,6 +5,7 @@ import { useUIStore } from "./uiStore";
 interface UserBasic {
   id: string;
   username: string;
+  email?: string | null;
   displayName?: string | null;
   gender?: string | null;
   level: number;

@@ -101,6 +101,7 @@ export default function RegisterScreen() {
   const { t } = useTranslation();
   const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [gender, setGender] = useState("");
   const [password, setPassword] = useState("");
@@ -135,11 +136,11 @@ export default function RegisterScreen() {
   }
 
   async function handleRegister() {
-    if (!username.trim() || !password.trim()) {
+    if (!username.trim() || !email.trim() || !password.trim()) {
       Alert.alert(t("attention"), t("register_fill_fields"));
       return;
     }
-    if (password.length < 6) {
+    if (password.length < 8) {
       Alert.alert(t("attention"), t("register_short_password"));
       return;
     }
@@ -147,6 +148,7 @@ export default function RegisterScreen() {
     try {
       const { data } = await api.post("/api/auth/register", {
         username,
+        email,
         password,
         displayName: displayName.trim() || undefined,
         gender: gender || undefined,
@@ -231,6 +233,20 @@ export default function RegisterScreen() {
               onChangeText={setUsername}
               autoCapitalize="none"
               autoCorrect={false}
+            />
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(275)} style={styles.inputWrapper}>
+            <Text style={styles.inputLabel}>E-mail</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="voce@email.com"
+              placeholderTextColor={COLORS.muted}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
             />
           </Animated.View>
 

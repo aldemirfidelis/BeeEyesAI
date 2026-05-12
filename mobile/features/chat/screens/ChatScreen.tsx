@@ -87,7 +87,7 @@ export default function ChatScreen() {
   const previousMessageCountRef = useRef(0);
   const isAtBottomRef = useRef(true);
   const { messages, isTyping, streamingContent, setMessages, addMessage } = useChatStore();
-  const { eyeExpression, themeMode, setEyeExpression } = useUIStore();
+  const { eyeExpression, themeMode, profileImageUri, setEyeExpression } = useUIStore();
   const { user } = useAuthStore();
   const { sendMessage } = useChat();
   const [dailyBriefing, setDailyBriefing] = useState<{
@@ -157,6 +157,8 @@ export default function ChatScreen() {
   });
   const chatMessages = Array.isArray(messages) ? messages : [];
   const intelligentNotifications = Array.isArray(notifications) ? notifications : [];
+  const currentUserName = me?.displayName || user?.displayName || me?.username || user?.username || "Usuario";
+  const currentUserAvatarUrl = me?.avatarUrl || user?.avatarUrl || profileImageUri || null;
 
   const pulseEyeExpression = useCallback((expression: EyeExpression, fallback: EyeExpression = "neutral", duration = 1600) => {
     setEyeExpression(expression);
@@ -609,6 +611,7 @@ export default function ChatScreen() {
                 <Text style={styles.headerBadgeText}>{Math.min(intelligentNotifications.length, 9)}</Text>
               </View>
             ) : null}
+            <Text style={styles.headerIconLabel}>Alertas</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push("/friends")}
@@ -616,20 +619,28 @@ export default function ChatScreen() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="users" size={20} color={colors.muted} />
+            <Text style={styles.headerIconLabel}>Amigos</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push("/profile")}
             style={styles.headerIconBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="user" size={20} color={colors.muted} />
+            <UserAvatar
+              name={currentUserName}
+              avatarUrl={currentUserAvatarUrl}
+              size={22}
+              backgroundColor={colors.primary}
+              color="#1A1A1A"
+            />
+            <Text style={styles.headerIconLabel}>Perfil</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <KeyboardAvoidingView
-        style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 96 : 90 }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 112 : 100 }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         {allMessages.length === 0 ? (
@@ -649,7 +660,13 @@ export default function ChatScreen() {
               }
               return (
                 <View>
-                  <ChatMessage role={item.role} content={item.content} createdAt={item.createdAt} />
+                  <ChatMessage
+                    role={item.role}
+                    content={item.content}
+                    createdAt={item.createdAt}
+                    userName={currentUserName}
+                    userAvatarUrl={currentUserAvatarUrl}
+                  />
                   {isConnectionRequestMeta(meta) ? <ConnectionRequestCard styles={styles} pending={resolveConnection.isPending} meta={meta} onAccept={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "accept" })} onReject={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "reject" })} /> : null}
                   {rawMeta.type === "holiday_alarm_confirmation" ? (
                     <HolidayAlarmCard
@@ -914,7 +931,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     brandStatus: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800", color: colors.primary, textTransform: "uppercase" },
     headerEyes: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center", zIndex: 0 },
     headerActions: { flexDirection: "row", gap: 4, zIndex: 1 },
-    headerIconBtn: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondary + "99", borderWidth: 1, borderColor: colors.border },
+    headerIconBtn: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondary + "55", borderWidth: 0 },
     headerIconLabel: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "600", color: colors.muted },
     headerBadge: { position: "absolute", top: -7, right: -10, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.destructive },
     headerBadgeText: { fontFamily: FONTS.mono, fontSize: 10, fontWeight: "800", color: "#FFFFFF" },

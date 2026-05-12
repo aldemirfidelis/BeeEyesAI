@@ -67,7 +67,7 @@ const es: Record<TranslationKeys, string> = {
   register_have_account: "¿Ya tienes cuenta? ",
   register_sign_in: "Entrar ↗",
   register_fill_fields: "Completa usuario y contraseña",
-  register_short_password: "La contraseña debe tener al menos 6 caracteres",
+  register_short_password: "La contraseña debe tener al menos 8 caracteres, una letra y un número",
   register_failed: "Error al crear la cuenta",
   register_apple_soon: "Próximamente",
   register_apple_soon_msg: "¡El inicio de sesión con Apple estará disponible pronto!",

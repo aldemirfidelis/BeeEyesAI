@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import { View, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { getThemeColors } from "../../lib/theme";
+import { FONTS, getThemeColors } from "../../lib/theme";
 import { useUIStore } from "../../stores/uiStore";
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
@@ -12,13 +12,11 @@ function TabIcon({
   color,
   focused,
   center = false,
-  shellColor,
 }: {
   name: FeatherName;
   color: string;
   focused: boolean;
   center?: boolean;
-  shellColor: string;
 }) {
   const active = focused || center;
 
@@ -32,8 +30,8 @@ function TabIcon({
         marginTop: center ? -26 : 0,
         borderRadius: center ? 28 : 14,
         backgroundColor: active ? "#F5A623" : "transparent",
-        borderWidth: center ? 6 : focused ? 1 : 0,
-        borderColor: center ? shellColor : focused ? "#FFD70055" : "transparent",
+        borderWidth: center ? 4 : focused ? 1 : 0,
+        borderColor: center ? "rgba(255,255,255,0.72)" : focused ? "#FFD70055" : "transparent",
         shadowColor: active ? "#F5A623" : "transparent",
         shadowOffset: { width: 0, height: center ? 10 : 6 },
         shadowOpacity: active ? 0.28 : 0,
@@ -51,10 +49,9 @@ export default function TabsLayout() {
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
   const isDark = themeMode === "dark";
-  const tabBarBackground = isDark ? "rgba(26,26,26,0.88)" : "rgba(255,255,255,0.95)";
-  const shellColor = isDark ? colors.background : "#FAFAF5";
+  const tabBarBackground = isDark ? "rgba(26,26,26,0.82)" : "rgba(255,255,255,0.88)";
   const icon = (name: FeatherName, center = false) => ({ color, focused }: { color: string; focused: boolean }) => (
-    <TabIcon name={name} color={color} focused={focused} center={center} shellColor={shellColor} />
+    <TabIcon name={name} color={color} focused={focused} center={center} />
   );
 
   return (
@@ -84,6 +81,7 @@ export default function TabsLayout() {
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
           fontSize: 10,
+          fontFamily: FONTS.sans,
           fontWeight: "700",
           letterSpacing: 0,
           marginTop: 2,
@@ -95,16 +93,16 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="feed" options={{ title: t("tab_feed"), tabBarIcon: icon("home") }} />
-      <Tabs.Screen name="colmeia" options={{ title: t("tab_colmeia"), tabBarIcon: icon("grid") }} />
+      <Tabs.Screen name="colmeia" options={{ title: t("tab_colmeia"), tabBarIcon: icon("hexagon") }} />
       <Tabs.Screen name="index" options={{ title: t("tab_chat"), tabBarIcon: icon("message-circle", true) }} />
-      <Tabs.Screen name="notifications" options={{ title: t("chat_alerts"), tabBarIcon: icon("bell") }} />
-      <Tabs.Screen name="profile" options={{ title: t("chat_profile"), tabBarIcon: icon("user") }} />
+      <Tabs.Screen name="friends" options={{ title: t("chat_friends"), tabBarIcon: icon("users") }} />
+      <Tabs.Screen name="profile" options={{ title: t("chat_profile"), tabBarIcon: icon("user"), tabBarStyle: { display: "none" } }} />
 
-      <Tabs.Screen name="friends" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="inbox" options={{ href: null }} />
       <Tabs.Screen name="communities" options={{ href: null }} />
       <Tabs.Screen name="mood" options={{ href: null }} />
-      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="news" options={{ href: null }} />
     </Tabs>
   );

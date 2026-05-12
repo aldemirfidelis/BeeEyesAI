@@ -138,21 +138,30 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
 }
 
 async function syncFromGoogleCalendar(userId: string, accessToken: string, from: Date, to: Date): Promise<void> {
-  const params = new URLSearchParams({
-    timeMin: from.toISOString(),
-    timeMax: to.toISOString(),
-    singleEvents: "true",
-    orderBy: "startTime",
-    maxResults: "250",
-  });
+  const items: any[] = [];
+  let pageToken: string | undefined;
 
-  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) return;
+  for (let page = 0; page < 20; page += 1) {
+    const params = new URLSearchParams({
+      timeMin: from.toISOString(),
+      timeMax: to.toISOString(),
+      singleEvents: "true",
+      orderBy: "startTime",
+      maxResults: "250",
+      ...(pageToken ? { pageToken } : {}),
+    });
 
-  const data = await res.json() as any;
-  const items: any[] = data.items ?? [];
+    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+
+    const data = await res.json() as any;
+    items.push(...(data.items ?? []));
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+
   if (items.length === 0) return;
 
   const googleIds = items.map((i: any) => i.id as string).filter(Boolean);
@@ -193,6 +202,15 @@ async function syncFromGoogleCalendar(userId: string, accessToken: string, from:
       await db.insert(calendarEvents).values({ userId, color: "primary", ...eventData }).catch(() => {});
     }
   }
+}
+
+async function syncInitialGoogleCalendarImport(userId: string, accessToken: string) {
+  const now = new Date();
+  const from = new Date(now);
+  from.setFullYear(now.getFullYear() - 10);
+  const to = new Date(now);
+  to.setFullYear(now.getFullYear() + 10);
+  await syncFromGoogleCalendar(userId, accessToken, from, to);
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -241,7 +259,7 @@ export function createColmeiaRouter(): Router {
 
     const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
     const existing = await db
-      .select({ id: userIntegrations.id })
+      .select({ id: userIntegrations.id, refreshToken: userIntegrations.refreshToken })
       .from(userIntegrations)
       .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google_calendar")))
       .limit(1);
@@ -251,7 +269,7 @@ export function createColmeiaRouter(): Router {
         .update(userIntegrations)
         .set({
           accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token ?? null,
+          refreshToken: tokenData.refresh_token ?? existing[0].refreshToken ?? null,
           tokenExpiresAt: expiresAt,
           updatedAt: new Date(),
         })
@@ -265,6 +283,8 @@ export function createColmeiaRouter(): Router {
         tokenExpiresAt: expiresAt,
       });
     }
+
+    await syncInitialGoogleCalendarImport(userId, tokenData.access_token).catch(() => {});
 
     return res.redirect("/?colmeia=google_ok");
   }));

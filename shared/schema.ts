@@ -16,6 +16,7 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
+  email: text("email").unique(),
   password: text("password").notNull(),
   displayName: text("display_name"),
   gender: text("gender"),
@@ -38,6 +39,18 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   isAdmin: boolean("is_admin").notNull().default(false),
 });
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("password_reset_tokens_user_idx").on(table.userId),
+  index("password_reset_tokens_hash_idx").on(table.tokenHash),
+]);
 
 export const userPersonality = pgTable("user_personality", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -245,6 +258,7 @@ export const communityPostCommentLikes = pgTable("community_post_comment_likes",
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
+  email: true,
   password: true,
 }).extend({
   username: z
@@ -259,6 +273,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
     .max(72, "Senha deve ter no máximo 72 caracteres")
     .regex(/[A-Za-z]/, "Senha deve conter ao menos uma letra")
     .regex(/[0-9]/, "Senha deve conter ao menos um número"),
+  email: z
+    .string()
+    .trim()
+    .email("Informe um e-mail valido")
+    .max(254, "E-mail muito longo")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 
 export const insertMessageSchema = createInsertSchema(messages).omit({

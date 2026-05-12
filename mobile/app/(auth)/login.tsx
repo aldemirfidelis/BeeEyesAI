@@ -291,6 +291,14 @@ export default function LoginScreen() {
             </Link>
           </Animated.View>
 
+          <Animated.View entering={FadeInDown.delay(560)} style={styles.footer}>
+            <Link href={"/(auth)/forgot-password" as any} asChild>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Esqueci minha senha</Text>
+              </TouchableOpacity>
+            </Link>
+          </Animated.View>
+
           <Animated.View entering={FadeInDown.delay(580)} style={styles.legalRow}>
             <TouchableOpacity onPress={() => setLegalModal("privacy")}>
               <Text style={styles.legalLink}>{t("login_privacy")}</Text>

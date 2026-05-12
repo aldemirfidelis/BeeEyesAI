@@ -139,6 +139,7 @@ export default function Home() {
   // Auth form state
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authUsername, setAuthUsername] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authDisplayName, setAuthDisplayName] = useState("");
   const [authGender, setAuthGender] = useState("");
@@ -1054,6 +1055,7 @@ export default function Home() {
     try {
       const body: any = { username: authUsername, password: authPassword };
       if (authMode === "register") {
+        body.email = authEmail;
         if (authDisplayName.trim()) body.displayName = authDisplayName.trim();
         if (authGender) body.gender = authGender;
       }
@@ -1074,11 +1076,29 @@ export default function Home() {
 
   function pwStrength(pw: string) {
     if (!pw) return null;
-    if (pw.length < 6) return { label: "Fraca", color: "#E53E3E", w: "25%" };
+    if (pw.length < 8) return { label: "Fraca", color: "#E53E3E", w: "25%" };
     if (pw.length < 10) return { label: "Média", color: "#F5A623", w: "55%" };
     if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) return { label: "Forte", color: "#4CAF50", w: "100%" };
     return { label: "Boa", color: "#4CAF50", w: "80%" };
   }
+
+  const handlePasswordResetRequest = async (emailOrUsername: string) => {
+    const email = emailOrUsername.includes("@")
+      ? emailOrUsername
+      : window.prompt("Digite o e-mail cadastrado na sua conta BeeEyes") || "";
+    if (!email.trim()) return;
+    setAuthError("");
+    try {
+      await fetch("/api/auth/password-reset/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setAuthError("Se o e-mail existir, enviaremos um link de recuperacao.");
+    } catch {
+      setAuthError("Erro de conexao");
+    }
+  };
 
   const handleSendMessage = async (voiceText?: string) => {
     const content = (typeof voiceText === "string" ? voiceText : inputValue).trim();
@@ -1518,6 +1538,7 @@ export default function Home() {
       <AuthScreen
         authMode={authMode}
         authUsername={authUsername}
+        authEmail={authEmail}
         authPassword={authPassword}
         authDisplayName={authDisplayName}
         authGender={authGender}
@@ -1528,15 +1549,18 @@ export default function Home() {
         strength={strength}
         onAuthModeChange={setAuthMode}
         onUsernameChange={setAuthUsername}
+        onEmailChange={setAuthEmail}
         onPasswordChange={setAuthPassword}
         onDisplayNameChange={setAuthDisplayName}
         onGenderChange={setAuthGender}
         onTogglePassword={() => setAuthShowPassword((value) => !value)}
         onSubmit={handleAuth}
         onGoogleLogin={handleGoogleLogin}
+        onPasswordResetRequest={handlePasswordResetRequest}
         onClearError={() => {
           setAuthError("");
           setAuthPassword("");
+          setAuthEmail("");
           setAuthDisplayName("");
           setAuthGender("");
         }}

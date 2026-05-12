@@ -65,7 +65,7 @@ const pt = {
   register_have_account: "Já tem conta? ",
   register_sign_in: "Entrar ↗",
   register_fill_fields: "Preencha usuário e senha",
-  register_short_password: "A senha deve ter pelo menos 6 caracteres",
+  register_short_password: "A senha deve ter pelo menos 8 caracteres, uma letra e um número",
   register_failed: "Falha ao criar conta",
   register_apple_soon: "Em breve",
   register_apple_soon_msg: "Login com Apple estará disponível em breve!",

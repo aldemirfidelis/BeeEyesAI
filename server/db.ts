@@ -90,4 +90,20 @@ export async function ensureDatabaseCompatibility() {
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "city" text;
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_daily_briefing_date" text;
   `);
+  await pool.query(`
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email" text;
+    CREATE UNIQUE INDEX IF NOT EXISTS "users_email_uidx" ON "users" ("email") WHERE "email" IS NOT NULL;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "token_hash" text NOT NULL UNIQUE,
+      "expires_at" timestamp NOT NULL,
+      "used_at" timestamp,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "password_reset_tokens_user_idx" ON "password_reset_tokens" ("user_id");
+    CREATE INDEX IF NOT EXISTS "password_reset_tokens_hash_idx" ON "password_reset_tokens" ("token_hash");
+  `);
 }

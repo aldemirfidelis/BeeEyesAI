@@ -2,14 +2,17 @@ import { Image, View, Text, StyleSheet } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { FONTS, getThemeColors } from "../lib/theme";
 import { useUIStore } from "../stores/uiStore";
+import { UserAvatar } from "./UserAvatar";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
   createdAt?: string;
+  userName?: string;
+  userAvatarUrl?: string | null;
 }
 
-export default function ChatMessage({ role, content, createdAt }: ChatMessageProps) {
+export default function ChatMessage({ role, content, createdAt, userName = "Usuario", userAvatarUrl }: ChatMessageProps) {
   const isUser = role === "user";
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
@@ -32,9 +35,14 @@ export default function ChatMessage({ role, content, createdAt }: ChatMessagePro
         </View>
 
         {isUser ? (
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>AL</Text>
-          </View>
+          <UserAvatar
+            name={userName}
+            avatarUrl={userAvatarUrl}
+            size={30}
+            backgroundColor={colors.primary}
+            color="#1A1A1A"
+            style={styles.userAvatar}
+          />
         ) : null}
       </View>
 
@@ -89,12 +97,6 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       shadowOpacity: 0.24,
       shadowRadius: 10,
       elevation: 5,
-    },
-    userAvatarText: {
-      fontFamily: FONTS.sans,
-      fontSize: 11,
-      fontWeight: "900",
-      color: "#fff",
     },
     bubble: {
       borderRadius: 16,

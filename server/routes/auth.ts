@@ -1,18 +1,58 @@
 import crypto from "node:crypto";
 import { Router } from "express";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, conflict, forbidden, notFound, unauthorized, validationError } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
 import { hashPassword, signToken, verifyPassword } from "../auth";
+import { db } from "../db";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
-import { insertUserSchema } from "../../shared/schema";
+import { insertUserSchema, passwordResetTokens, users } from "../../shared/schema";
 import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 
 function sanitizeUser(user: NonNullable<Awaited<ReturnType<typeof storage.getUser>>>) {
   if (!user) return null;
   const { password: _password, ...safeUser } = user;
   return safeUser;
+}
+
+function normalizeEmail(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function hashResetToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function resetPasswordUrl(req: any, token: string) {
+  const proto = req.headers["x-forwarded-proto"] ?? req.protocol;
+  const host = req.headers["x-forwarded-host"] ?? req.get("host");
+  return `${proto}://${host}/reset-password?token=${encodeURIComponent(token)}`;
+}
+
+async function sendPasswordResetEmail(to: string, link: string) {
+  const resendKey = process.env.RESEND_API_KEY;
+  const from = process.env.PASSWORD_RESET_FROM ?? "BeeEyes <no-reply@beeeyes.net>";
+
+  if (!resendKey) {
+    console.info("password_reset.link", { to, link });
+    return;
+  }
+
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from,
+      to,
+      subject: "Recuperacao de senha BeeEyes",
+      html: `<p>Recebemos uma solicitacao para redefinir sua senha.</p><p><a href="${link}">Clique aqui para criar uma nova senha</a>.</p><p>O link expira em 1 hora.</p>`,
+      text: `Use este link para redefinir sua senha BeeEyes: ${link}\n\nO link expira em 1 hora.`,
+    }),
+  }).catch(() => {
+    console.info("password_reset.link", { to, link });
+  });
 }
 
 export function createAuthRouter() {
@@ -24,14 +64,21 @@ export function createAuthRouter() {
       throw validationError("Dados inválidos", parsed.error.issues);
     }
 
+    const email = normalizeEmail(parsed.data.email);
     const existing = await storage.getUserByUsername(parsed.data.username);
+    if (!email) throw badRequest("E-mail e obrigatorio para cadastro com senha");
     if (existing) {
       throw conflict("Nome de usuário já existe");
+    }
+    if (email) {
+      const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      if (existingEmail) throw conflict("E-mail ja cadastrado");
     }
 
     const { displayName, gender } = req.body as { displayName?: string; gender?: string };
     const user = await storage.createUser({
       ...parsed.data,
+      email: email || undefined,
       password: await hashPassword(parsed.data.password),
       displayName: displayName?.trim() || undefined,
       gender: gender || undefined,
@@ -51,6 +98,8 @@ export function createAuthRouter() {
       user: {
         id: user.id,
         username: user.username,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
         displayName: user.displayName,
         gender: user.gender,
         level: user.level,
@@ -70,7 +119,7 @@ export function createAuthRouter() {
       throw badRequest("Provider não suportado");
     }
 
-    let googleUser: { sub: string; name?: string } | null = null;
+    let googleUser: { sub: string; name?: string; email?: string; picture?: string } | null = null;
     try {
       const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -99,9 +148,11 @@ export function createAuthRouter() {
 
       user = await storage.createUser({
         username,
+        email: normalizeEmail(googleUser.email) || undefined,
         password: await hashPassword(crypto.randomUUID()),
         googleId: googleUser.sub,
         displayName: googleUser.name,
+        avatarUrl: googleUser.picture ?? null,
       });
     }
 
@@ -112,6 +163,8 @@ export function createAuthRouter() {
       user: {
         id: user.id,
         username: user.username,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
         displayName: user.displayName,
         gender: user.gender,
         level: user.level,
@@ -131,7 +184,10 @@ export function createAuthRouter() {
       throw badRequest("Usuário e senha são obrigatórios");
     }
 
-    const user = await storage.getUserByUsername(username);
+    const login = String(username).trim();
+    const user = login.includes("@")
+      ? (await db.select().from(users).where(eq(users.email, login.toLowerCase())).limit(1))[0]
+      : await storage.getUserByUsername(login);
     if (!user || !(await verifyPassword(password, user.password))) {
       req.logger.warn("auth.login.failed", { username });
       throw unauthorized("Usuário ou senha incorretos");
@@ -144,6 +200,8 @@ export function createAuthRouter() {
       user: {
         id: user.id,
         username: user.username,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
         displayName: user.displayName,
         gender: user.gender,
         level: user.level,
@@ -155,6 +213,49 @@ export function createAuthRouter() {
         currentStreak: user.currentStreak,
       },
     });
+  }));
+
+  router.post("/api/auth/password-reset/request", asyncHandler(async (req, res) => {
+    const email = normalizeEmail(req.body?.email);
+    if (!email) throw badRequest("Informe o e-mail cadastrado");
+
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (user) {
+      const token = crypto.randomBytes(32).toString("hex");
+      await db.insert(passwordResetTokens).values({
+        userId: user.id,
+        tokenHash: hashResetToken(token),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      await sendPasswordResetEmail(email, resetPasswordUrl(req, token));
+    }
+
+    return sendOk(res, { ok: true, message: "Se o e-mail existir, enviaremos um link de recuperacao." });
+  }));
+
+  router.post("/api/auth/password-reset/confirm", asyncHandler(async (req, res) => {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!token || !password) throw badRequest("Token e nova senha sao obrigatorios");
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      throw badRequest("A nova senha precisa ter ao menos 8 caracteres, uma letra e um numero");
+    }
+
+    const [row] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(and(
+        eq(passwordResetTokens.tokenHash, hashResetToken(token)),
+        gt(passwordResetTokens.expiresAt, new Date()),
+        isNull(passwordResetTokens.usedAt),
+      ))
+      .limit(1);
+
+    if (!row) throw badRequest("Link invalido ou expirado");
+
+    await storage.updateUserPassword(row.userId, await hashPassword(password));
+    await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, row.id));
+    return sendOk(res, { ok: true });
   }));
 
   router.get("/api/me", requireAuth, asyncHandler(async (req, res) => {
@@ -298,5 +399,3 @@ export function createAuthRouter() {
 
   return router;
 }
-
-
