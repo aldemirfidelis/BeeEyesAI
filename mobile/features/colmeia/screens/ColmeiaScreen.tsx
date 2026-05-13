@@ -1465,7 +1465,7 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
   const cx = hubWidth / 2;
   const centerLeft = cx - CENTER_SIZE / 2;
   const sideTop = 164;
-  const toolPositions: Record<ToolId, { left: number; top: number }> = {
+  const toolPositions: Partial<Record<ToolId, { left: number; top: number }>> = {
     calendar: { left: cx - HEX_SIZE / 2, top: 20 },
     notes: { left: centerLeft - HEX_SIZE - 16, top: sideTop },
     clock: { left: centerLeft + CENTER_SIZE + 16, top: sideTop },
@@ -1492,9 +1492,9 @@ function ColmeiaHub({ colors, onSelect }: { colors: any; onSelect: (id: ToolId) 
         />
       </View>
 
-      {/* Tool cells */}
-      {COLMEIA_TOOLS.map((tool) => {
-        const pos = toolPositions[tool.id];
+      {/* Tool cells — only tools with a hub position */}
+      {COLMEIA_TOOLS.filter((tool) => tool.id in toolPositions).map((tool) => {
+        const pos = toolPositions[tool.id]!;
         return (
           <TouchableOpacity
             key={tool.id}

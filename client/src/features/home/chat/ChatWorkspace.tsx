@@ -31,6 +31,7 @@ interface ChatWorkspaceProps {
   inputValue: string;
   isLoading: boolean;
   messageActionsRenderer: (message: Message) => ReactNode;
+  messageRenderer?: (message: Message) => ReactNode | null;
   onToggleSettings: () => void;
   onToggleSearch: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -136,6 +137,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     inputValue,
     isLoading,
     messageActionsRenderer,
+    messageRenderer,
     authHeaders,
     onGoToFriends,
     onToggleSettings,
@@ -341,9 +343,15 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
             </span>
           </div>
           <AnimatePresence mode="popLayout">
-            {visibleMessages.map((message) => (
-              <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} profilePhotoUrl={profilePhotoUrl} />
-            ))}
+            {visibleMessages.map((message) => {
+              if (messageRenderer) {
+                const custom = messageRenderer(message);
+                if (custom) return <div key={message.id}>{custom}</div>;
+              }
+              return (
+                <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} profilePhotoUrl={profilePhotoUrl} />
+              );
+            })}
             {streamingText && <ChatMessage key="streaming" role="assistant" content={`${streamingText}▌`} timestamp={new Date()} />}
           </AnimatePresence>
           <div ref={chatEndRef} />

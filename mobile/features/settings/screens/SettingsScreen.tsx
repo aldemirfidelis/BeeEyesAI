@@ -18,6 +18,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
+
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
@@ -241,6 +242,16 @@ export default function SettingsScreen() {
           <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} placeholder={t("settings_new_password")} placeholderTextColor={colors.muted} secureTextEntry />
           <TouchableOpacity style={styles.secondaryButton} onPress={() => updatePassword.mutate()} disabled={!currentPassword || !newPassword || updatePassword.isPending}>
             <Text style={styles.secondaryButtonText}>{updatePassword.isPending ? t("settings_changing_password") : t("settings_change_password_btn")}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Anúncios</Text>
+          <Text style={styles.cardSubTitle}>
+            Anúncios discretos ajudam a manter a Bee funcionando. Você controla frequência, interesses e privacidade.
+          </Text>
+          <TouchableOpacity style={styles.linkButton} onPress={() => router.push("/ad-settings" as never)}>
+            <Text style={styles.linkButtonText}>Preferências de anúncios</Text>
           </TouchableOpacity>
         </View>
 

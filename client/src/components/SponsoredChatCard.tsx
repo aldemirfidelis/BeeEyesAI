@@ -1,0 +1,171 @@
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { ExternalLink, EyeOff, Flag, Info, MoreHorizontal, X } from "lucide-react";
+import { WhyThisAdModal } from "./WhyThisAdModal";
+import type { SponsoredMessageMeta } from "@/lib/ads";
+
+interface SponsoredChatCardProps {
+  messageId: string;
+  meta: SponsoredMessageMeta;
+  onHide: (adId: string) => void;
+  onNotRelevant: (adId: string) => void;
+  onReport: (adId: string) => void;
+}
+
+export function SponsoredChatCard({
+  meta,
+  onHide,
+  onNotRelevant,
+  onReport,
+}: SponsoredChatCardProps) {
+  const [showMenu, setShowMenu] = useState(false);
+  const [showWhyModal, setShowWhyModal] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const { ad, beeIntroMessage, isPersonalized, adId } = meta;
+
+  if (dismissed) return null;
+
+  function handleHide() {
+    setDismissed(true);
+    setShowMenu(false);
+    onHide(adId);
+  }
+
+  function handleNotRelevant() {
+    setDismissed(true);
+    setShowMenu(false);
+    onNotRelevant(adId);
+  }
+
+  function handleReport() {
+    setDismissed(true);
+    setShowMenu(false);
+    onReport(adId);
+  }
+
+  function handleCta() {
+    window.open(ad.targetUrl, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+      className="mb-3 flex flex-col gap-2"
+    >
+      {/* Bee intro bubble */}
+      <div className="flex items-end gap-2.5">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary shadow-sm ring-1 ring-primary/20 beeyes-glow">
+          <img src="/beeyes-design/images/bee-icon.png" alt="Bee" className="h-full w-full object-cover" />
+        </div>
+        <div className="max-w-[82%] md:max-w-[70%]">
+          <div className="rounded-2xl rounded-tl-md bg-white px-4 py-2.5 shadow-lg ring-1 ring-[#E8DDC8] dark:bg-[#2D2D2D] dark:ring-white/10">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#1A1A1A] dark:text-white">
+              {beeIntroMessage}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sponsored card */}
+      <div className="ml-10 max-w-[82%] md:max-w-[70%] rounded-2xl border border-border bg-card shadow-sm overflow-visible">
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 pt-3 pb-1 gap-2">
+          <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary tracking-wide uppercase">
+            Patrocinado
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1 rounded-lg hover:bg-muted transition-colors"
+              aria-label="Opções do anúncio"
+            >
+              <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+            </button>
+            {showMenu && (
+              <>
+                {/* Backdrop to close menu */}
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-7 z-50 min-w-[200px] rounded-xl border border-border bg-card shadow-lg py-1">
+                  <button
+                    onClick={handleHide}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted text-left transition-colors"
+                  >
+                    <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                    Não quero ver este anúncio
+                  </button>
+                  <button
+                    onClick={handleNotRelevant}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted text-left transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" />
+                    Não é relevante para mim
+                  </button>
+                  <button
+                    onClick={() => { setShowWhyModal(true); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted text-left transition-colors"
+                  >
+                    <Info className="w-3.5 h-3.5 shrink-0" />
+                    Por que estou vendo isso?
+                  </button>
+                  <div className="my-1 border-t border-border" />
+                  <button
+                    onClick={handleReport}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted text-left text-destructive transition-colors"
+                  >
+                    <Flag className="w-3.5 h-3.5 shrink-0" />
+                    Reportar anúncio
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Ad content */}
+        <div className="px-3 pb-2 space-y-1">
+          <p className="text-[11px] text-muted-foreground">{ad.advertiserName}</p>
+          <p className="text-sm font-bold text-foreground leading-snug">{ad.title}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">{ad.body}</p>
+        </div>
+
+        {/* CTA button */}
+        <div className="px-3 pb-3">
+          <button
+            onClick={handleCta}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            {ad.ctaLabel}
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Footer links */}
+        <div className="flex items-center justify-between px-3 pb-3">
+          <button
+            onClick={handleHide}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          >
+            Não quero ver isso
+          </button>
+          <button
+            onClick={() => setShowWhyModal(true)}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          >
+            Por que estou vendo?
+          </button>
+        </div>
+      </div>
+
+      {showWhyModal && (
+        <WhyThisAdModal
+          isPersonalized={isPersonalized}
+          advertiserName={ad.advertiserName}
+          onClose={() => setShowWhyModal(false)}
+          onAdjustPreferences={() => setShowWhyModal(false)}
+        />
+      )}
+    </motion.div>
+  );
+}

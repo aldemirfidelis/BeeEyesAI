@@ -104,6 +104,7 @@ export default function TabsLayout() {
 
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="friends" options={{ href: null }} />
+      <Tabs.Screen name="ad-settings" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="profile" options={{ href: null, tabBarStyle: { display: "none" } }} />
       <Tabs.Screen name="mood" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null, tabBarStyle: { display: "none" } }} />

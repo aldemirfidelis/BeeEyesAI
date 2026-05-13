@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import {
   addDays, addMonths, eachDayOfInterval, endOfMonth, format, isSameDay, isSameMonth,
   startOfMonth, startOfWeek, subMonths, parseISO,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Calendar, ChevronLeft, ChevronRight, DollarSign, ExternalLink,
-  Loader2, MapPin, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
+  AlertCircle, Calendar, ChevronDown, ChevronLeft, ChevronRight, DollarSign, ExternalLink,
+  Heart, Loader2, MapPin, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
   StickyNote, Pin, PinOff, Pencil, Check, Clock, BellRing, Pill, Briefcase, Pause, Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,15 +98,16 @@ function fmtCents(cents: number) {
 // To add a new tool: (1) add ToolId to the union, (2) push to COLMEIA_TOOLS,
 // (3) place it in TOOL_POSITIONS.
 
-type ToolId = "calendar" | "finance" | "clock" | "notes";
+type ToolId = "calendar" | "finance" | "clock" | "notes" | "health";
 
-interface ColmeiaTool { id: ToolId; label: string; src: string; color: string }
+interface ColmeiaTool { id: ToolId; label: string; src?: string; icon?: ReactNode; color: string }
 
 const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "calendar", label: "Calendário", src: "/icons-colmeia/calendario.png",  color: "#FFD940" },
   { id: "finance",  label: "Finanças",   src: "/icons-colmeia/financas.png",    color: "#10B981" },
   { id: "notes",    label: "Notas",      src: "/icons-colmeia/notas.png",       color: "#8B5CF6" },
   { id: "clock",    label: "Alarmes",    src: "/icons-colmeia/alarmes.png",     color: "#F97316" },
+  { id: "health",   label: "Saúde",      icon: <Heart className="w-9 h-9" />,   color: "#EF4444" },
 ];
 
 // 6 slots around center — null = "em breve"
@@ -127,7 +128,7 @@ const C_CELL = 118;
 const ICON_ZOOM = 1.12;
 const CENTER_ICON_ZOOM = 1;
 const CENTER_POS = { left: 121, top: 150 };
-const TOOL_POSITIONS: Record<ToolId, { left: number; top: number }> = {
+const TOOL_POSITIONS: Partial<Record<ToolId, { left: number; top: number }>> = {
   calendar: { left: 130, top: 18 },
   notes: { left: 14, top: 166 },
   clock: { left: 246, top: 166 },
@@ -156,9 +157,9 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
         />
       </div>
 
-      {/* Tool cells */}
-      {COLMEIA_TOOLS.map((tool) => {
-        const pos = TOOL_POSITIONS[tool.id];
+      {/* Tool cells — only tools that have a hub position */}
+      {COLMEIA_TOOLS.filter((tool) => tool.id in TOOL_POSITIONS).map((tool) => {
+        const pos = TOOL_POSITIONS[tool.id as keyof typeof TOOL_POSITIONS]!;
         return (
           <button
             key={tool.id}
@@ -175,11 +176,17 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
               overflow: "hidden",
             }}
           >
-            <img
-              src={tool.src}
-              alt={tool.label}
-              style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
-            />
+            {tool.src ? (
+              <img
+                src={tool.src}
+                alt={tool.label}
+                style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${ICON_ZOOM})` }}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center" style={{ color: tool.color }}>
+                {tool.icon}
+              </div>
+            )}
           </button>
         );
       })}
@@ -1117,6 +1124,454 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
   );
 }
 
+// ── Health Coach Section ───────────────────────────────────────────────────────
+
+type GoalType = "lose_weight" | "gain_muscle" | "maintain" | "improve_fitness";
+type FitnessLevel = "beginner" | "intermediate" | "advanced";
+
+interface HealthProfile { goal: GoalType; fitnessLevel: FitnessLevel; completedAt: string }
+interface Exercise { name: string; sets?: number; reps?: string; durationMin?: number; notes?: string }
+interface WorkoutDay { dayOfWeek: number; label: string; type: "rest" | "training"; focus?: string; exercises: Exercise[] }
+interface DailyCheckin { date: string; sleepHours: number; mood: 1|2|3|4|5; energyLevel: 1|2|3|4|5 }
+interface HealthyHabit { id: string; label: string; icon: string; completedDates: string[] }
+
+const H = {
+  profile: "bee_health_profile",
+  plan: "bee_health_workout_plan",
+  water: "bee_health_water_log",
+  checkin: "bee_health_checkin",
+  habits: "bee_health_habits",
+};
+
+const GOAL_OPTS: { value: GoalType; label: string; emoji: string; desc: string }[] = [
+  { value: "lose_weight",      label: "Perder peso",               emoji: "🔥", desc: "Reduzir gordura corporal com saúde" },
+  { value: "gain_muscle",      label: "Ganhar músculo",            emoji: "💪", desc: "Aumentar massa muscular e força" },
+  { value: "maintain",         label: "Manter forma",              emoji: "⚖️", desc: "Manter peso e condicionamento" },
+  { value: "improve_fitness",  label: "Melhorar condicionamento",  emoji: "🏃", desc: "Aumentar resistência e energia" },
+];
+
+const LEVEL_OPTS: { value: FitnessLevel; label: string; desc: string }[] = [
+  { value: "beginner",     label: "Iniciante",      desc: "Pouca ou nenhuma experiência com exercícios" },
+  { value: "intermediate", label: "Intermediário",  desc: "Pratica exercícios ocasionalmente" },
+  { value: "advanced",     label: "Avançado",       desc: "Treina regularmente há mais de 1 ano" },
+];
+
+const DEFAULT_HABITS: HealthyHabit[] = [
+  { id: "water",   label: "Hidratação (8 copos)",   icon: "💧", completedDates: [] },
+  { id: "sleep",   label: "Dormir 7-9 horas",       icon: "😴", completedDates: [] },
+  { id: "steps",   label: "10.000 passos",           icon: "👟", completedDates: [] },
+  { id: "fruit",   label: "Comer frutas/legumes",    icon: "🥦", completedDates: [] },
+  { id: "stretch", label: "Alongamento diário",      icon: "🧘", completedDates: [] },
+];
+
+// TODO: replace with POST /api/health/workout-plan
+function generateWorkoutPlan(goal: GoalType, level: FitnessLevel): WorkoutDay[] {
+  const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const rest = (d: number): WorkoutDay => ({ dayOfWeek: d, label: labels[d], type: "rest", exercises: [] });
+  const train = (d: number, focus: string, exercises: Exercise[]): WorkoutDay => ({ dayOfWeek: d, label: labels[d], type: "training", focus, exercises });
+
+  const ex = (name: string, opts?: Partial<Exercise>): Exercise => ({ name, ...opts });
+
+  const plans: Record<GoalType, Record<FitnessLevel, WorkoutDay[]>> = {
+    lose_weight: {
+      beginner: [
+        rest(0),
+        train(1, "Cardio leve", [ex("Caminhada rápida", { durationMin: 30 }), ex("Agachamento", { sets: 3, reps: "12" })]),
+        rest(2),
+        train(3, "Full body", [ex("Flexão de joelho", { sets: 3, reps: "10" }), ex("Prancha", { durationMin: 1 })]),
+        rest(4),
+        train(5, "Cardio + Core", [ex("Polichinelo", { sets: 3, reps: "30" }), ex("Abdominal", { sets: 3, reps: "15" })]),
+        rest(6),
+      ],
+      intermediate: [
+        rest(0),
+        train(1, "Cardio HIIT", [ex("Corrida intervalada", { durationMin: 25 }), ex("Burpee", { sets: 4, reps: "12" })]),
+        train(2, "Membros inferiores", [ex("Agachamento", { sets: 4, reps: "15" }), ex("Avanço", { sets: 3, reps: "12 cada" })]),
+        rest(3),
+        train(4, "Membros superiores", [ex("Flexão", { sets: 4, reps: "15" }), ex("Remada com elástico", { sets: 3, reps: "15" })]),
+        train(5, "Cardio + Core", [ex("Pular corda", { durationMin: 20 }), ex("Prancha lateral", { durationMin: 2 })]),
+        rest(6),
+      ],
+      advanced: [
+        train(0, "HIIT intenso", [ex("Sprint 400m", { sets: 6, reps: "1" }), ex("Burpee", { sets: 5, reps: "15" })]),
+        train(1, "Membros inferiores", [ex("Agachamento profundo", { sets: 5, reps: "15" }), ex("Stiff", { sets: 4, reps: "12" })]),
+        rest(2),
+        train(3, "Membros superiores", [ex("Flexão com palma", { sets: 4, reps: "15" }), ex("Barra", { sets: 4, reps: "máximo" })]),
+        train(4, "Core", [ex("Dragon flag", { sets: 3, reps: "8" }), ex("Prancha avançada", { durationMin: 3 })]),
+        train(5, "Full body", [ex("Circuito 5 exercícios", { sets: 4, reps: "15 cada" })]),
+        rest(6),
+      ],
+    },
+    gain_muscle: {
+      beginner: [
+        rest(0),
+        train(1, "Peito e Tríceps", [ex("Flexão", { sets: 3, reps: "8-10" }), ex("Mergulho entre cadeiras", { sets: 3, reps: "8" })]),
+        rest(2),
+        train(3, "Costas e Bíceps", [ex("Remada com mochila", { sets: 3, reps: "10" }), ex("Rosca com garrafa", { sets: 3, reps: "12" })]),
+        rest(4),
+        train(5, "Pernas", [ex("Agachamento", { sets: 3, reps: "12" }), ex("Ponte glúteo", { sets: 3, reps: "15" })]),
+        rest(6),
+      ],
+      intermediate: [
+        rest(0),
+        train(1, "Peito", [ex("Flexão inclinada", { sets: 4, reps: "12" }), ex("Flexão declinada", { sets: 3, reps: "10" })]),
+        train(2, "Costas", [ex("Barra", { sets: 4, reps: "8" }), ex("Remada curvada", { sets: 3, reps: "12" })]),
+        rest(3),
+        train(4, "Ombros + Braços", [ex("Desenvolvimento", { sets: 3, reps: "12" }), ex("Rosca direta", { sets: 3, reps: "12" })]),
+        train(5, "Pernas", [ex("Agachamento", { sets: 4, reps: "12" }), ex("Leg press", { sets: 4, reps: "15" })]),
+        rest(6),
+      ],
+      advanced: [
+        train(0, "Peito", [ex("Supino reto", { sets: 5, reps: "8" }), ex("Cross-over", { sets: 4, reps: "12" })]),
+        train(1, "Costas", [ex("Barra pronada", { sets: 5, reps: "6-8" }), ex("Remada baixa", { sets: 4, reps: "10" })]),
+        rest(2),
+        train(3, "Pernas", [ex("Agachamento frontal", { sets: 5, reps: "8" }), ex("Leg press", { sets: 4, reps: "12" })]),
+        train(4, "Ombros", [ex("Desenvolvimento militar", { sets: 4, reps: "10" }), ex("Elevação lateral", { sets: 4, reps: "15" })]),
+        train(5, "Braços", [ex("Rosca Scott", { sets: 4, reps: "10" }), ex("Tríceps coice", { sets: 4, reps: "12" })]),
+        rest(6),
+      ],
+    },
+    maintain: {
+      beginner: [
+        rest(0),
+        train(1, "Cardio", [ex("Caminhada", { durationMin: 30 })]),
+        rest(2),
+        train(3, "Full body", [ex("Agachamento", { sets: 2, reps: "12" }), ex("Flexão", { sets: 2, reps: "10" })]),
+        rest(4),
+        train(5, "Cardio + Flex", [ex("Ciclismo leve", { durationMin: 30 }), ex("Yoga básica", { durationMin: 15 })]),
+        rest(6),
+      ],
+      intermediate: [
+        rest(0),
+        train(1, "Full body", [ex("Agachamento", { sets: 3, reps: "12" }), ex("Flexão", { sets: 3, reps: "12" }), ex("Remada", { sets: 3, reps: "12" })]),
+        train(2, "Cardio", [ex("Corrida leve", { durationMin: 30 })]),
+        rest(3),
+        train(4, "Full body", [ex("Agachamento sumo", { sets: 3, reps: "12" }), ex("Flexão larga", { sets: 3, reps: "12" })]),
+        train(5, "Cardio + Core", [ex("Natação ou ciclismo", { durationMin: 40 }), ex("Prancha", { durationMin: 2 })]),
+        rest(6),
+      ],
+      advanced: [
+        train(0, "Full body", [ex("Agachamento", { sets: 4, reps: "15" }), ex("Flexão", { sets: 4, reps: "20" })]),
+        train(1, "Cardio moderado", [ex("Corrida contínua", { durationMin: 45 })]),
+        rest(2),
+        train(3, "Força", [ex("Barra", { sets: 4, reps: "10" }), ex("Agachamento livre", { sets: 4, reps: "10" })]),
+        train(4, "Cardio HIIT", [ex("Corrida intervalada", { durationMin: 30 })]),
+        train(5, "Mobilidade", [ex("Yoga avançada", { durationMin: 45 })]),
+        rest(6),
+      ],
+    },
+    improve_fitness: {
+      beginner: [
+        rest(0),
+        train(1, "Cardio", [ex("Caminhada rápida", { durationMin: 20 }), ex("Alongamento", { durationMin: 10 })]),
+        rest(2),
+        train(3, "Funcional", [ex("Agachamento", { sets: 3, reps: "10" }), ex("Mountain climber", { sets: 2, reps: "20" })]),
+        rest(4),
+        train(5, "Cardio", [ex("Dança ou aeróbica", { durationMin: 30 })]),
+        rest(6),
+      ],
+      intermediate: [
+        rest(0),
+        train(1, "Cardio + Força", [ex("Corrida", { durationMin: 25 }), ex("Agachamento + Salto", { sets: 3, reps: "12" })]),
+        train(2, "Funcional", [ex("Burpee", { sets: 3, reps: "10" }), ex("Prancha", { durationMin: 2 })]),
+        rest(3),
+        train(4, "Cardio", [ex("Ciclismo ou natação", { durationMin: 40 })]),
+        train(5, "Full body", [ex("Flexão", { sets: 3, reps: "15" }), ex("Agachamento", { sets: 3, reps: "15" }), ex("Barra", { sets: 3, reps: "máximo" })]),
+        rest(6),
+      ],
+      advanced: [
+        train(0, "Resistência", [ex("Corrida longa", { durationMin: 60 })]),
+        train(1, "HIIT", [ex("Tabata (8 rounds)", { durationMin: 20 })]),
+        rest(2),
+        train(3, "Força + Cardio", [ex("Barra", { sets: 4, reps: "8" }), ex("Corrida 5km", { durationMin: 30 })]),
+        train(4, "HIIT", [ex("Sprint 200m", { sets: 8, reps: "1" })]),
+        train(5, "Full body", [ex("Circuito avançado", { sets: 5, reps: "15" })]),
+        rest(6),
+      ],
+    },
+  };
+
+  return plans[goal]?.[level] ?? plans.improve_fitness.beginner;
+}
+
+function HealthCoachSection() {
+  const [profile, setProfile] = useState<HealthProfile | null>(() => {
+    try { return JSON.parse(localStorage.getItem(H.profile) ?? "null"); } catch { return null; }
+  });
+  const [workoutPlan, setWorkoutPlan] = useState<WorkoutDay[]>(() => {
+    try { return JSON.parse(localStorage.getItem(H.plan) ?? "[]"); } catch { return []; }
+  });
+  const [waterMl, setWaterMl] = useState<number>(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem(H.water) ?? "null");
+      return data?.date === new Date().toISOString().slice(0, 10) ? data.ml : 0;
+    } catch { return 0; }
+  });
+  const [habits, setHabits] = useState<HealthyHabit[]>(() => {
+    try { return JSON.parse(localStorage.getItem(H.habits) ?? "null") ?? DEFAULT_HABITS; } catch { return DEFAULT_HABITS; }
+  });
+  const [showCheckin, setShowCheckin] = useState(false);
+  const [checkin, setCheckin] = useState<DailyCheckin>({ date: new Date().toISOString().slice(0, 10), sleepHours: 7, mood: 3, energyLevel: 3 });
+  const [checkinSaved, setCheckinSaved] = useState(false);
+  const [expandedWorkout, setExpandedWorkout] = useState(false);
+  const [onboardStep, setOnboardStep] = useState<1 | 2>(1);
+  const [selectedGoal, setSelectedGoal] = useState<GoalType | null>(null);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayWorkout = workoutPlan.find((d) => d.dayOfWeek === new Date().getDay());
+
+  function saveProfile(goal: GoalType, level: FitnessLevel) {
+    const p: HealthProfile = { goal, fitnessLevel: level, completedAt: new Date().toISOString() };
+    const plan = generateWorkoutPlan(goal, level);
+    localStorage.setItem(H.profile, JSON.stringify(p));
+    localStorage.setItem(H.plan, JSON.stringify(plan));
+    setProfile(p);
+    setWorkoutPlan(plan);
+  }
+
+  function addWater(ml: number) {
+    const next = Math.min(waterMl + ml, 2000);
+    setWaterMl(next);
+    localStorage.setItem(H.water, JSON.stringify({ date: today, ml: next }));
+  }
+
+  function resetWater() {
+    setWaterMl(0);
+    localStorage.setItem(H.water, JSON.stringify({ date: today, ml: 0 }));
+  }
+
+  function toggleHabit(id: string) {
+    const updated = habits.map((h) =>
+      h.id !== id ? h : {
+        ...h,
+        completedDates: h.completedDates.includes(today)
+          ? h.completedDates.filter((d) => d !== today)
+          : [...h.completedDates, today],
+      }
+    );
+    setHabits(updated);
+    localStorage.setItem(H.habits, JSON.stringify(updated));
+  }
+
+  function saveCheckin() {
+    localStorage.setItem(H.checkin, JSON.stringify(checkin));
+    setCheckinSaved(true);
+    setTimeout(() => { setCheckinSaved(false); setShowCheckin(false); }, 1500);
+  }
+
+  // Onboarding — step 1: goal
+  if (!profile) {
+    if (onboardStep === 1) {
+      return (
+        <div className="p-5 space-y-5">
+          <div>
+            <h3 className="text-lg font-black">Coach de Saúde 💚</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Qual é seu principal objetivo de saúde?
+            </p>
+          </div>
+          <div className="space-y-2">
+            {GOAL_OPTS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => { setSelectedGoal(opt.value); setOnboardStep(2); }}
+                className="w-full flex items-center gap-4 rounded-2xl border border-border bg-card p-4 text-left hover:border-primary/40 hover:bg-primary/5 transition-colors"
+              >
+                <span className="text-2xl">{opt.emoji}</span>
+                <div>
+                  <p className="font-semibold text-sm">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    // Step 2: fitness level
+    return (
+      <div className="p-5 space-y-5">
+        <div>
+          <button onClick={() => setOnboardStep(1)} className="text-xs text-primary mb-3 hover:underline">← Voltar</button>
+          <h3 className="text-lg font-black">Nível de condicionamento</h3>
+          <p className="text-sm text-muted-foreground mt-1">Isso calibra a intensidade dos treinos.</p>
+        </div>
+        <div className="space-y-2">
+          {LEVEL_OPTS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => saveProfile(selectedGoal!, opt.value)}
+              className="w-full flex flex-col gap-1 rounded-2xl border border-border bg-card p-4 text-left hover:border-primary/40 hover:bg-primary/5 transition-colors"
+            >
+              <p className="font-semibold text-sm">{opt.label}</p>
+              <p className="text-xs text-muted-foreground">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const waterPct = (waterMl / 2000) * 100;
+  const goalLabel = GOAL_OPTS.find((g) => g.value === profile.goal)?.label ?? "";
+  const levelLabel = LEVEL_OPTS.find((l) => l.value === profile.fitnessLevel)?.label ?? "";
+
+  return (
+    <div className="p-5 space-y-4">
+      {/* Profile badge */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-black text-base">Coach de Saúde 💚</h3>
+          <p className="text-xs text-muted-foreground">{goalLabel} · {levelLabel}</p>
+        </div>
+        <button
+          onClick={() => { localStorage.removeItem(H.profile); setProfile(null); setOnboardStep(1); }}
+          className="text-[10px] text-muted-foreground hover:text-foreground border border-border rounded-full px-2 py-1 transition-colors"
+        >
+          Reconfigurar
+        </button>
+      </div>
+
+      {/* Today's workout */}
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <button
+          className="w-full flex items-center justify-between p-4"
+          onClick={() => setExpandedWorkout((v) => !v)}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">{todayWorkout?.type === "rest" ? "😴" : "🏋️"}</span>
+            <div className="text-left">
+              <p className="font-semibold text-sm">
+                {todayWorkout?.type === "rest" ? "Dia de descanso" : `Treino de hoje — ${todayWorkout?.focus}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {todayWorkout?.type === "rest" ? "Descanse e recupere" : `${todayWorkout?.exercises.length} exercício(s)`}
+              </p>
+            </div>
+          </div>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedWorkout ? "rotate-180" : ""}`} />
+        </button>
+        {expandedWorkout && (todayWorkout?.exercises.length ?? 0) > 0 && (
+          <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
+            {todayWorkout!.exercises.map((ex, i) => (
+              <div key={i} className="flex items-start justify-between gap-2">
+                <p className="text-sm font-medium">{ex.name}</p>
+                <p className="text-xs text-muted-foreground shrink-0">
+                  {ex.durationMin ? `${ex.durationMin} min` : `${ex.sets}x${ex.reps}`}
+                  {ex.notes ? ` (${ex.notes})` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Water tracker */}
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-sm">💧 Hidratação</p>
+          <p className="text-sm font-bold text-primary">{waterMl} / 2000 ml</p>
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${waterPct}%` }} />
+        </div>
+        <div className="flex gap-2">
+          {[150, 250, 350].map((ml) => (
+            <button
+              key={ml}
+              onClick={() => addWater(ml)}
+              disabled={waterMl >= 2000}
+              className="flex-1 rounded-xl border border-border py-2 text-xs font-semibold hover:bg-primary/10 hover:border-primary/40 transition-colors disabled:opacity-40"
+            >
+              +{ml}ml
+            </button>
+          ))}
+          <button
+            onClick={resetWater}
+            className="rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-muted transition-colors"
+            title="Resetar"
+          >
+            ↺
+          </button>
+        </div>
+      </div>
+
+      {/* Daily check-in */}
+      <button
+        onClick={() => setShowCheckin(true)}
+        className="w-full rounded-2xl border border-border bg-card p-4 text-left hover:border-primary/40 hover:bg-primary/5 transition-colors"
+      >
+        <p className="font-semibold text-sm">📊 Check-in diário</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Registre seu sono, humor e energia de hoje</p>
+      </button>
+
+      {/* Habits */}
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <p className="font-semibold text-sm">✅ Hábitos saudáveis</p>
+        <div className="space-y-2">
+          {habits.map((h) => {
+            const done = h.completedDates.includes(today);
+            return (
+              <button key={h.id} onClick={() => toggleHabit(h.id)} className="w-full flex items-center gap-3 text-left">
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${done ? "bg-primary border-primary" : "border-border"}`}>
+                  {done && <Check className="w-3 h-3 text-primary-foreground" />}
+                </div>
+                <span className="text-sm">{h.icon} {h.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Safety disclaimer */}
+      <div className="flex items-start gap-2 rounded-xl border border-border bg-muted/30 p-3">
+        <AlertCircle className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          Este plano é uma sugestão educativa geral. Consulte um profissional de saúde ou educador físico antes de
+          iniciar qualquer rotina de exercícios, especialmente se tiver condições médicas preexistentes.
+        </p>
+      </div>
+
+      {/* Check-in modal */}
+      {showCheckin && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-background/80 backdrop-blur-sm p-0 md:p-4">
+          <div className="w-full md:max-w-sm rounded-t-2xl md:rounded-2xl border border-border bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold">Check-in de Hoje</h3>
+              <button onClick={() => setShowCheckin(false)} className="p-1.5 rounded-lg hover:bg-muted">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-2">😴 Horas de sono: {checkin.sleepHours}h</p>
+                <input type="range" min={4} max={12} step={0.5} value={checkin.sleepHours}
+                  onChange={(e) => setCheckin((c) => ({ ...c, sleepHours: Number(e.target.value) }))} className="w-full" />
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-2">😊 Humor: {["", "😢", "😕", "😐", "🙂", "😁"][checkin.mood]}</p>
+                <input type="range" min={1} max={5} step={1} value={checkin.mood}
+                  onChange={(e) => setCheckin((c) => ({ ...c, mood: Number(e.target.value) as 1|2|3|4|5 }))} className="w-full" />
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-2">⚡ Energia: {["", "🪫", "😴", "⚡", "🔋", "🚀"][checkin.energyLevel]}</p>
+                <input type="range" min={1} max={5} step={1} value={checkin.energyLevel}
+                  onChange={(e) => setCheckin((c) => ({ ...c, energyLevel: Number(e.target.value) as 1|2|3|4|5 }))} className="w-full" />
+              </div>
+            </div>
+            <button
+              onClick={saveCheckin}
+              className="w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+            >
+              {checkinSaved ? "✓ Salvo!" : "Registrar check-in"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
   const [activeSection, setActiveSection] = useState<ToolId | null>(null);
   const activeTool = activeSection ? COLMEIA_TOOLS.find(t => t.id === activeSection) : null;
@@ -1166,7 +1621,13 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
                   className="beeyes-tool-card-light dark:beeyes-tool-card-dark group flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl p-4 text-center"
                 >
                   <span className="flex h-16 w-16 items-center justify-center">
-                    <img src={tool.src} alt={tool.label} className="h-full w-full object-contain drop-shadow-md transition-transform group-hover:scale-105" />
+                    {tool.src ? (
+                      <img src={tool.src} alt={tool.label} className="h-full w-full object-contain drop-shadow-md transition-transform group-hover:scale-105" />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center rounded-2xl transition-transform group-hover:scale-105" style={{ backgroundColor: `${tool.color}22`, color: tool.color }}>
+                        {tool.icon}
+                      </span>
+                    )}
                   </span>
                   <span className="text-xs font-bold text-foreground">{tool.label}</span>
                 </button>
@@ -1179,6 +1640,7 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
             {activeSection === "finance" && <FinanceSection authHeaders={authHeaders} />}
             {activeSection === "clock" && <ClockSection authHeaders={authHeaders} />}
             {activeSection === "notes" && <NotesSection authHeaders={authHeaders} />}
+            {activeSection === "health" && <HealthCoachSection />}
           </>
         )}
       </div>

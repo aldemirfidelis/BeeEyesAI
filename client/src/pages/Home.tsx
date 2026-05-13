@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ChangeEvent } from "react";
 import DailyBriefingModal from "@/components/DailyBriefingModal";
-import ChatMessage from "@/components/ChatMessage";
 import MoodSelector from "@/components/MoodSelector";
 import AchievementPopup from "@/components/AchievementPopup";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -27,8 +26,18 @@ import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } 
 import { fileToCompressedDataUrl, fileToDataUrl, FEED_IMAGE_ACCEPT, isAcceptedFeedImage } from "@/lib/image";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
+import { SponsoredChatCard } from "@/components/SponsoredChatCard";
 import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem } from "@/features/home/types";
 import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
+import {
+  generateBeeAdIntroMessage,
+  getEligibleAd,
+  hideAd,
+  incrementMessageCount,
+  loadAdPreferences,
+  recordAdView,
+} from "@/lib/adService";
+import type { SponsoredMessageMeta } from "@/lib/ads";
 
 const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊", motivated: "💪", tired: "😴", sad: "💙",
@@ -170,10 +179,47 @@ export default function Home() {
   const messagesRef = useRef<Message[]>([]);
   const eyeEventTimeoutRef = useRef<number | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
+  const adCheckIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Ad injection — runs after each completed assistant response
+  useEffect(() => {
+    if (isLoading) return;
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant") return;
+
+    let meta: Record<string, unknown> = {};
+    try { meta = JSON.parse(lastMsg.metadata ?? "{}"); } catch { /* skip */ }
+    if (meta.type === "sponsored" || meta.type === "news" || meta.type === "news_digest") return;
+
+    if (adCheckIdRef.current === lastMsg.id) return;
+    adCheckIdRef.current = lastMsg.id;
+
+    if (!user) { incrementMessageCount(); return; }
+
+    const userForAds = { level: user.level, xp: user.xp };
+    const recentMsgs = messages.slice(-4).map((m) => ({ role: m.role, content: m.content }));
+    const contextTopics = messages.slice(-4).flatMap((m) => m.content.toLowerCase().split(/\s+/).slice(0, 10));
+
+    const ad = getEligibleAd(userForAds, contextTopics, recentMsgs);
+    if (!ad) { incrementMessageCount(); return; }
+
+    const introMsg = generateBeeAdIntroMessage();
+    const prefs = loadAdPreferences();
+    const sponsoredMeta: SponsoredMessageMeta = {
+      type: "sponsored",
+      adId: ad.id,
+      beeIntroMessage: introMsg,
+      isPersonalized: prefs.allowPersonalizedAds,
+      ad,
+    };
+    recordAdView(ad.id);
+    injectAssistantMessage(introMsg, sponsoredMeta);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, isLoading, user]);
 
   const clearPostImage = useCallback(() => {
     setPostImagePreviewUrl("");
@@ -1508,6 +1554,19 @@ export default function Home() {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   };
 
+  function handleSponsoredHide(messageId: string, adId: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    hideAd(adId);
+  }
+
+  function handleSponsoredNotRelevant(messageId: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }
+
+  function handleSponsoredReport(messageId: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }
+
   const handleAssistantDislike = () => {
     injectAssistantMessage("Anotado. Essa resposta foi uma torrada sem manteiga, eu melhoro a próxima.");
   };
@@ -1916,6 +1975,21 @@ export default function Home() {
           }
 
           return baseActions;
+        }}
+        messageRenderer={(message) => {
+          const meta = getMessageMeta(message.metadata);
+          if (meta?.type === "sponsored") {
+            return (
+              <SponsoredChatCard
+                messageId={message.id}
+                meta={meta as SponsoredMessageMeta}
+                onHide={(adId) => handleSponsoredHide(message.id, adId)}
+                onNotRelevant={() => handleSponsoredNotRelevant(message.id)}
+                onReport={() => handleSponsoredReport(message.id)}
+              />
+            );
+          }
+          return null;
         }}
         onToggleSettings={() => setShowSettingsScreen(true)}
         onToggleSearch={() => { setShowMsgSearch((value) => !value); setMsgSearchQuery(""); }}

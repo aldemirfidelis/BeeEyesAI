@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, FileText, Globe2, Lock, LogOut, Moon, Settings, Shield, Sun, UserRound } from "lucide-react";
+import { Camera, Check, ChevronRight, FileText, Globe2, Lock, LogOut, Moon, Settings, Shield, Sun, UserRound, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,12 @@ import { PRIVACY_POLICY, TERMS_OF_USE } from "@/lib/legalTexts";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
 import type { ThemeMode } from "@/lib/theme";
 import type { Achievement, Friend, Testimonial, User } from "@/features/home/types";
+import {
+  defaultAdPreferences,
+  loadAdPreferences,
+  saveAdPreferences,
+} from "@/lib/adService";
+import { AD_INTEREST_OPTIONS, type AdFrequency, type UserAdPreferences } from "@/lib/ads";
 
 interface SettingsScreenProps {
   show: boolean;
@@ -54,6 +60,9 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const [testimonialTarget, setTestimonialTarget] = useState("");
   const [testimonialText, setTestimonialText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showAdSettings, setShowAdSettings] = useState(false);
+  const [adPrefs, setAdPrefs] = useState<UserAdPreferences>(() => loadAdPreferences());
+  const [adSaved, setAdSaved] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -258,6 +267,25 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
               <Card className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <p className="text-sm font-semibold">Anúncios</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Anúncios discretos ajudam a manter a Bee funcionando. Você controla frequência,
+                  interesses e privacidade. Assinantes premium não veem anúncios.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center justify-between"
+                  onClick={() => { setAdPrefs(loadAdPreferences()); setShowAdSettings(true); }}
+                >
+                  <span>Preferências de anúncios</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Card>
+
+              <Card className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
                   <p className="text-sm font-semibold">Legal</p>
                 </div>
@@ -296,8 +324,204 @@ export function SettingsScreen(props: SettingsScreenProps) {
               </div>
             </div>
           )}
+
+          {showAdSettings && (
+            <AdSettingsModal
+              prefs={adPrefs}
+              saved={adSaved}
+              onPrefsChange={setAdPrefs}
+              onSave={() => {
+                saveAdPreferences({
+                  ...adPrefs,
+                  consentGiven: adPrefs.allowPersonalizedAds ? true : adPrefs.consentGiven,
+                  consentGivenAt:
+                    adPrefs.allowPersonalizedAds && !adPrefs.consentGiven
+                      ? new Date().toISOString()
+                      : adPrefs.consentGivenAt,
+                  lastUpdatedAt: new Date().toISOString(),
+                });
+                setAdSaved(true);
+                setTimeout(() => setAdSaved(false), 2500);
+              }}
+              onClose={() => setShowAdSettings(false)}
+            />
+          )}
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// ── Ad Settings Modal ─────────────────────────────────────────────────────────
+
+const FREQUENCY_OPTIONS: { value: AdFrequency; label: string; desc: string }[] = [
+  { value: "low",    label: "Baixa",   desc: "Máximo 1 anúncio por dia" },
+  { value: "normal", label: "Normal",  desc: "Máximo 3 anúncios por dia" },
+  { value: "high",   label: "Alta",    desc: "Máximo 5 anúncios por dia" },
+];
+
+interface AdSettingsModalProps {
+  prefs: UserAdPreferences;
+  saved: boolean;
+  onPrefsChange: (prefs: UserAdPreferences) => void;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSettingsModalProps) {
+  function toggleInterest(interest: string) {
+    onPrefsChange({
+      ...prefs,
+      selectedInterests: prefs.selectedInterests.includes(interest)
+        ? prefs.selectedInterests.filter((i) => i !== interest)
+        : [...prefs.selectedInterests, interest],
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4">
+      <div className="w-full md:max-w-lg rounded-t-2xl md:rounded-2xl border border-border bg-card max-h-[88vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-border shrink-0">
+          <div>
+            <h3 className="font-bold text-base">Preferências de Anúncios</h3>
+            <p className="text-xs text-muted-foreground">Controle como os anúncios aparecem</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+          {/* Info */}
+          <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+            <Shield className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-xs text-foreground leading-relaxed">
+              Os anúncios ajudam a manter a Bee funcionando. Você controla quais tipos de anúncios quer ver.
+              Nunca usamos dados sensíveis, localização ou histórico de conversas para publicidade.
+            </p>
+          </div>
+
+          {/* Personalized toggle */}
+          <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+            <p className="text-sm font-semibold">Anúncios personalizados</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Permite que a Bee use seus interesses escolhidos abaixo para mostrar anúncios mais relevantes.
+              Sem rastreamento fora do app.
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">
+                {prefs.allowPersonalizedAds ? "Ativado" : "Desativado (apenas genéricos)"}
+              </span>
+              <Switch
+                checked={prefs.allowPersonalizedAds}
+                onCheckedChange={(v) => onPrefsChange({ ...prefs, allowPersonalizedAds: v })}
+              />
+            </div>
+          </div>
+
+          {/* Interests */}
+          {prefs.allowPersonalizedAds && (
+            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+              <p className="text-sm font-semibold">Meus interesses</p>
+              <p className="text-xs text-muted-foreground">Selecione os temas que fazem sentido para você.</p>
+              <div className="flex flex-wrap gap-2">
+                {AD_INTEREST_OPTIONS.map((interest) => {
+                  const selected = prefs.selectedInterests.includes(interest);
+                  return (
+                    <button
+                      key={interest}
+                      onClick={() => toggleInterest(interest)}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        selected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      {selected && <Check className="w-3 h-3" />}
+                      {interest}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Frequency */}
+          <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+            <p className="text-sm font-semibold">Frequência de anúncios</p>
+            <p className="text-xs text-muted-foreground">Com que frequência você quer ver anúncios?</p>
+            <div className="grid grid-cols-3 gap-2">
+              {FREQUENCY_OPTIONS.map((opt) => {
+                const active = prefs.preferredAdFrequency === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => onPrefsChange({ ...prefs, preferredAdFrequency: opt.value })}
+                    className={`rounded-xl border p-3 text-left transition-colors ${
+                      active
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background hover:border-primary/40"
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold ${active ? "text-primary" : "text-foreground"}`}>
+                      {opt.label}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Hidden advertisers */}
+          {prefs.hiddenAdvertisers.length > 0 && (
+            <div className="rounded-xl border border-border bg-background p-4 space-y-2">
+              <p className="text-sm font-semibold">Anunciantes ocultados</p>
+              {prefs.hiddenAdvertisers.map((adv) => (
+                <div key={adv} className="flex items-center justify-between py-1">
+                  <span className="text-sm">{adv}</span>
+                  <button
+                    onClick={() =>
+                      onPrefsChange({
+                        ...prefs,
+                        hiddenAdvertisers: prefs.hiddenAdvertisers.filter((a) => a !== adv),
+                      })
+                    }
+                    className="p-1 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Privacy note */}
+          <div className="flex items-start gap-2 rounded-xl border border-border bg-background p-3">
+            <Lock className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Suas preferências ficam armazenadas somente neste dispositivo.
+              A Bee não compartilha informações de anúncios com terceiros sem sua autorização.
+              Usuários assinantes premium não veem anúncios.
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border shrink-0">
+          <Button className="w-full flex items-center gap-2" onClick={onSave}>
+            {saved ? (
+              <>
+                <Check className="w-4 h-4" />
+                Preferências salvas!
+              </>
+            ) : (
+              "Salvar preferências"
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

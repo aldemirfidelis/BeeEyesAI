@@ -25,6 +25,10 @@ import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { type ConnectionRequestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNewsDigestMeta, parseMessageMeta } from "@mobile/lib/social";
 import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
+import { SponsoredChatCard } from "@mobile/components/SponsoredChatCard";
+import { useAdEngine } from "@mobile/hooks/useAdEngine";
+import { hideAd } from "@mobile/lib/adService";
+import type { SponsoredMessageMeta } from "@mobile/lib/ads";
 
 type AppRoute = "/feed" | "/communities" | "/inbox" | "/notifications" | "/friends" | "/profile";
 type BriefingLocation = { latitude: number; longitude: number; city: string | null };
@@ -127,6 +131,10 @@ export default function ChatScreen() {
   const { eyeExpression, themeMode, profileImageUri, setEyeExpression } = useUIStore();
   const { user } = useAuthStore();
   const { sendMessage } = useChat();
+  const { onAfterAssistantResponse } = useAdEngine(
+    user ? { level: user.level, xp: user.xp } : null,
+  );
+  const adCheckIdRef = useRef<string | null>(null);
   const [dailyBriefing, setDailyBriefing] = useState<{
     text: string;
     weather: { temp: number; tempMin: number; tempMax: number; description: string; precipitationChance: number } | null;
@@ -349,6 +357,19 @@ export default function ChatScreen() {
     return () => { clearTimeout(delay); clearInterval(interval); };
   }, [addMessage, pulseEyeExpression]);
 
+
+  // BeeAds — inject sponsored card after AI responses when eligible
+  useEffect(() => {
+    if (isTyping) return;
+    const lastMsg = chatMessages[chatMessages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant" || lastMsg.id === "streaming") return;
+    let rawMeta: Record<string, unknown> = {};
+    try { rawMeta = JSON.parse(lastMsg.metadata || "{}"); } catch { /* ignore */ }
+    if (rawMeta.type === "sponsored" || rawMeta.appTip || rawMeta.proactive) return;
+    if (adCheckIdRef.current === lastMsg.id) return;
+    adCheckIdRef.current = lastMsg.id;
+    onAfterAssistantResponse(chatMessages, lastMsg.id, addMessage);
+  }, [chatMessages, isTyping, onAfterAssistantResponse, addMessage]);
 
   useEffect(() => {
     if (!hydratedRef.current) {
@@ -623,6 +644,19 @@ export default function ChatScreen() {
     }
   }
 
+  function handleSponsoredHide(messageId: string, adId: string) {
+    setMessages(chatMessages.filter((m) => m.id !== messageId));
+    hideAd(adId).catch(() => {});
+  }
+
+  function handleSponsoredNotRelevant(messageId: string, _adId: string) {
+    setMessages(chatMessages.filter((m) => m.id !== messageId));
+  }
+
+  function handleSponsoredReport(messageId: string, _adId: string) {
+    setMessages(chatMessages.filter((m) => m.id !== messageId));
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]} onTouchStart={handleScreenTouch} onTouchMove={handleScreenTouch}>
       <HoneycombBackdrop colors={colors} />
@@ -792,6 +826,16 @@ export default function ChatScreen() {
               try { rawMeta = JSON.parse(item.metadata || "{}"); } catch { /* ignore */ }
               if (rawMeta.appTip === true) {
                 return <AppTipCard content={item.content} createdAt={item.createdAt} styles={styles} />;
+              }
+              if (rawMeta.type === "sponsored") {
+                return (
+                  <SponsoredChatCard
+                    meta={rawMeta as unknown as SponsoredMessageMeta}
+                    onHide={(adId) => handleSponsoredHide(item.id, adId)}
+                    onNotRelevant={(adId) => handleSponsoredNotRelevant(item.id, adId)}
+                    onReport={(adId) => handleSponsoredReport(item.id, adId)}
+                  />
+                );
               }
               return (
                 <View>
