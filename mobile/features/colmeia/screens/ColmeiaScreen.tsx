@@ -12,6 +12,7 @@ import { api } from "@mobile/lib/api";
 import { CHANNEL, requestNotificationPermission } from "@mobile/lib/notifications";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
+import { HealthCoachSection } from "./HealthCoachSection";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ interface AlarmReminder {
 
 // ── Colmeia Hub types ─────────────────────────────────────────────────────────
 
-type ToolId = "calendar" | "finance" | "clock" | "notes";
+type ToolId = "calendar" | "finance" | "clock" | "notes" | "health";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -132,13 +133,14 @@ function getCategoryColor(cat: string) {
 // To add a new tool: (1) add its ToolId to the union above, (2) push to COLMEIA_TOOLS,
 // (3) place its id in HEX_LAYOUT (replace a null slot or extend).
 
-interface ColmeiaTool { id: ToolId; label: string; img: number; color: string }
+interface ColmeiaTool { id: ToolId; label: string; img?: number; iconName?: string; color: string }
 
 const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "calendar", label: "Calendário", img: require("../../../assets/icons-colmeia/calendario.png"),  color: "#FFD940" },
   { id: "finance",  label: "Finanças",   img: require("../../../assets/icons-colmeia/financas.png"),    color: "#10B981" },
   { id: "notes",    label: "Notas",      img: require("../../../assets/icons-colmeia/notas.png"),       color: "#8B5CF6" },
   { id: "clock",    label: "Alarmes",    img: require("../../../assets/icons-colmeia/alarmes.png"),     color: "#F97316" },
+  { id: "health",   label: "Saúde",      iconName: "heart",                                             color: "#EF4444" },
 ];
 
 // 6 positions around center (degrees, clockwise from top).
@@ -148,7 +150,7 @@ const HEX_LAYOUT: Array<ToolId | null> = [
   "calendar", // top
   "clock",    // top-right
   "finance",  // bottom-right
-  null,       // bottom      — coming soon
+  "health",   // bottom
   "notes",    // bottom-left
   null,       // top-left    — coming soon
 ];
@@ -1573,7 +1575,13 @@ export default function ColmeiaScreen() {
           <View style={styles.toolsGrid}>
             {COLMEIA_TOOLS.map((tool) => (
               <TouchableOpacity key={tool.id} activeOpacity={0.78} onPress={() => setActiveSection(tool.id)} style={styles.toolCard}>
-                <Image source={tool.img} style={styles.toolCardImage} resizeMode="contain" />
+                {tool.img ? (
+                  <Image source={tool.img} style={styles.toolCardImage} resizeMode="contain" />
+                ) : (
+                  <View style={[styles.toolCardIconBg, { backgroundColor: tool.color + "22" }]}>
+                    <Feather name={tool.iconName as any} size={36} color={tool.color} />
+                  </View>
+                )}
                 <Text style={styles.toolCardLabel}>{tool.label}</Text>
               </TouchableOpacity>
             ))}
@@ -1590,6 +1598,7 @@ export default function ColmeiaScreen() {
           {activeSection === "finance" && <FinanceSection colors={colors} styles={styles} />}
           {activeSection === "clock" && <ClockSection colors={colors} />}
           {activeSection === "notes" && <NotesSection colors={colors} />}
+          {activeSection === "health" && <HealthCoachSection colors={colors} />}
         </ScrollView>
       )}
     </View>
@@ -1634,6 +1643,7 @@ function makeStyles(colors: any) {
     toolsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
     toolCard: { width: "47.8%", aspectRatio: 1, borderRadius: 22, borderWidth: 1, borderColor: colors.primary + "26", backgroundColor: colors.card + "F2", alignItems: "center", justifyContent: "center", gap: 12, shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.10, shadowRadius: 20, elevation: 6 },
     toolCardImage: { width: 72, height: 72 },
+    toolCardIconBg: { width: 72, height: 72, borderRadius: 18, alignItems: "center", justifyContent: "center" },
     toolCardLabel: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "800", color: colors.foreground },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 16 },

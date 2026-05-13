@@ -836,6 +836,26 @@ export default function ChatScreen() {
                     />
                   ) : null}
                   {isNewsDigestMeta(meta) ? <NewsDigestCard meta={meta} styles={styles} /> : null}
+                  {rawMeta.type === "welcome" ? (
+                    <View style={styles.welcomeActionsContainer}>
+                      {[
+                        { label: "📅 Organizar meu dia", prompt: "Bee, me ajude a organizar meu dia de hoje." },
+                        { label: "📚 Plano de estudos", prompt: "Bee, monte um plano de estudos para mim." },
+                        { label: "💪 Rotina de saúde", prompt: "Bee, me ajude a montar uma rotina de saúde simples para minha semana." },
+                        { label: "⏰ Criar lembrete", prompt: "Bee, me ajude a criar um lembrete." },
+                        { label: "📋 Planejar semana", prompt: "Bee, me ajude a planejar minha semana." },
+                      ].map(({ label, prompt }) => (
+                        <TouchableOpacity
+                          key={label}
+                          style={styles.welcomeActionBtn}
+                          onPress={() => sendMessage(prompt)}
+                          disabled={isTyping}
+                        >
+                          <Text style={styles.welcomeActionText}>{label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               );
             }}
@@ -1129,6 +1149,9 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     assistantActionRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
     assistantActionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.card + "DD", borderWidth: 1, borderColor: colors.border },
     assistantActionText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted },
+    welcomeActionsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4 },
+    welcomeActionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.primary + "1A", borderWidth: 1, borderColor: colors.primary + "66" },
+    welcomeActionText: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "600", color: colors.primaryDark },
     inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 6, paddingVertical: 5, gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
     composerKeyboard: { marginBottom: 4 },
     input: { flex: 1, backgroundColor: "transparent", paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 110 },

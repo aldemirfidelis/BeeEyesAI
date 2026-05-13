@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
@@ -280,6 +281,10 @@ function CommunityDetail({
   onOpenProfile: (userId: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const tabBarHeight = useBottomTabBarHeight();
+  const bottomInset = tabBarHeight > 0
+    ? tabBarHeight + (Platform.OS === "ios" ? 12 : 16)
+    : insets.bottom + 6;
   const [newPost, setNewPost] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
@@ -699,7 +704,7 @@ function CommunityDetail({
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView contentContainerStyle={styles.postsList}>
+        <ScrollView contentContainerStyle={[styles.postsList, { paddingBottom: (detail.isMember ? 68 : 16) + bottomInset }]}>
           {detail.description ? (
             <Text style={styles.detailDesc}>{detail.description}</Text>
           ) : null}
@@ -756,7 +761,7 @@ function CommunityDetail({
         </ScrollView>
 
         {detail.isMember && (
-          <View style={[styles.composeWrapper, { paddingBottom: insets.bottom + 6 }]}>
+          <View style={[styles.composeWrapper, { paddingBottom: bottomInset }]}>
             {/* Image preview with remove button */}
             {postImagePreview ? (
               <View style={styles.imagePreviewRow}>

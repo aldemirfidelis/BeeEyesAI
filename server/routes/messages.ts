@@ -155,7 +155,48 @@ export function createMessagesRouter() {
 
   router.get("/api/messages", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 50, min: 1, max: 100 });
-    return sendOk(res, await storage.getMessagesByUser(req.userId!, limit));
+    const existing = await storage.getMessagesByUser(req.userId!, limit);
+
+    if (existing.length === 0) {
+      const user = await storage.getUser(req.userId!);
+      const firstName = (() => {
+        const name = user?.displayName || user?.username || "";
+        return name.trim().split(/\s+/)[0] || "";
+      })();
+      const greeting = firstName ? `Oi, ${firstName}! 🐝✨` : "Oi! 🐝✨";
+
+      const welcomeContent = `${greeting}
+
+Eu sou a Bee, sua assistente pessoal. Estou muito feliz em te ver por aqui! 💛
+
+A partir de agora posso te ajudar a organizar sua rotina, criar planos, lembrar tarefas, cuidar melhor dos seus hábitos, apoiar seus estudos, acompanhar sua produtividade e transformar suas ideias em ações.
+
+📌 Dicas para aproveitar melhor nossa conversa:
+
+• Me diga o que você quer fazer
+  Ex: "Bee, monte um plano de estudos para essa semana."
+
+• ⏰ Informe datas e horários quando precisar
+  Ex: "Me lembre de beber água todo dia às 10h."
+
+• 🎯 Conte seu objetivo
+  Ex: "Quero criar uma rotina mais organizada para estudar e treinar."
+
+• 💬 Fale comigo do seu jeito
+  Quanto mais contexto você me der, mais precisa será minha ajuda.
+
+Estou pronta para voar com você nessa jornada 🐝💛`;
+
+      const welcome = await storage.createMessage({
+        userId: req.userId!,
+        role: "assistant",
+        content: welcomeContent,
+        metadata: JSON.stringify({ type: "welcome" }),
+      });
+      return sendOk(res, [welcome]);
+    }
+
+    return sendOk(res, existing);
   }));
 
   router.get("/api/score", requireAuth, asyncHandler(async (req, res) => {
