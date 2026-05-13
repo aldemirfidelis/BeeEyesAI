@@ -6,7 +6,7 @@ import {
 import { ptBR } from "date-fns/locale";
 import {
   AlertCircle, Calendar, ChevronDown, ChevronLeft, ChevronRight, DollarSign, ExternalLink,
-  Heart, Loader2, MapPin, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
+  Loader2, MapPin, Trash2, X, Link, CheckCircle2, TrendingDown, TrendingUp,
   StickyNote, Pin, PinOff, Pencil, Check, Clock, BellRing, Pill, Briefcase, Pause, Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "finance",  label: "Finanças",   src: "/icons-colmeia/financas.png",    color: "#10B981" },
   { id: "notes",    label: "Notas",      src: "/icons-colmeia/notas.png",       color: "#8B5CF6" },
   { id: "clock",    label: "Alarmes",    src: "/icons-colmeia/alarmes.png",     color: "#F97316" },
-  { id: "health",   label: "Saúde",      icon: <Heart className="w-9 h-9" />,   color: "#EF4444" },
+  { id: "health",   label: "Saúde",      src: "/icons-colmeia/saude.png",      color: "#EF4444" },
 ];
 
 // 6 slots around center — null = "em breve"

@@ -140,7 +140,7 @@ const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "finance",  label: "Finanças",   img: require("../../../assets/icons-colmeia/financas.png"),    color: "#10B981" },
   { id: "notes",    label: "Notas",      img: require("../../../assets/icons-colmeia/notas.png"),       color: "#8B5CF6" },
   { id: "clock",    label: "Alarmes",    img: require("../../../assets/icons-colmeia/alarmes.png"),     color: "#F97316" },
-  { id: "health",   label: "Saúde",      iconName: "heart",                                             color: "#EF4444" },
+  { id: "health",   label: "Saúde",      img: require("../../../assets/icons-colmeia/saude.png"),       color: "#EF4444" },
 ];
 
 // 6 positions around center (degrees, clockwise from top).

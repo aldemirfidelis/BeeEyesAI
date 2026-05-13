@@ -13,7 +13,7 @@ const COLMEIA_TOOLS = [
   { name: 'Finanças',   img: '/beeyes-design/images/financas.png',    label: 'Finanças'   },
   { name: 'Bee Core',   img: '/beeyes-design/images/icone-central.png', label: 'Bee Core' },
   { name: 'Alertas',    img: '/beeyes-design/images/alarmes.png',     label: 'Alertas'    },
-  { name: 'Comunidades', img: null, label: 'Comunidades' },
+  { name: 'Saúde',      img: '/beeyes-design/images/saude.png',       label: 'Saúde'      },
 ];
 
 export function WebDesktop() {
@@ -413,4 +413,3 @@ export function WebDesktop() {
     </div>
   );
 }
-

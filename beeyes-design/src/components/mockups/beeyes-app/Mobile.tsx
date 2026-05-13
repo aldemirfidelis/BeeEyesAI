@@ -9,7 +9,7 @@ const COLMEIA_TOOLS = [
   { name: 'Finanças',   img: '/beeyes-design/images/financas.png'    },
   { name: 'Bee Core',   img: '/beeyes-design/images/icone-central.png' },
   { name: 'Alertas',    img: '/beeyes-design/images/alarmes.png'     },
-  { name: 'Comunidades', img: null },
+  { name: 'Saúde',      img: '/beeyes-design/images/saude.png'       },
 ];
 
 export function Mobile() {
