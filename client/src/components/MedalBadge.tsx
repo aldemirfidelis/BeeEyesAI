@@ -42,12 +42,18 @@ export function MedalBadge({ spec, earned, onClick }: { spec: MedalSpec; earned:
   );
 }
 
-export function MedalGrid({ earnedTypes, onSelect }: { earnedTypes: string[]; onSelect?: (spec: MedalSpec) => void }) {
+export function MedalGrid({ earnedTypes, onSelect, filterTypes }: { earnedTypes: string[]; onSelect?: (spec: MedalSpec) => void; filterTypes?: string[] }) {
   const earnedSet = useMemo(() => new Set(earnedTypes), [earnedTypes]);
-  const sorted = useMemo(() => [
-    ...MEDAL_CATALOG.filter((medal) => earnedSet.has(medal.type)),
-    ...MEDAL_CATALOG.filter((medal) => !earnedSet.has(medal.type)),
-  ], [earnedSet]);
+  const filterSet = useMemo(() => (filterTypes ? new Set(filterTypes) : null), [filterTypes]);
+  const sorted = useMemo(() => {
+    const filtered = filterSet
+      ? MEDAL_CATALOG.filter((medal) => filterSet.has(medal.type))
+      : MEDAL_CATALOG;
+    return [
+      ...filtered.filter((medal) => earnedSet.has(medal.type)),
+      ...filtered.filter((medal) => !earnedSet.has(medal.type)),
+    ];
+  }, [earnedSet, filterSet]);
 
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">

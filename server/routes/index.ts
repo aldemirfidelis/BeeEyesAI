@@ -12,6 +12,7 @@ import { createSystemRouter } from "./system";
 import { createWishlistRouter } from "./wishlist";
 import { createResearchRouter } from "./research";
 import { createCalendarRouter, startCalendarNotificationScheduler } from "./calendar";
+import { createHealthRouter } from "./health";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use(createSystemRouter());
@@ -26,6 +27,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(createWishlistRouter());
   app.use(createResearchRouter());
   app.use(createCalendarRouter());
+  app.use(createHealthRouter());
 
   const httpServer = createServer(app);
   startAlarmReminderScheduler();

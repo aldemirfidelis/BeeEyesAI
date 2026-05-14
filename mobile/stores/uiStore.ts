@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
-import type { ThemeMode } from "../lib/theme";
+import { Appearance } from "react-native";
+import type { ThemeMode, ThemePreference } from "../lib/theme";
+
+function resolveFromPreference(pref: ThemePreference): ThemeMode {
+  if (pref === "light" || pref === "dark") return pref;
+  const sys = Appearance.getColorScheme?.();
+  return sys === "dark" ? "dark" : "light";
+}
 
 export type EyeExpression = "neutral" | "happy" | "excited" | "curious" | "sleepy" | "celebrating";
 
@@ -23,6 +30,7 @@ interface UIState {
   eyeExpression: EyeExpression;
   achievement: Achievement | null;
   themeMode: ThemeMode;
+  themePreference: ThemePreference;
   profileImageUri: string | null;
   isPreferencesReady: boolean;
   pendingDMUser: PendingDMUser | null;
@@ -31,6 +39,7 @@ interface UIState {
   clearAchievement: () => void;
   initializePreferences: (serverAvatarUrl?: string | null) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
+  setThemePreference: (pref: ThemePreference) => Promise<void>;
   setProfileImageUri: (uri: string | null) => Promise<void>;
   clearProfileImage: () => Promise<void>;
   setPendingDMUser: (user: PendingDMUser | null) => void;
@@ -40,6 +49,7 @@ export const useUIStore = create<UIState>((set) => ({
   eyeExpression: "neutral",
   achievement: null,
   themeMode: "light",
+  themePreference: "light",
   profileImageUri: null,
   isPreferencesReady: false,
   pendingDMUser: null,
@@ -51,19 +61,36 @@ export const useUIStore = create<UIState>((set) => ({
 
   initializePreferences: async (serverAvatarUrl?: string | null) => {
     try {
-      const [savedThemeMode, savedProfileImageUri] = await Promise.all([
+      const [savedThemePref, savedThemeMode, savedProfileImageUri] = await Promise.all([
+        SecureStore.getItemAsync("bee_theme_preference"),
         SecureStore.getItemAsync("bee_theme_mode"),
         SecureStore.getItemAsync("bee_profile_image_uri"),
       ]);
 
-      const themeMode: ThemeMode = savedThemeMode === "dark" ? "dark" : "light";
+      let themePreference: ThemePreference;
+      if (savedThemePref === "light" || savedThemePref === "dark" || savedThemePref === "system") {
+        themePreference = savedThemePref;
+      } else if (savedThemeMode === "light" || savedThemeMode === "dark") {
+        themePreference = savedThemeMode;
+      } else {
+        themePreference = "light";
+      }
+      const themeMode: ThemeMode = resolveFromPreference(themePreference);
       const profileImageUri = savedProfileImageUri || serverAvatarUrl || null;
 
       if (serverAvatarUrl && !savedProfileImageUri) {
         await SecureStore.setItemAsync("bee_profile_image_uri", serverAvatarUrl);
       }
 
-      set({ themeMode, profileImageUri });
+      set({ themeMode, themePreference, profileImageUri });
+
+      // Listener para mudanças do sistema quando preferência é "system"
+      Appearance.addChangeListener?.(({ colorScheme }) => {
+        if (useUIStore.getState().themePreference === "system") {
+          const next: ThemeMode = colorScheme === "dark" ? "dark" : "light";
+          set({ themeMode: next });
+        }
+      });
     } finally {
       set({ isPreferencesReady: true });
     }
@@ -71,7 +98,15 @@ export const useUIStore = create<UIState>((set) => ({
 
   setThemeMode: async (mode) => {
     await SecureStore.setItemAsync("bee_theme_mode", mode);
-    set({ themeMode: mode });
+    await SecureStore.setItemAsync("bee_theme_preference", mode);
+    set({ themeMode: mode, themePreference: mode });
+  },
+
+  setThemePreference: async (pref) => {
+    await SecureStore.setItemAsync("bee_theme_preference", pref);
+    const resolved = resolveFromPreference(pref);
+    await SecureStore.setItemAsync("bee_theme_mode", resolved);
+    set({ themeMode: resolved, themePreference: pref });
   },
 
   setProfileImageUri: async (uri) => {

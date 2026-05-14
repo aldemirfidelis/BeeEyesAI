@@ -13,6 +13,7 @@ function cleanAIText(text: string): string {
     .replace(/\{"create_event":\s*\{[\s\S]*?\}\}/g, "")
     .replace(/\{"log_finance":\s*\{[\s\S]*?\}\}/g, "")
     .replace(/\{"save_note":\s*\{[\s\S]*?\}\}/g, "")
+    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"[\s\S]*$/g, "")
     .trim();
 }
 
@@ -72,8 +73,10 @@ export function useChat() {
 
       const raw = await response.text();
       let fullText = "";
+      let visibleText = "";
       let newsFetched: { query: string; items: any[] } | null = null;
       let pendingResearch: { intent: string; results: ResearchResult[] } | null = null;
+      let pendingWorkout: any = null;
       let reactedToResponse = false;
       let doneMetadata: string | null = null;
       let doneId: string | undefined;
@@ -87,7 +90,11 @@ export function useChat() {
           const event = JSON.parse(data);
           if (event.type === "chunk") {
             fullText += event.text;
-            appendStream(cleanAIText(event.text));
+            const nextVisibleText = cleanAIText(fullText);
+            if (nextVisibleText.length > visibleText.length) {
+              appendStream(nextVisibleText.slice(visibleText.length));
+            }
+            visibleText = nextVisibleText;
             if (!reactedToResponse) {
               reactedToResponse = true;
               setEyeExpression("excited");
@@ -98,6 +105,9 @@ export function useChat() {
             if (event.results?.length > 0) {
               pendingResearch = { intent: event.intent, results: event.results };
             }
+            setEyeExpression("excited");
+          } else if (event.type === "workout_suggestion") {
+            pendingWorkout = event.plan;
             setEyeExpression("excited");
           } else if (event.type === "news_fetched") {
             newsFetched = { query: event.query, items: event.items };
@@ -131,6 +141,17 @@ export function useChat() {
 
       finalizeStream(cleanAIText(fullText) || "Desculpe, não consegui gerar uma resposta.", doneMetadata, doneId);
       setEyeExpression("happy");
+
+      // Injetar card de sugestão de treino após a mensagem da IA
+      if (pendingWorkout) {
+        addMessage({
+          id: `workout-${Date.now()}`,
+          role: "assistant",
+          content: "Aqui está minha sugestão de treino para você 🐝💪",
+          createdAt: new Date().toISOString(),
+          metadata: JSON.stringify({ type: "workout_suggestion", plan: pendingWorkout }),
+        });
+      }
 
       // Injetar card de notícias após a mensagem da IA
       if (newsFetched && newsFetched.items.length > 0) {

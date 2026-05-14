@@ -1546,7 +1546,16 @@ export function parseAIActions(response: string): {
     }
   }
 
+  cleanText = stripAIActionBlocks(cleanText);
+
   return { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote };
+}
+
+function stripAIActionBlocks(text: string): string {
+  return text
+    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"\s*:\s*\{[\s\S]*?\}\s*\}/g, "")
+    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"[\s\S]*$/g, "")
+    .trim();
 }
 
 // â”€â”€ Daily Briefing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

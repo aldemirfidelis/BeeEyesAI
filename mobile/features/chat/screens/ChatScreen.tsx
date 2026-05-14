@@ -28,6 +28,7 @@ import type { EyeExpression } from "@mobile/stores/uiStore";
 import { SponsoredChatCard } from "@mobile/components/SponsoredChatCard";
 import { ResearchResultCard, ResearchLoadingCard } from "@mobile/components/ResearchResultCard";
 import type { ResearchResult } from "@mobile/components/ResearchResultCard";
+import { WorkoutSuggestionCard, type WorkoutSuggestionPlan } from "@mobile/components/WorkoutSuggestionCard";
 import { useAdEngine } from "@mobile/hooks/useAdEngine";
 import { hideAd } from "@mobile/lib/adService";
 import type { SponsoredMessageMeta } from "@mobile/lib/ads";
@@ -99,13 +100,6 @@ const SPEECH_RECORDING_OPTIONS: Audio.RecordingOptions = {
 
 export default function ChatScreen() {
   const { t } = useTranslation();
-
-  const QUICK_ACTIONS = [
-    { label: t("chat_quick_evolve"), kind: "prompt", value: "Quero evoluir hoje. Me diga a acao mais importante agora." },
-    { label: t("chat_quick_hold_me"), kind: "prompt", value: "Ative modo cobranca. Quero disciplina hoje." },
-    { label: t("chat_quick_set_goal"), kind: "prompt", value: "Quero transformar minha prioridade em uma meta clara para hoje." },
-    { label: t("chat_quick_news"), kind: "news", value: "news" },
-  ] as const;
 
   const [inputValue, setInputValue] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -565,16 +559,6 @@ export default function ChatScreen() {
     if (!commandHandled) await sendMessage(message);
   }
 
-  async function handleQuickAction(action: (typeof QUICK_ACTIONS)[number]) {
-    markInteraction();
-    if (action.kind === "prompt") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await sendMessage(action.value);
-      return;
-    }
-    await handleNewsCommand();
-  }
-
   async function handleSlashCommand(raw: string) {
     const command = raw.toLowerCase();
     if (command === "/feed") return injectAssistantShortcut("Abrindo o feed da comunidade para voce.", "/feed");
@@ -902,6 +886,9 @@ export default function ChatScreen() {
                         />
                       ))}
                     </View>
+                  ) : null}
+                  {rawMeta.type === "workout_suggestion" && (rawMeta as any).plan ? (
+                    <WorkoutSuggestionCard plan={(rawMeta as any).plan as WorkoutSuggestionPlan} colors={colors} />
                   ) : null}
                   {rawMeta.type === "welcome" ? (
                     <View style={styles.welcomeActionsContainer}>

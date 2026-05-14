@@ -133,16 +133,23 @@ export function MedalBadge({ type, earned = false, unlockedAt, size = 64, onPres
 interface MedalGridProps {
   earnedTypes: string[];
   onPress?: (spec: MedalSpec) => void;
+  filterTypes?: string[];
 }
 
-export function MedalGrid({ earnedTypes, onPress }: MedalGridProps) {
+export function MedalGrid({ earnedTypes, onPress, filterTypes }: MedalGridProps) {
   const earnedSet = useMemo(() => new Set(earnedTypes), [earnedTypes]);
+  const filterSet = useMemo(() => (filterTypes ? new Set(filterTypes) : null), [filterTypes]);
 
   // Sort: earned first, then locked
-  const sorted = useMemo(() => [
-    ...MEDAL_CATALOG.filter((m) => earnedSet.has(m.type)),
-    ...MEDAL_CATALOG.filter((m) => !earnedSet.has(m.type)),
-  ], [earnedSet]);
+  const sorted = useMemo(() => {
+    const pool = filterSet
+      ? MEDAL_CATALOG.filter((m) => filterSet.has(m.type))
+      : MEDAL_CATALOG;
+    return [
+      ...pool.filter((m) => earnedSet.has(m.type)),
+      ...pool.filter((m) => !earnedSet.has(m.type)),
+    ];
+  }, [earnedSet, filterSet]);
 
   return (
     <View style={styles.grid}>

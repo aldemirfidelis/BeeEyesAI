@@ -28,6 +28,7 @@ import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import { SponsoredChatCard } from "@/components/SponsoredChatCard";
 import { ResearchResultCard, ResearchLoadingState, ResearchSourceBadge } from "@/components/ResearchResultCard";
+import { WorkoutSuggestionCard, type WorkoutSuggestionPlan } from "@/components/WorkoutSuggestionCard";
 import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ResearchResult, ResearchMeta } from "@/features/home/types";
 import {
   generateBeeAdIntroMessage,
@@ -55,6 +56,13 @@ const clearProfilePhoto = () => localStorage.removeItem("bee_profile_photo");
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function cleanAIText(text: string): string {
+  return text
+    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"\s*:\s*\{[\s\S]*?\}\s*\}/g, "")
+    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"[\s\S]*$/g, "")
+    .trim();
 }
 
 function timeAgo(dateInput: string | Date): string {
@@ -85,6 +93,7 @@ export default function Home() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchIntent, setResearchIntent] = useState<string | null>(null);
   const pendingResearchRef = useRef<{ intent: string; results: ResearchResult[] } | null>(null);
+  const pendingWorkoutRef = useRef<any>(null);
   const [mobileTab, setMobileTab] = useState<"chat" | "feed" | "colmeia" | "friends" | "inbox" | "communities">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
@@ -1254,7 +1263,7 @@ export default function Home() {
             if (event.type === "chunk") {
               const isFirstChunk = accumulated.length === 0;
               accumulated += event.text;
-              setStreamingText(accumulated);
+              setStreamingText(cleanAIText(accumulated));
               setEyeExpression("attentive");
               if (isFirstChunk) pulseEyeEvent("message-received", 1400);
             } else if (event.type === "research_start") {
@@ -1265,17 +1274,33 @@ export default function Home() {
               if (event.results?.length > 0) {
                 pendingResearchRef.current = { intent: event.intent, results: event.results };
               }
+            } else if (event.type === "workout_suggestion") {
+              pendingWorkoutRef.current = event.plan;
             } else if (event.type === "done") {
               const pending = pendingResearchRef.current;
               const finalMetadata = event.metadata
                 ?? (pending ? JSON.stringify({ type: "research", intent: pending.intent, results: pending.results }) : null);
-              setMessages((prev) => [...prev, {
-                id: event.id ?? assistantMsgId,
-                role: "assistant",
-                content: event.cleanText ?? accumulated,
-                timestamp: new Date(),
-                metadata: finalMetadata,
-              }]);
+              setMessages((prev) => {
+                const withFinal = [...prev, {
+                  id: event.id ?? assistantMsgId,
+                  role: "assistant" as const,
+                  content: cleanAIText(event.cleanText ?? accumulated),
+                  timestamp: new Date(),
+                  metadata: finalMetadata,
+                }];
+                // Append workout suggestion as a separate assistant message
+                if (pendingWorkoutRef.current) {
+                  withFinal.push({
+                    id: `workout-${Date.now()}`,
+                    role: "assistant" as const,
+                    content: "Aqui está minha sugestão de treino para você 🐝💪",
+                    timestamp: new Date(),
+                    metadata: JSON.stringify({ type: "workout_suggestion", plan: pendingWorkoutRef.current }),
+                  });
+                }
+                return withFinal;
+              });
+              pendingWorkoutRef.current = null;
               pendingResearchRef.current = null;
               setResearchLoading(false);
               setResearchIntent(null);
@@ -1980,6 +2005,23 @@ export default function Home() {
                 {(meta.items as NewsItem[]).map((item, index) => (
                   <NewsCard key={item.link + "-" + index} title={item.title} link={item.link} source={item.source} authHeaders={authHeaders} />
                 ))}
+              </div>
+            );
+          }
+
+          if (meta.type === "workout_suggestion" && (meta as any).plan) {
+            return (
+              <div className="space-y-2">
+                {baseActions}
+                <WorkoutSuggestionCard
+                  plan={(meta as any).plan as WorkoutSuggestionPlan}
+                  onSaved={() => {
+                    setColmeiaRefreshKey((value) => value + 1);
+                    setAchievementData({ title: "Plano salvo! 🐝💪", description: "Veja em Saúde > Coach de Saúde" });
+                    setShowAchievement(true);
+                    setTimeout(() => setShowAchievement(false), 3000);
+                  }}
+                />
               </div>
             );
           }

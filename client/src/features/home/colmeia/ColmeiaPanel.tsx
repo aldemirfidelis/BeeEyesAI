@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { WishlistSection } from "./WishlistSection";
+import { HealthCoachPanel } from "./HealthCoachPanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1514,6 +1515,10 @@ function generateWorkoutPlan(goal: GoalType, level: FitnessLevel): WorkoutDay[] 
 }
 
 function HealthCoachSection() {
+  return <HealthCoachPanel />;
+}
+
+function HealthCoachSectionLegacy() {
   const [profile, setProfile] = useState<HealthProfile | null>(() => {
     try { return JSON.parse(localStorage.getItem(H.profile) ?? "null"); } catch { return null; }
   });

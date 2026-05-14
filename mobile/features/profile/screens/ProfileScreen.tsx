@@ -23,7 +23,7 @@ import { useAuthStore } from "@mobile/stores/authStore";
 import { queryClient } from "@mobile/lib/queryClient";
 import { MedalGrid, MedalDetail } from "@mobile/components/MedalBadge";
 import { UserAvatar } from "@mobile/components/UserAvatar";
-import type { MedalSpec } from "@mobile/lib/medals";
+import { MEDAL_CATALOG, TIER_COLORS, type MedalSpec, type MedalTier } from "@mobile/lib/medals";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 
@@ -40,6 +40,7 @@ export default function ProfileScreen() {
   const [testimonialText, setTestimonialText] = React.useState("");
   const [sendingTestimonial, setSendingTestimonial] = React.useState(false);
   const [selectedMedal, setSelectedMedal] = React.useState<MedalSpec | null>(null);
+  const [medalFilter, setMedalFilter] = React.useState<"all" | "earned" | "locked" | MedalTier>("all");
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -150,10 +151,66 @@ export default function ProfileScreen() {
                 {profile?.username?.[0]?.toUpperCase() ?? "?"}
               </Text>
             )}
+            {profile?.level ? (
+              <View style={styles.levelBadge}>
+                <Text style={styles.levelBadgeText}>Nv {profile.level}</Text>
+              </View>
+            ) : null}
           </View>
           <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
           {profile?.displayName ? <Text style={styles.usernameHandle}>@{profile?.username}</Text> : null}
-          {profile?.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
+          {profile?.bio ? (
+            <Text style={styles.profileBio}>{profile.bio}</Text>
+          ) : (
+            <Text style={styles.profileBioEmpty}>Adicione uma bio nas configurações ✨</Text>
+          )}
+
+          {/* Mini stats */}
+          <View style={styles.miniStatsRow}>
+            <View style={styles.miniStat}>
+              <Text style={styles.miniStatValue}>{safeAchievements.length}</Text>
+              <Text style={styles.miniStatLabel}>Medalhas</Text>
+            </View>
+            <View style={styles.miniStatDivider} />
+            <View style={styles.miniStat}>
+              <Text style={styles.miniStatValue}>{safeFriends.length}</Text>
+              <Text style={styles.miniStatLabel}>Amigos</Text>
+            </View>
+            <View style={styles.miniStatDivider} />
+            <View style={styles.miniStat}>
+              <Text style={styles.miniStatValue}>{profile?.currentStreak ?? 0}</Text>
+              <Text style={styles.miniStatLabel}>Dias ativos</Text>
+            </View>
+          </View>
+
+          {/* Profile completeness */}
+          {(() => {
+            const checks = [
+              Boolean(profile?.displayName),
+              Boolean(profileImageUri),
+              Boolean(profile?.bio && profile.bio.trim().length >= 12),
+              Boolean(profile?.language),
+              Boolean(profile?.email),
+            ];
+            const pct = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+            return (
+              <View style={styles.completenessWrap}>
+                <View style={styles.completenessHeader}>
+                  <Text style={styles.completenessLabel}>Perfil {pct}% completo</Text>
+                  {pct === 100 ? (
+                    <Text style={styles.completenessDone}>Tudo certo! 🐝</Text>
+                  ) : (
+                    <TouchableOpacity onPress={() => router.push("/settings" as never)}>
+                      <Text style={styles.completenessLink}>Completar →</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={styles.completenessBar}>
+                  <View style={[styles.completenessFill, { width: `${pct}%` as any }]} />
+                </View>
+              </View>
+            );
+          })()}
         </View>
 
         {score ? (
@@ -178,15 +235,73 @@ export default function ProfileScreen() {
         {/* ── Medalhas ── */}
         <View style={styles.medalsSection}>
           <View style={styles.medalsSectionHeader}>
-            <Text style={styles.sectionTitle}>Medalhas</Text>
-            <Text style={styles.medalsCount}>
-              {safeAchievements.length} / 21 conquistadas
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Medalhas</Text>
+              <Text style={styles.medalsCount}>
+                {safeAchievements.length} de {MEDAL_CATALOG.length} conquistadas · {Math.round((safeAchievements.length / MEDAL_CATALOG.length) * 100)}%
+              </Text>
+            </View>
           </View>
-          <MedalGrid
-            earnedTypes={safeAchievements.map((a: any) => a.type)}
-            onPress={setSelectedMedal}
-          />
+          {/* Progresso */}
+          <View style={styles.medalProgressBar}>
+            <View style={[
+              styles.medalProgressFill,
+              { width: `${Math.round((safeAchievements.length / MEDAL_CATALOG.length) * 100)}%` as any },
+            ]} />
+          </View>
+          {/* Filtros */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.medalFilters}>
+            {[
+              { value: "all", label: `Todas (${MEDAL_CATALOG.length})` },
+              { value: "earned", label: `Conquistadas (${safeAchievements.length})` },
+              { value: "locked", label: `Bloqueadas (${MEDAL_CATALOG.length - safeAchievements.length})` },
+              { value: "bronze", label: "Bronze", color: TIER_COLORS.bronze.body },
+              { value: "silver", label: "Prata", color: TIER_COLORS.silver.body },
+              { value: "gold", label: "Ouro", color: TIER_COLORS.gold.body },
+              { value: "diamond", label: "Diamante", color: TIER_COLORS.diamond.body },
+            ].map((f) => {
+              const active = medalFilter === (f.value as any);
+              return (
+                <TouchableOpacity
+                  key={f.value}
+                  onPress={() => setMedalFilter(f.value as any)}
+                  style={[styles.medalFilterChip, active && styles.medalFilterChipActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  {f.color ? <View style={[styles.medalFilterDot, { backgroundColor: f.color }]} /> : null}
+                  <Text style={[styles.medalFilterText, active && styles.medalFilterTextActive]}>{f.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {(() => {
+            const filtered = MEDAL_CATALOG.filter((m) => {
+              const earned = safeAchievements.some((a: any) => a.type === m.type);
+              switch (medalFilter) {
+                case "all": return true;
+                case "earned": return earned;
+                case "locked": return !earned;
+                default: return m.tier === medalFilter;
+              }
+            }).map((m) => m.type);
+            if (filtered.length === 0) {
+              return (
+                <View style={styles.medalEmpty}>
+                  <Text style={styles.medalEmptyText}>
+                    Nenhuma medalha nesta categoria 🐝
+                  </Text>
+                </View>
+              );
+            }
+            return (
+              <MedalGrid
+                earnedTypes={safeAchievements.map((a: any) => a.type)}
+                onPress={setSelectedMedal}
+                filterTypes={filtered}
+              />
+            );
+          })()}
         </View>
 
         {/* Modal de detalhes da medalha */}
@@ -204,9 +319,9 @@ export default function ProfileScreen() {
           >
             <TouchableOpacity
               activeOpacity={1}
-              style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, paddingBottom: 40, gap: 0 }}
+              style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, paddingBottom: 40, gap: 0 }}
             >
-              <View style={{ width: 36, height: 4, backgroundColor: "#E0E0E0", borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
+              <View style={{ width: 36, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: "center", marginBottom: 20 }} />
               {selectedMedal && (
                 <MedalDetail
                   spec={selectedMedal}
@@ -462,6 +577,21 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     username: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: colors.foreground },
     usernameHandle: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted },
     profileBio: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground, textAlign: "center", paddingHorizontal: 18 },
+    profileBioEmpty: { fontFamily: FONTS.sans, fontSize: 12, fontStyle: "italic", color: colors.muted, textAlign: "center" },
+    levelBadge: { position: "absolute", bottom: -4, right: -4, backgroundColor: colors.primary, borderWidth: 2, borderColor: colors.background, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99 },
+    levelBadgeText: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "900", color: "#1A1A1A" },
+    miniStatsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 6 },
+    miniStat: { alignItems: "center", minWidth: 60 },
+    miniStatValue: { fontFamily: FONTS.display, fontSize: 17, fontWeight: "800", color: colors.foreground },
+    miniStatLabel: { fontFamily: FONTS.sans, fontSize: 10, color: colors.muted, marginTop: 1 },
+    miniStatDivider: { width: 1, height: 22, backgroundColor: colors.border },
+    completenessWrap: { width: "100%", paddingHorizontal: 4, marginTop: 6, gap: 4 },
+    completenessHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    completenessLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.foreground },
+    completenessDone: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800", color: colors.success },
+    completenessLink: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark },
+    completenessBar: { height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" },
+    completenessFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 3 },
     profileMeta: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
     section: {
       backgroundColor: colors.card,
@@ -523,8 +653,22 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       justifyContent: "space-between",
       alignItems: "center",
     },
-    medalsCount: { fontFamily: FONTS.mono, fontSize: 12, fontWeight: "700", color: colors.primaryDark },
+    medalsCount: { fontFamily: FONTS.mono, fontSize: 11, fontWeight: "700", color: colors.primaryDark, marginTop: 2 },
     sectionTitle: { fontFamily: FONTS.sans, fontWeight: "700", fontSize: 16, color: colors.foreground },
+    medalProgressBar: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" },
+    medalProgressFill: { height: "100%", backgroundColor: colors.primary, borderRadius: 3 },
+    medalFilters: { flexDirection: "row", gap: 6, paddingVertical: 2 },
+    medalFilterChip: {
+      flexDirection: "row", alignItems: "center", gap: 4,
+      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99,
+      borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background,
+    },
+    medalFilterChipActive: { borderColor: colors.primary, backgroundColor: colors.primary + "22" },
+    medalFilterDot: { width: 7, height: 7, borderRadius: 4 },
+    medalFilterText: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.muted },
+    medalFilterTextActive: { color: colors.primaryDark },
+    medalEmpty: { padding: 24, alignItems: "center" },
+    medalEmptyText: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted },
     // ── Testimonials ─────────────────────────────────────────────────────────
     testimonialsSection: {
       backgroundColor: colors.card,

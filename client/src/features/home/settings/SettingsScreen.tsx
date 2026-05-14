@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Check, ChevronRight, FileText, Globe2, Lock, LogOut, Moon, Settings, Shield, Sun, UserRound, X } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Check, FileText, Lock, Settings, Shield, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { MedalDetail, MedalGrid } from "@/components/MedalBadge";
-import { MEDAL_BY_TYPE, type MedalSpec } from "@/lib/medals";
+import type { MedalSpec } from "@/lib/medals";
 import { PRIVACY_POLICY, TERMS_OF_USE } from "@/lib/legalTexts";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
-import type { ThemeMode } from "@/lib/theme";
+import { readPreference, setPreference, type ThemeMode, type ThemePreference } from "@/lib/theme";
 import type { Achievement, Friend, Testimonial, User } from "@/features/home/types";
 import {
   defaultAdPreferences,
@@ -18,6 +14,17 @@ import {
   saveAdPreferences,
 } from "@/lib/adService";
 import { AD_INTEREST_OPTIONS, type AdFrequency, type UserAdPreferences } from "@/lib/ads";
+import {
+  ProfileHeaderCard,
+  ProfileFormCard,
+  AppearanceCard,
+  PrivacySecurityCard,
+  AchievementsCard,
+  TestimonialsCard,
+  AdsCard,
+  LegalCard,
+  AccountActionsCard,
+} from "./SettingsCards";
 
 interface SettingsScreenProps {
   show: boolean;
@@ -36,6 +43,8 @@ interface SettingsScreenProps {
   onLogout: () => void;
 }
 
+type Toast = { id: number; tone: "success" | "error" | "info"; text: string };
+
 export function SettingsScreen(props: SettingsScreenProps) {
   const {
     show, user, profilePhotoUrl, themeMode, settingsMessage,
@@ -49,7 +58,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const [language, setLanguage] = useState("pt-BR");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [localMessage, setLocalMessage] = useState("");
+  const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
   const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -58,9 +67,19 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const [testimonialTarget, setTestimonialTarget] = useState("");
   const [testimonialText, setTestimonialText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [fieldSaving, setFieldSaving] = useState<{ name?: boolean; bio?: boolean; language?: boolean }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; bio?: string }>({});
   const [showAdSettings, setShowAdSettings] = useState(false);
   const [adPrefs, setAdPrefs] = useState<UserAdPreferences>(() => loadAdPreferences());
   const [adSaved, setAdSaved] = useState(false);
+  const [themePref, setThemePref] = useState<ThemePreference>(() => readPreference());
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  function pushToast(tone: Toast["tone"], text: string) {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, tone, text }]);
+    window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3200);
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -68,6 +87,10 @@ export function SettingsScreen(props: SettingsScreenProps) {
     setBio(user.bio ?? "");
     setLanguage(user.language ?? "pt-BR");
   }, [user?.id, user?.displayName, user?.bio, user?.language]);
+
+  useEffect(() => {
+    if (show) setThemePref(readPreference());
+  }, [show]);
 
   useEffect(() => {
     if (!show || !user) return;
@@ -82,12 +105,14 @@ export function SettingsScreen(props: SettingsScreenProps) {
     });
   }, [show, user?.id]);
 
-  const earnedTypes = useMemo(() => achievements.map((achievement) => achievement.type), [achievements]);
-  const selectedAchievement = selectedMedal ? achievements.find((achievement) => achievement.type === selectedMedal.type) : null;
+  const earnedTypes = useMemo(() => achievements.map((a) => a.type), [achievements]);
 
-  async function savePreferences(payload: Partial<Pick<User, "displayName" | "bio" | "language">>) {
+  async function savePreferences(
+    payload: Partial<Pick<User, "displayName" | "bio" | "language">>,
+    field: "name" | "bio" | "language",
+  ) {
     setSaving(true);
-    setLocalMessage("");
+    setFieldSaving((s) => ({ ...s, [field]: true }));
     try {
       const updated = await apiFetch<User>("/api/me/preferences", {
         method: "PATCH",
@@ -95,18 +120,19 @@ export function SettingsScreen(props: SettingsScreenProps) {
         body: JSON.stringify(payload),
       });
       onUserUpdate(updated);
-      setLocalMessage("Preferencias atualizadas.");
+      pushToast("success", field === "language" ? "Idioma atualizado." : `${field === "name" ? "Nome" : "Bio"} atualizada.`);
     } catch (error) {
-      setLocalMessage(getApiErrorMessage(error, "Nao foi possivel atualizar agora."));
+      pushToast("error", getApiErrorMessage(error, "Não foi possível atualizar agora."));
     } finally {
       setSaving(false);
+      setFieldSaving((s) => ({ ...s, [field]: false }));
     }
   }
 
   async function changePassword() {
     if (!currentPassword || !newPassword) return;
+    setPasswordError(undefined);
     setSaving(true);
-    setLocalMessage("");
     try {
       await apiFetch("/api/me/password", {
         method: "PATCH",
@@ -115,9 +141,11 @@ export function SettingsScreen(props: SettingsScreenProps) {
       });
       setCurrentPassword("");
       setNewPassword("");
-      setLocalMessage("Senha alterada com sucesso.");
+      pushToast("success", "Senha alterada com sucesso. 🐝");
     } catch (error) {
-      setLocalMessage(getApiErrorMessage(error, "Nao foi possivel alterar a senha."));
+      const msg = getApiErrorMessage(error, "Não foi possível alterar a senha.");
+      setPasswordError(msg);
+      pushToast("error", msg);
     } finally {
       setSaving(false);
     }
@@ -126,7 +154,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
   async function sendTestimonial() {
     if (!testimonialTarget || !testimonialText.trim()) return;
     setSaving(true);
-    setLocalMessage("");
     try {
       await apiFetch(`/api/users/${testimonialTarget}/testimonials`, {
         method: "POST",
@@ -135,193 +162,182 @@ export function SettingsScreen(props: SettingsScreenProps) {
       });
       setTestimonialText("");
       setTestimonialTarget("");
-      setLocalMessage("Depoimento publicado.");
+      pushToast("success", "Depoimento publicado. 💛");
     } catch (error) {
-      setLocalMessage(getApiErrorMessage(error, "Nao foi possivel publicar o depoimento."));
+      pushToast("error", getApiErrorMessage(error, "Não foi possível publicar o depoimento."));
     } finally {
       setSaving(false);
     }
   }
 
+  function handleThemePref(pref: ThemePreference) {
+    setPreference(pref);
+    setThemePref(pref);
+    // Mantém compatibilidade com o handler do Home (light/dark)
+    if (pref !== "system") {
+      onThemeSelect(pref);
+    } else {
+      const resolved: ThemeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      onThemeSelect(resolved);
+    }
+    pushToast("info", pref === "system" ? "Aparência segue o sistema." : `Modo ${pref === "dark" ? "escuro" : "claro"} aplicado.`);
+  }
+
+  function handleSaveName() {
+    if (displayName.trim().length === 0) {
+      setFieldErrors((p) => ({ ...p, name: "O nome não pode ficar vazio." }));
+      return;
+    }
+    setFieldErrors((p) => ({ ...p, name: undefined }));
+    savePreferences({ displayName: displayName.trim() }, "name");
+  }
+
+  function handleSaveBio() {
+    if (bio.length > 300) {
+      setFieldErrors((p) => ({ ...p, bio: "Bio acima do limite de 300 caracteres." }));
+      return;
+    }
+    setFieldErrors((p) => ({ ...p, bio: undefined }));
+    savePreferences({ bio }, "bio");
+  }
+
+  function handleLanguageChange(v: string) {
+    setLanguage(v);
+    savePreferences({ language: v }, "language");
+  }
+
   return (
     <AnimatePresence>
       {show && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bee-app-shell fixed inset-0 z-50 bg-background">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="bee-app-shell fixed inset-0 z-50 bg-background"
+        >
           <div className="h-full overflow-y-auto">
-            <div className="sticky top-0 z-10 border-b border-border/60 bg-card/82 backdrop-blur-xl">
-              <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="bee-hex flex h-9 w-9 items-center justify-center bg-primary/18 text-primary">
+            {/* Header */}
+            <div className="sticky top-0 z-10 border-b border-border/60 bg-card/85 backdrop-blur-xl">
+              <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="bee-hex flex h-9 w-9 items-center justify-center bg-primary/18 text-primary shrink-0">
                     <Settings className="w-5 h-5" />
                   </span>
-                  <h2 className="font-display text-lg font-semibold">Perfil e configuracoes</h2>
+                  <div className="min-w-0">
+                    <h2 className="font-display text-base sm:text-lg font-bold leading-tight">Perfil e configurações</h2>
+                    <p className="text-[11px] text-muted-foreground hidden sm:block">Gerencie sua conta, aparência e privacidade</p>
+                  </div>
                 </div>
-                <Button variant="outline" onClick={onClose}>Fechar</Button>
+                <Button variant="outline" size="sm" onClick={onClose} aria-label="Fechar configurações">
+                  <X className="w-4 h-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Fechar</span>
+                </Button>
               </div>
             </div>
 
-            <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4">
-              <Card className="bee-honeycomb p-4 space-y-4 overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <UserRound className="w-4 h-4 text-primary" />
-                  <p className="text-sm font-semibold">Perfil</p>
+            {/* Body */}
+            <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 space-y-3">
+              {/* Mensagem global (legacy) */}
+              {settingsMessage ? (
+                <div className="rounded-xl border border-primary/30 bg-primary/8 px-3 py-2 text-xs text-primary font-medium">
+                  {settingsMessage}
                 </div>
-                <div className="flex items-center gap-3">
-                  {profilePhotoUrl ? <img src={profilePhotoUrl} alt="Foto de perfil" className="w-16 h-16 rounded-full object-cover border-2 border-primary/30 shadow-md" /> : <div className="bee-hex w-16 h-16 bg-primary flex items-center justify-center text-lg font-black text-primary-foreground shadow-md">{(user?.username || "?")[0].toUpperCase()}</div>}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black truncate">{user?.displayName || user?.username}</p>
-                    <p className="text-xs text-muted-foreground truncate">@{user?.username}</p>
-                    {user?.bio && <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{user.bio}</p>}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={onSelectProfilePhoto}><Camera className="w-4 h-4 mr-2" />Escolher foto</Button>
-                  <Button className="flex-1" variant="outline" onClick={onRemoveProfilePhoto}>Remover</Button>
-                </div>
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground">Nome</label>
-                    <Input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Seu nome de exibicao" />
-                    <Button size="sm" disabled={saving} onClick={() => savePreferences({ displayName })}>Salvar nome</Button>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground">Idioma</label>
-                    <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={language} onChange={(event) => { setLanguage(event.target.value); savePreferences({ language: event.target.value }); }}>
-                      <option value="pt-BR">Portugues Brasil</option>
-                      <option value="es">Espanhol</option>
-                      <option value="en">Ingles</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Bio</label>
-                  <Textarea value={bio} onChange={(event) => setBio(event.target.value)} maxLength={300} className="min-h-[90px]" placeholder="Conte um pouco sobre voce" />
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">{bio.length}/300</span>
-                    <Button size="sm" disabled={saving} onClick={() => savePreferences({ bio })}>Salvar bio</Button>
-                  </div>
-                </div>
-              </Card>
+              ) : null}
 
-              <Card className="p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  {themeMode === "dark" ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-primary" />}
-                  <p className="text-sm font-semibold">Aparencia</p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 bg-muted/45 p-1">
-                  <Button variant={themeMode === "light" ? "default" : "outline"} onClick={() => onThemeSelect("light")}>Modo claro</Button>
-                  <Button variant={themeMode === "dark" ? "default" : "outline"} onClick={() => onThemeSelect("dark")}>Modo escuro</Button>
-                </div>
-              </Card>
+              <ProfileHeaderCard
+                user={user}
+                avatarUrl={profilePhotoUrl}
+                totalAchievements={achievements.length}
+                totalFriends={friends.length}
+                totalActiveDays={user?.currentStreak ?? 0}
+              />
 
-              <Card className="p-4 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-primary" />
-                  <p className="text-sm font-semibold">Privacidade e seguranca</p>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold">Navegacao anonima</p>
-                    <p className="text-xs text-muted-foreground">Suas visitas em perfis deixam de mostrar seu nome.</p>
-                  </div>
-                  <Switch checked={anonymousProfileVisitsEnabled} onCheckedChange={onAnonymousProfileVisitsToggle} />
-                </div>
-                <div className="grid md:grid-cols-3 gap-2">
-                  <Input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder="Senha atual" />
-                  <Input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="Nova senha" />
-                  <Button variant="outline" disabled={saving || !currentPassword || !newPassword} onClick={changePassword}><Lock className="w-4 h-4 mr-2" />Alterar senha</Button>
-                </div>
-              </Card>
+              <ProfileFormCard
+                user={user}
+                avatarUrl={profilePhotoUrl}
+                displayName={displayName}
+                bio={bio}
+                language={language}
+                saving={saving}
+                fieldSaving={fieldSaving}
+                fieldErrors={fieldErrors}
+                onDisplayNameChange={setDisplayName}
+                onBioChange={setBio}
+                onLanguageChange={handleLanguageChange}
+                onSaveName={handleSaveName}
+                onSaveBio={handleSaveBio}
+                onSelectPhoto={onSelectProfilePhoto}
+                onRemovePhoto={onRemoveProfilePhoto}
+              />
 
-              <Card className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">Medalhas</p>
-                    <p className="text-xs text-muted-foreground">{achievements.length} / {Object.keys(MEDAL_BY_TYPE).length} conquistadas</p>
-                  </div>
-                  <Globe2 className="w-4 h-4 text-primary" />
-                </div>
-                <MedalGrid earnedTypes={earnedTypes} onSelect={setSelectedMedal} />
-              </Card>
+              <AppearanceCard preference={themePref} onSelect={handleThemePref} />
 
-              <Card className="p-4 space-y-3">
-                <p className="text-sm font-semibold">Depoimentos</p>
-                {testimonials.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum depoimento ainda.</p> : testimonials.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-border bg-background p-3">
-                    <p className="text-xs font-semibold">{item.authorDisplayName || item.authorUsername || "Amigo"}</p>
-                    <p className="mt-1 text-sm italic">{item.content}</p>
-                  </div>
-                ))}
-                <div className="grid md:grid-cols-[220px_1fr_auto] gap-2">
-                  <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={testimonialTarget} onChange={(event) => setTestimonialTarget(event.target.value)}>
-                    <option value="">Escolher amigo</option>
-                    {friends.map((friend) => <option key={friend.id} value={friend.id}>{friend.displayName || friend.username}</option>)}
-                  </select>
-                  <Input value={testimonialText} onChange={(event) => setTestimonialText(event.target.value)} maxLength={500} placeholder="Escreva um depoimento estilo Orkut" />
-                  <Button disabled={saving || !testimonialTarget || !testimonialText.trim()} onClick={sendTestimonial}>Publicar</Button>
-                </div>
-              </Card>
+              <PrivacySecurityCard
+                anonymousProfileVisitsEnabled={anonymousProfileVisitsEnabled}
+                onAnonymousToggle={onAnonymousProfileVisitsToggle}
+                currentPassword={currentPassword}
+                newPassword={newPassword}
+                setCurrentPassword={setCurrentPassword}
+                setNewPassword={setNewPassword}
+                onChangePassword={changePassword}
+                saving={saving}
+                passwordError={passwordError}
+              />
 
-              <Card className="p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-primary" />
-                  <p className="text-sm font-semibold">Anúncios</p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Anúncios discretos ajudam a manter a Bee funcionando. Você controla frequência,
-                  interesses e privacidade. Assinantes premium não veem anúncios.
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full flex items-center justify-between"
-                  onClick={() => { setAdPrefs(loadAdPreferences()); setShowAdSettings(true); }}
-                >
-                  <span>Preferências de anúncios</span>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </Card>
+              <AchievementsCard
+                earnedTypes={earnedTypes}
+                achievements={achievements}
+                selectedMedal={selectedMedal}
+                onSelect={setSelectedMedal}
+              />
 
-              <Card className="p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <p className="text-sm font-semibold">Legal</p>
-                </div>
-                <div className="grid md:grid-cols-2 gap-2">
-                  <Button variant="outline" onClick={() => setLegalModal("privacy")}>Politica de Privacidade</Button>
-                  <Button variant="outline" onClick={() => setLegalModal("terms")}>Termos de Uso</Button>
-                </div>
-              </Card>
+              <TestimonialsCard
+                testimonials={testimonials}
+                friends={friends}
+                testimonialTarget={testimonialTarget}
+                testimonialText={testimonialText}
+                setTestimonialTarget={setTestimonialTarget}
+                setTestimonialText={setTestimonialText}
+                onSubmit={sendTestimonial}
+                saving={saving}
+              />
 
-              {(settingsMessage || localMessage) && <p className="text-xs rounded-lg border border-primary/40 bg-primary/10 p-2 text-primary">{localMessage || settingsMessage}</p>}
+              <AdsCard onOpenAdSettings={() => { setAdPrefs(loadAdPreferences()); setShowAdSettings(true); }} />
 
-              <Button variant="outline" className="w-full flex items-center gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive/60" onClick={onLogout}>
-                <LogOut className="w-4 h-4" />
-                Sair da conta
-              </Button>
+              <LegalCard
+                onOpenPrivacy={() => setLegalModal("privacy")}
+                onOpenTerms={() => setLegalModal("terms")}
+              />
+
+              <AccountActionsCard user={user} onLogout={onLogout} />
+
+              <p className="text-center text-[10px] text-muted-foreground py-4">
+                BeeEyes 🐝 · feito com carinho
+              </p>
             </div>
           </div>
 
-          {selectedMedal && (
-            <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
-                <MedalDetail spec={selectedMedal} earned={earnedTypes.includes(selectedMedal.type)} unlockedAt={selectedAchievement?.unlockedAt} />
-                <Button className="mt-5 w-full" onClick={() => setSelectedMedal(null)}>Fechar</Button>
-              </div>
-            </div>
-          )}
-
+          {/* Legal modal */}
           {legalModal && (
             <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4">
-              <div className="w-full md:max-w-2xl rounded-t-2xl md:rounded-2xl border border-border bg-card p-5 max-h-[82vh] flex flex-col gap-3">
+              <div className="w-full md:max-w-2xl rounded-t-2xl md:rounded-2xl border border-border bg-card p-4 sm:p-5 max-h-[88vh] flex flex-col gap-3">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-black">{legalModal === "privacy" ? "Politica de Privacidade" : "Termos de Uso"}</h3>
-                  <Button variant="outline" size="sm" onClick={() => setLegalModal(null)}>Fechar</Button>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-primary" />
+                    <h3 className="font-display font-bold">
+                      {legalModal === "privacy" ? "Política de Privacidade" : "Termos de Uso"}
+                    </h3>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setLegalModal(null)} aria-label="Fechar modal">
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
-                <pre className="whitespace-pre-wrap overflow-y-auto text-xs leading-relaxed text-foreground font-sans">{legalModal === "privacy" ? PRIVACY_POLICY : TERMS_OF_USE}</pre>
+                <pre className="whitespace-pre-wrap overflow-y-auto text-xs leading-relaxed text-foreground font-sans px-1">
+                  {legalModal === "privacy" ? PRIVACY_POLICY : TERMS_OF_USE}
+                </pre>
               </div>
             </div>
           )}
 
+          {/* Ad settings modal */}
           {showAdSettings && (
             <AdSettingsModal
               prefs={adPrefs}
@@ -338,11 +354,37 @@ export function SettingsScreen(props: SettingsScreenProps) {
                   lastUpdatedAt: new Date().toISOString(),
                 });
                 setAdSaved(true);
+                pushToast("success", "Preferências de anúncios salvas.");
                 setTimeout(() => setAdSaved(false), 2500);
               }}
               onClose={() => setShowAdSettings(false)}
             />
           )}
+
+          {/* Toasts */}
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] space-y-2 px-4 w-full max-w-sm pointer-events-none">
+            <AnimatePresence>
+              {toasts.map((t) => (
+                <motion.div
+                  key={t.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  className={`pointer-events-auto rounded-xl border shadow-lg px-3 py-2.5 text-xs font-medium backdrop-blur-md ${
+                    t.tone === "success"
+                      ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : t.tone === "error"
+                      ? "border-destructive/40 bg-destructive/15 text-destructive"
+                      : "border-primary/40 bg-primary/15 text-primary"
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {t.text}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -352,9 +394,9 @@ export function SettingsScreen(props: SettingsScreenProps) {
 // ── Ad Settings Modal ─────────────────────────────────────────────────────────
 
 const FREQUENCY_OPTIONS: { value: AdFrequency; label: string; desc: string }[] = [
-  { value: "low",    label: "Baixa",   desc: "Máximo 1 anúncio por dia" },
-  { value: "normal", label: "Normal",  desc: "Máximo 3 anúncios por dia" },
-  { value: "high",   label: "Alta",    desc: "Máximo 5 anúncios por dia" },
+  { value: "low",    label: "Baixa",   desc: "Máx. 1/dia" },
+  { value: "normal", label: "Normal",  desc: "Máx. 3/dia" },
+  { value: "high",   label: "Alta",    desc: "Máx. 5/dia" },
 ];
 
 interface AdSettingsModalProps {
@@ -378,50 +420,45 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
   return (
     <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4">
       <div className="w-full md:max-w-lg rounded-t-2xl md:rounded-2xl border border-border bg-card max-h-[88vh] flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between gap-3 p-4 border-b border-border shrink-0">
           <div>
-            <h3 className="font-bold text-base">Preferências de Anúncios</h3>
+            <h3 className="font-display font-bold text-base">Preferências de anúncios</h3>
             <p className="text-xs text-muted-foreground">Controle como os anúncios aparecem</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <Button variant="outline" size="sm" onClick={onClose} aria-label="Fechar">
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-4 space-y-4">
-          {/* Info */}
-          <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+        <div className="overflow-y-auto flex-1 p-4 space-y-3">
+          <div className="flex items-start gap-3 rounded-xl border border-primary/25 bg-primary/8 p-3">
             <Shield className="w-4 h-4 text-primary mt-0.5 shrink-0" />
             <p className="text-xs text-foreground leading-relaxed">
-              Os anúncios ajudam a manter a Bee funcionando. Você controla quais tipos de anúncios quer ver.
-              Nunca usamos dados sensíveis, localização ou histórico de conversas para publicidade.
+              Os anúncios ajudam a manter a Bee funcionando. Você controla quais tipos quer ver. Nunca usamos dados
+              sensíveis, localização ou conversas para publicidade.
             </p>
           </div>
 
-          {/* Personalized toggle */}
-          <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-            <p className="text-sm font-semibold">Anúncios personalizados</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Permite que a Bee use seus interesses escolhidos abaixo para mostrar anúncios mais relevantes.
-              Sem rastreamento fora do app.
-            </p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">
-                {prefs.allowPersonalizedAds ? "Ativado" : "Desativado (apenas genéricos)"}
-              </span>
+          <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold">Anúncios personalizados</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  A Bee usa seus interesses escolhidos abaixo para anúncios mais relevantes. Sem rastreamento fora do app.
+                </p>
+              </div>
               <Switch
                 checked={prefs.allowPersonalizedAds}
                 onCheckedChange={(v) => onPrefsChange({ ...prefs, allowPersonalizedAds: v })}
+                aria-label="Anúncios personalizados"
               />
             </div>
           </div>
 
-          {/* Interests */}
           {prefs.allowPersonalizedAds && (
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <p className="text-sm font-semibold">Meus interesses</p>
-              <p className="text-xs text-muted-foreground">Selecione os temas que fazem sentido para você.</p>
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+              <p className="text-sm font-bold">Meus interesses</p>
+              <p className="text-[11px] text-muted-foreground">Selecione os temas relevantes para você.</p>
               <div className="flex flex-wrap gap-2">
                 {AD_INTEREST_OPTIONS.map((interest) => {
                   const selected = prefs.selectedInterests.includes(interest);
@@ -429,7 +466,8 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
                     <button
                       key={interest}
                       onClick={() => toggleInterest(interest)}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      aria-pressed={selected}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                         selected
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border bg-background text-muted-foreground hover:border-primary/40"
@@ -444,10 +482,9 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
             </div>
           )}
 
-          {/* Frequency */}
-          <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-            <p className="text-sm font-semibold">Frequência de anúncios</p>
-            <p className="text-xs text-muted-foreground">Com que frequência você quer ver anúncios?</p>
+          <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+            <p className="text-sm font-bold">Frequência</p>
+            <p className="text-[11px] text-muted-foreground">Com que frequência você quer ver anúncios?</p>
             <div className="grid grid-cols-3 gap-2">
               {FREQUENCY_OPTIONS.map((opt) => {
                 const active = prefs.preferredAdFrequency === opt.value;
@@ -455,26 +492,24 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
                   <button
                     key={opt.value}
                     onClick={() => onPrefsChange({ ...prefs, preferredAdFrequency: opt.value })}
-                    className={`rounded-xl border p-3 text-left transition-colors ${
+                    aria-pressed={active}
+                    className={`rounded-xl border p-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                       active
                         ? "border-primary bg-primary/10"
                         : "border-border bg-background hover:border-primary/40"
                     }`}
                   >
-                    <p className={`text-sm font-semibold ${active ? "text-primary" : "text-foreground"}`}>
-                      {opt.label}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                    <p className={`text-sm font-bold ${active ? "text-primary" : "text-foreground"}`}>{opt.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Hidden advertisers */}
           {prefs.hiddenAdvertisers.length > 0 && (
-            <div className="rounded-xl border border-border bg-background p-4 space-y-2">
-              <p className="text-sm font-semibold">Anunciantes ocultados</p>
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-1.5">
+              <p className="text-sm font-bold">Anunciantes ocultados</p>
               {prefs.hiddenAdvertisers.map((adv) => (
                 <div key={adv} className="flex items-center justify-between py-1">
                   <span className="text-sm">{adv}</span>
@@ -486,6 +521,7 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
                       })
                     }
                     className="p-1 rounded-lg hover:bg-muted transition-colors"
+                    aria-label={`Remover ${adv} da lista de ocultos`}
                   >
                     <X className="w-3.5 h-3.5 text-muted-foreground" />
                   </button>
@@ -494,18 +530,15 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
             </div>
           )}
 
-          {/* Privacy note */}
-          <div className="flex items-start gap-2 rounded-xl border border-border bg-background p-3">
+          <div className="flex items-start gap-2 rounded-xl border border-border/60 bg-background/40 p-3">
             <Lock className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Suas preferências ficam armazenadas somente neste dispositivo.
-              A Bee não compartilha informações de anúncios com terceiros sem sua autorização.
-              Usuários assinantes premium não veem anúncios.
+              Suas preferências ficam neste dispositivo. A Bee não compartilha informações de anúncios com terceiros sem
+              sua autorização. Assinantes premium não veem anúncios.
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="p-4 border-t border-border shrink-0">
           <Button className="w-full flex items-center gap-2" onClick={onSave}>
             {saved ? (
@@ -522,3 +555,6 @@ function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSet
     </div>
   );
 }
+
+// Re-export for backward compatibility with any direct imports
+export { defaultAdPreferences };

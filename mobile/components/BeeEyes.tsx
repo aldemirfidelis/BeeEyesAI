@@ -191,9 +191,6 @@ export default function BeeEyes({
   const isDark = themeMode === "dark";
   const ink = "#1A1A1A";
   const halo = isDark ? "rgba(245, 200, 66, 0.55)" : "rgba(245, 200, 66, 0.45)";
-  const cardBackground = isDark ? "rgba(245, 200, 66, 0.82)" : "transparent";
-  const cardBorder = isDark ? "rgba(245, 200, 66, 0.55)" : "transparent";
-  const cardShadow = isDark ? "rgba(245, 200, 66, 0.35)" : "transparent";
   const blinkScale = useSharedValue(1);
   const bounceY = useSharedValue(0);
   const sparkle1Opacity = useSharedValue(0);
@@ -267,20 +264,7 @@ export default function BeeEyes({
   const sparkle2Style = useAnimatedStyle(() => ({ opacity: sparkle2Opacity.value }));
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          width: containerW + (isDark ? 18 : 0),
-          height: containerH + (isDark ? 18 : 8),
-          backgroundColor: cardBackground,
-          borderColor: cardBorder,
-          shadowColor: cardShadow,
-          elevation: isDark ? 5 : 0,
-        },
-        isDark && styles.darkCard,
-      ]}
-    >
+    <View style={[styles.container, { width: containerW, height: containerH + 8 }]}>
       <View
         style={{
           transform: [{ scale }],
@@ -336,13 +320,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-  },
-  darkCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
   },
   sparkle: {
     position: "absolute",

@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+﻿import { Router, type Response } from "express";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
@@ -26,48 +26,60 @@ import { storage } from "../storage";
 import { runResearch, formatResultsForContext, type ResearchResult } from "../services/beeResearchService";
 import { classifyIntent, type SearchIntent } from "../services/searchIntentService";
 import { buildCalendarContextForAI } from "../services/calendarInfoService";
-import { calendarPreferences } from "../../shared/schema";
+import { calendarPreferences, healthProfiles, workoutPlans } from "../../shared/schema";
+import {
+  parseHealthIntent,
+  buildFollowUpQuestion,
+  buildHealthContextForAI,
+  type HealthIntentResult,
+} from "../services/healthIntentService";
+import {
+  buildWorkoutPlan,
+  type HealthGoal,
+  type WeekDay,
+  type SplitType,
+} from "../services/workoutPlanService";
+import type { ExerciseLevel, EquipmentType } from "../data/exerciseLibrary";
 
 const APP_TIPS: { id: number; text: string }[] = [
-  // â”€â”€ Chat & IA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 1,  text: "ðŸ’¡ Dica: sente que estÃ¡ travado? Me manda uma frase sobre o que estÃ¡ bloqueando. Eu nÃ£o deixo vocÃª ficar parado â€” te ajudo a encontrar o prÃ³ximo passo agora." },
-  { id: 2,  text: "ðŸ’¡ Dica: o painel Insight mostra seu foco, constÃ¢ncia e disciplina da semana. Toque no Ã­cone de insight no chat para ver sua pontuaÃ§Ã£o atual e o que ela significa." },
-  { id: 3,  text: "ðŸ’¡ Dica: me chame pelo que vocÃª precisa agora: 'Quero evoluir', 'Me cobre hoje' ou 'Criar meta'. Os botÃµes de aÃ§Ã£o rÃ¡pida no chat sÃ£o atalhos para comeÃ§ar rÃ¡pido." },
-  { id: 4,  text: "ðŸ’¡ Dica: eu lembro de tudo que vocÃª me conta. Quanto mais vocÃª compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestÃµes para vocÃª." },
-  { id: 5,  text: "ðŸ’¡ Dica: se quiser notÃ­cias relevantes, toque em 'Buscar notÃ­cias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
-  { id: 6,  text: "ðŸ’¡ Dica: vocÃª pode conversar comigo sobre qualquer coisa â€” produtividade, reflexÃµes, ideias, planos. Quanto mais natural a conversa, melhores minhas anÃ¡lises sobre vocÃª." },
-  { id: 8,  text: "ðŸ’¡ Dica: mantenha sua sequÃªncia (streak) ativa todos os dias. SequÃªncias de 3, 7 e 30 dias mostram que vocÃª Ã© constante de verdade." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Chat & IA Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 1,  text: "Ã°Å¸â€™Â¡ Dica: sente que estÃƒÂ¡ travado? Me manda uma frase sobre o que estÃƒÂ¡ bloqueando. Eu nÃƒÂ£o deixo vocÃƒÂª ficar parado Ã¢â‚¬â€ te ajudo a encontrar o prÃƒÂ³ximo passo agora." },
+  { id: 2,  text: "Ã°Å¸â€™Â¡ Dica: o painel Insight mostra seu foco, constÃƒÂ¢ncia e disciplina da semana. Toque no ÃƒÂ­cone de insight no chat para ver sua pontuaÃƒÂ§ÃƒÂ£o atual e o que ela significa." },
+  { id: 4,  text: "Ã°Å¸â€™Â¡ Dica: eu lembro de tudo que vocÃƒÂª me conta. Quanto mais vocÃƒÂª compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestÃƒÂµes para vocÃƒÂª." },
+  { id: 5,  text: "Dica: se quiser noticias relevantes, mande /noticias no chat. Eu busco e organizo os resultados para voce." },
+  { id: 6,  text: "Ã°Å¸â€™Â¡ Dica: vocÃƒÂª pode conversar comigo sobre qualquer coisa Ã¢â‚¬â€ produtividade, reflexÃƒÂµes, ideias, planos. Quanto mais natural a conversa, melhores minhas anÃƒÂ¡lises sobre vocÃƒÂª." },
+  { id: 8,  text: "Ã°Å¸â€™Â¡ Dica: mantenha sua sequÃƒÂªncia (streak) ativa todos os dias. SequÃƒÂªncias de 3, 7 e 30 dias mostram que vocÃƒÂª ÃƒÂ© constante de verdade." },
 
-  // â”€â”€ Comunidades â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 17, text: "ðŸ’¡ Dica: Comunidades sÃ£o grupos temÃ¡ticos. Entre em comunidades alinhadas com seus objetivos â€” vocÃª encontra pessoas com os mesmos focos e objetivos que vocÃª." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Comunidades Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 17, text: "Ã°Å¸â€™Â¡ Dica: Comunidades sÃƒÂ£o grupos temÃƒÂ¡ticos. Entre em comunidades alinhadas com seus objetivos Ã¢â‚¬â€ vocÃƒÂª encontra pessoas com os mesmos focos e objetivos que vocÃƒÂª." },
 
-  // â”€â”€ Amigos & ConexÃµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 20, text: "ðŸ’¡ Dica: use a busca em Amigos para encontrar pessoas pelo nome de usuÃ¡rio. Quando vocÃª conecta com alguÃ©m, vocÃª pode acompanhar o progresso dela no app." },
-  { id: 21, text: "ðŸ’¡ Dica: a aba Matches da Bee em Amigos mostra sugestÃµes inteligentes baseadas nos seus interesses e comportamento. Pessoas que pensam parecido com vocÃª." },
-  { id: 22, text: "ðŸ’¡ Dica: escreva um depoimento para um amigo! VÃ¡ ao perfil dele e toque em 'Depoimento'. Ã‰ uma forma autÃªntica de reconhecer o crescimento de alguÃ©m." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Amigos & ConexÃƒÂµes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 20, text: "Ã°Å¸â€™Â¡ Dica: use a busca em Amigos para encontrar pessoas pelo nome de usuÃƒÂ¡rio. Quando vocÃƒÂª conecta com alguÃƒÂ©m, vocÃƒÂª pode acompanhar o progresso dela no app." },
+  { id: 21, text: "Ã°Å¸â€™Â¡ Dica: a aba Matches da Bee em Amigos mostra sugestÃƒÂµes inteligentes baseadas nos seus interesses e comportamento. Pessoas que pensam parecido com vocÃƒÂª." },
+  { id: 22, text: "Ã°Å¸â€™Â¡ Dica: escreva um depoimento para um amigo! VÃƒÂ¡ ao perfil dele e toque em 'Depoimento'. Ãƒâ€° uma forma autÃƒÂªntica de reconhecer o crescimento de alguÃƒÂ©m." },
 
-  // â”€â”€ Mensagens Diretas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 24, text: "ðŸ’¡ Dica: Mensagens Diretas estÃ£o liberadas desde o inÃ­cio. Chame seus amigos quando quiser e continue a conversa em privado." },
-  { id: 25, text: "ðŸ’¡ Dica: na sua inbox, vocÃª pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para vocÃª acompanhar facilmente." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Mensagens Diretas Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 24, text: "Ã°Å¸â€™Â¡ Dica: Mensagens Diretas estÃƒÂ£o liberadas desde o inÃƒÂ­cio. Chame seus amigos quando quiser e continue a conversa em privado." },
+  { id: 25, text: "Ã°Å¸â€™Â¡ Dica: na sua inbox, vocÃƒÂª pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para vocÃƒÂª acompanhar facilmente." },
 
-  // â”€â”€ Humor & Bem-estar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 26, text: "ðŸ’¡ Dica: registre seu humor todo dia no mÃ³dulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e minhas anÃ¡lises sobre vocÃª." },
-  { id: 27, text: "ðŸ’¡ Dica: o calendÃ¡rio de humor mostra os Ãºltimos 30 dias em cores. PadrÃµes de humor ruim repetido podem ser um sinal que vale levar ao insight da semana." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Humor & Bem-estar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 26, text: "Ã°Å¸â€™Â¡ Dica: registre seu humor todo dia no mÃƒÂ³dulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e minhas anÃƒÂ¡lises sobre vocÃƒÂª." },
+  { id: 27, text: "Ã°Å¸â€™Â¡ Dica: o calendÃƒÂ¡rio de humor mostra os ÃƒÂºltimos 30 dias em cores. PadrÃƒÂµes de humor ruim repetido podem ser um sinal que vale levar ao insight da semana." },
 
-  // â”€â”€ Alertas & NotificaÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 28, text: "ðŸ’¡ Dica: os Alertas da Bee mostram sinais que precisam da sua atenÃ§Ã£o: riscos de streak, progresso social, novas conexÃµes. Passe lÃ¡ antes de fechar o app." },
-  { id: 29, text: "ðŸ’¡ Dica: alertas com borda vermelha sÃ£o urgentes â€” risco real de perder progresso. Amarelo Ã© atenÃ§Ã£o. Verde Ã© celebraÃ§Ã£o. Fique de olho nas cores." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Alertas & NotificaÃƒÂ§ÃƒÂµes Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 28, text: "Ã°Å¸â€™Â¡ Dica: os Alertas da Bee mostram sinais que precisam da sua atenÃƒÂ§ÃƒÂ£o: riscos de streak, progresso social, novas conexÃƒÂµes. Passe lÃƒÂ¡ antes de fechar o app." },
+  { id: 29, text: "Ã°Å¸â€™Â¡ Dica: alertas com borda vermelha sÃƒÂ£o urgentes Ã¢â‚¬â€ risco real de perder progresso. Amarelo ÃƒÂ© atenÃƒÂ§ÃƒÂ£o. Verde ÃƒÂ© celebraÃƒÂ§ÃƒÂ£o. Fique de olho nas cores." },
 
-  // â”€â”€ Medalhas & Conquistas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Medalhas & Conquistas Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-  // â”€â”€ ConfiguraÃ§Ãµes & Privacidade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 33, text: "ðŸ’¡ Dica: vocÃª pode alterar nome de exibiÃ§Ã£o e bio a qualquer momento nas ConfiguraÃ§Ãµes. Manter seu perfil atualizado ajuda a IA a entender melhor quem vocÃª Ã© hoje." },
-  { id: 34, text: "ðŸ’¡ Dica: o tema escuro estÃ¡ disponÃ­vel nas ConfiguraÃ§Ãµes em AparÃªncia. O app detecta automaticamente o idioma do seu dispositivo â€” portuguÃªs, inglÃªs ou espanhol." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ ConfiguraÃƒÂ§ÃƒÂµes & Privacidade Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 33, text: "Ã°Å¸â€™Â¡ Dica: vocÃƒÂª pode alterar nome de exibiÃƒÂ§ÃƒÂ£o e bio a qualquer momento nas ConfiguraÃƒÂ§ÃƒÂµes. Manter seu perfil atualizado ajuda a IA a entender melhor quem vocÃƒÂª ÃƒÂ© hoje." },
+  { id: 34, text: "Ã°Å¸â€™Â¡ Dica: o tema escuro estÃƒÂ¡ disponÃƒÂ­vel nas ConfiguraÃƒÂ§ÃƒÂµes em AparÃƒÂªncia. O app detecta automaticamente o idioma do seu dispositivo Ã¢â‚¬â€ portuguÃƒÂªs, inglÃƒÂªs ou espanhol." },
 
-  // â”€â”€ EstratÃ©gia de uso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  { id: 35, text: "ðŸ’¡ Dica: o melhor jeito de usar o BeeEyes Ã© abrir o chat uma vez por dia e me contar o que estÃ¡ na cabeÃ§a. NÃ£o precisa ser longo â€” uma frase jÃ¡ ativa o sistema." },
-  { id: 37, text: "ðŸ’¡ Dica: invista uns 5 minutos por semana lendo o Resumo Semanal. Ele mostra onde vocÃª estÃ¡ evoluindo e o que estÃ¡ travado antes que vire um problema maior." },
-  { id: 38, text: "ðŸ’¡ Dica: o BeeEyes foi feito para ser parte da sua rotina diÃ¡ria, nÃ£o uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessÃµes longas e raras." },
+  // Ã¢â€â‚¬Ã¢â€â‚¬ EstratÃƒÂ©gia de uso Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  { id: 35, text: "Ã°Å¸â€™Â¡ Dica: o melhor jeito de usar o BeeEyes ÃƒÂ© abrir o chat uma vez por dia e me contar o que estÃƒÂ¡ na cabeÃƒÂ§a. NÃƒÂ£o precisa ser longo Ã¢â‚¬â€ uma frase jÃƒÂ¡ ativa o sistema." },
+  { id: 37, text: "Ã°Å¸â€™Â¡ Dica: invista uns 5 minutos por semana lendo o Resumo Semanal. Ele mostra onde vocÃƒÂª estÃƒÂ¡ evoluindo e o que estÃƒÂ¡ travado antes que vire um problema maior." },
+  { id: 38, text: "Ã°Å¸â€™Â¡ Dica: o BeeEyes foi feito para ser parte da sua rotina diÃƒÂ¡ria, nÃƒÂ£o uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessÃƒÂµes longas e raras." },
 ];
 
 function formatRoutineContext(
@@ -108,7 +120,7 @@ function formatBeeDateTime(date: Date) {
     day: "2-digit",
     month: "2-digit",
     timeZone: "America/Sao_Paulo",
-  })} às ${formatBeeTime(date)}`;
+  })} Ã s ${formatBeeTime(date)}`;
 }
 
 function formatOffset(minutes: number | null | undefined) {
@@ -149,13 +161,13 @@ async function findBeeCommandDuplicate(userId: string, actions: BeeCommandAction
     if (action.type === "calendar_event" && action.startAt) {
       const startAt = new Date(action.startAt);
       if (!isNaN(startAt.getTime()) && await findDuplicateCalendarEvent(userId, action.title, startAt)) {
-        return "Já existe um compromisso parecido nesse horário 🐝 Deseja criar outro mesmo assim?";
+        return "JÃ¡ existe um compromisso parecido nesse horÃ¡rio ðŸ Deseja criar outro mesmo assim?";
       }
     }
     if (action.type === "alarm_reminder" && action.scheduledAt) {
       const scheduledAt = new Date(action.scheduledAt);
       if (!isNaN(scheduledAt.getTime()) && await findDuplicateAlarmReminder(userId, action.title, scheduledAt)) {
-        return "Já existe um lembrete parecido nesse horário 🐝 Deseja criar outro mesmo assim?";
+        return "JÃ¡ existe um lembrete parecido nesse horÃ¡rio ðŸ Deseja criar outro mesmo assim?";
       }
     }
   }
@@ -228,30 +240,45 @@ function buildBeeCommandConfirmation(actions: BeeCommandAction[]) {
   const linkedAlarm = alarms.find((action) => action.linkedEvent);
 
   if (events.length === 1 && linkedAlarm && events[0].startAt) {
-    return `Prontinho 🐝✨ Marquei ${events[0].title} no seu calendário para ${formatBeeDateTime(new Date(events[0].startAt))} e também vou te lembrar ${formatOffset(linkedAlarm.reminderOffsetMinutes)} antes.`;
+    return `Prontinho ðŸâœ¨ Marquei ${events[0].title} no seu calendÃ¡rio para ${formatBeeDateTime(new Date(events[0].startAt))} e tambÃ©m vou te lembrar ${formatOffset(linkedAlarm.reminderOffsetMinutes)} antes.`;
   }
 
   if (events.length === 1 && alarms.length === 0 && events[0].startAt) {
-    return `Prontinho 🐝✨ Marquei ${events[0].title} no seu calendário para ${formatBeeDateTime(new Date(events[0].startAt))}.`;
+    return `Prontinho ðŸâœ¨ Marquei ${events[0].title} no seu calendÃ¡rio para ${formatBeeDateTime(new Date(events[0].startAt))}.`;
   }
 
   if (events.length === 0 && alarms.length === 1 && alarms[0].scheduledAt) {
     const verb = alarms[0].kind === "alarm" ? "Criei um alarme" : "Vou te lembrar";
-    return `Prontinho 🐝✨ ${verb} de ${alarms[0].title.replace(/^Lembrete:\s*/i, "")} em ${formatBeeDateTime(new Date(alarms[0].scheduledAt))}.`;
+    return `Prontinho ðŸâœ¨ ${verb} de ${alarms[0].title.replace(/^Lembrete:\s*/i, "")} em ${formatBeeDateTime(new Date(alarms[0].scheduledAt))}.`;
   }
 
-  const lines = ["Prontinho 🐝✨"];
+  const lines = ["Prontinho ðŸâœ¨"];
   for (const event of events) {
-    if (event.startAt) lines.push(`Agendei ${event.title} no seu calendário para ${formatBeeDateTime(new Date(event.startAt))}.`);
+    if (event.startAt) lines.push(`Agendei ${event.title} no seu calendÃ¡rio para ${formatBeeDateTime(new Date(event.startAt))}.`);
   }
   for (const alarm of alarms) {
     if (alarm.scheduledAt && alarm.linkedEvent) {
-      lines.push(`Também vou te avisar ${formatOffset(alarm.reminderOffsetMinutes)} antes.`);
+      lines.push(`TambÃ©m vou te avisar ${formatOffset(alarm.reminderOffsetMinutes)} antes.`);
     } else if (alarm.scheduledAt) {
       lines.push(`Vou te lembrar de ${alarm.title.replace(/^Lembrete:\s*/i, "")} em ${formatBeeDateTime(new Date(alarm.scheduledAt))}.`);
     }
   }
   return lines.join("\n");
+}
+
+// ── Health helpers ────────────────────────────────────────────────────────────
+function pickDefaultTrainingDays(count: number): WeekDay[] {
+  // Distribui dias com pelo menos 1 dia de descanso entre treinos
+  const presets: Record<number, WeekDay[]> = {
+    1: ["monday"],
+    2: ["monday", "thursday"],
+    3: ["monday", "wednesday", "friday"],
+    4: ["monday", "tuesday", "thursday", "friday"],
+    5: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    6: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"],
+    7: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+  };
+  return presets[Math.max(1, Math.min(7, count))] ?? presets[3];
 }
 
 export function createMessagesRouter() {
@@ -278,7 +305,7 @@ export function createMessagesRouter() {
     ]);
 
     if (!user) {
-      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+      throw notFound("UsuÃƒÂ¡rio nÃƒÂ£o encontrado");
     }
 
     const now = new Date();
@@ -330,29 +357,29 @@ export function createMessagesRouter() {
         const name = user?.displayName || user?.username || "";
         return name.trim().split(/\s+/)[0] || "";
       })();
-      const greeting = firstName ? `Oi, ${firstName}! ðŸâœ¨` : "Oi! ðŸâœ¨";
+      const greeting = firstName ? `Oi, ${firstName}! Ã°Å¸ÂÂÃ¢Å“Â¨` : "Oi! Ã°Å¸ÂÂÃ¢Å“Â¨";
 
       const welcomeContent = `${greeting}
 
-Eu sou a Bee, sua assistente pessoal. Estou muito feliz em te ver por aqui! ðŸ’›
+Eu sou a Bee, sua assistente pessoal. Estou muito feliz em te ver por aqui! Ã°Å¸â€™â€º
 
-A partir de agora posso te ajudar a organizar sua rotina, criar planos, lembrar tarefas, cuidar melhor dos seus hÃ¡bitos, apoiar seus estudos, acompanhar sua produtividade e transformar suas ideias em aÃ§Ãµes.
+A partir de agora posso te ajudar a organizar sua rotina, criar planos, lembrar tarefas, cuidar melhor dos seus hÃƒÂ¡bitos, apoiar seus estudos, acompanhar sua produtividade e transformar suas ideias em aÃƒÂ§ÃƒÂµes.
 
-ðŸ“Œ Dicas para aproveitar melhor nossa conversa:
+Ã°Å¸â€œÅ’ Dicas para aproveitar melhor nossa conversa:
 
-â€¢ Me diga o que vocÃª quer fazer
+Ã¢â‚¬Â¢ Me diga o que vocÃƒÂª quer fazer
   Ex: "Bee, monte um plano de estudos para essa semana."
 
-â€¢ â° Informe datas e horÃ¡rios quando precisar
-  Ex: "Me lembre de beber Ã¡gua todo dia Ã s 10h."
+Ã¢â‚¬Â¢ Ã¢ÂÂ° Informe datas e horÃƒÂ¡rios quando precisar
+  Ex: "Me lembre de beber ÃƒÂ¡gua todo dia ÃƒÂ s 10h."
 
-â€¢ ðŸŽ¯ Conte seu objetivo
+Ã¢â‚¬Â¢ Ã°Å¸Å½Â¯ Conte seu objetivo
   Ex: "Quero criar uma rotina mais organizada para estudar e treinar."
 
-â€¢ ðŸ’¬ Fale comigo do seu jeito
-  Quanto mais contexto vocÃª me der, mais precisa serÃ¡ minha ajuda.
+Ã¢â‚¬Â¢ Ã°Å¸â€™Â¬ Fale comigo do seu jeito
+  Quanto mais contexto vocÃƒÂª me der, mais precisa serÃƒÂ¡ minha ajuda.
 
-Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
+Estou pronta para voar com vocÃƒÂª nessa jornada Ã°Å¸ÂÂÃ°Å¸â€™â€º`;
 
       const welcome = await storage.createMessage({
         userId: req.userId!,
@@ -513,7 +540,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
   router.post("/api/notifications/push-token", requireAuth, asyncHandler(async (req, res) => {
     const { token } = req.body ?? {};
     if (typeof token !== "string" || !token.trim()) {
-      throw badRequest("token obrigatÃ³rio");
+      throw badRequest("token obrigatÃƒÂ³rio");
     }
     await storage.updateUserPushToken(req.userId!, token.trim());
     return sendOk(res, { registered: true });
@@ -548,7 +575,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
     const { content, isSystem = false } = req.body ?? {};
 
     if (!content?.trim()) {
-      return sendError(res, 400, "VALIDATION_ERROR", "Mensagem nÃ£o pode ser vazia");
+      return sendError(res, 400, "VALIDATION_ERROR", "Mensagem nÃƒÂ£o pode ser vazia");
     }
 
     if (!isSystem) {
@@ -559,7 +586,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
           res,
           429,
           "RATE_LIMITED",
-          `VocÃª enviou muitas mensagens. Aguarde ${minutes} minuto${minutes > 1 ? "s" : ""} para continuar. ðŸ`,
+          `VocÃƒÂª enviou muitas mensagens. Aguarde ${minutes} minuto${minutes > 1 ? "s" : ""} para continuar. Ã°Å¸ÂÂ`,
         );
       }
     }
@@ -595,7 +622,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
     ]);
 
     if (!user || !personality) {
-      return sendError(res, 404, "NOT_FOUND", "UsuÃ¡rio nÃ£o encontrado");
+      return sendError(res, 404, "NOT_FOUND", "UsuÃƒÂ¡rio nÃƒÂ£o encontrado");
     }
 
     if (!isSystem) {
@@ -625,7 +652,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
         const holiday = holidayAlarm?.scheduledAt ? getBrazilNationalHoliday(new Date(holidayAlarm.scheduledAt)) : null;
 
         if (holiday && holidayAlarm) {
-          cleanText = `${holiday.date} é feriado nacional (${holiday.name}). Você quer manter esse despertador mesmo assim?`;
+          cleanText = `${holiday.date} Ã© feriado nacional (${holiday.name}). VocÃª quer manter esse despertador mesmo assim?`;
           assistantMetadata = JSON.stringify({
             type: "holiday_alarm_confirmation",
             holiday,
@@ -678,7 +705,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
 
     const routineContext = formatRoutineContext(routineEvents, routineAlarms);
 
-    // ── Research: classify intent, run search, inject context into AI ─────────
+    // â”€â”€ Research: classify intent, run search, inject context into AI â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let researchResults: ResearchResult[] = [];
     let researchIntent: SearchIntent = "none";
     let researchContext = "";
@@ -703,10 +730,67 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
       }
     }
 
-    // ── Stream AI response (with research context injected) ───────────────────
+    // ── Health intent: detect & generate workout suggestion ──────────────────
+    let healthIntent: HealthIntentResult = { intent: "unknown", confidence: 0, missingFields: [] };
+    let healthContext = "";
+    let workoutSuggestion: any = null;
+    try {
+      healthIntent = parseHealthIntent(content);
+      // Pull profile for richer AI context
+      const [hp] = await db
+        .select()
+        .from(healthProfiles)
+        .where(eq(healthProfiles.userId, userId))
+        .limit(1)
+        .catch(() => [null]);
+
+      const profileForContext = hp
+        ? { healthGoal: hp.healthGoal, level: hp.level, trainingDays: hp.trainingDays as string[] }
+        : null;
+      healthContext = buildHealthContextForAI(profileForContext);
+
+      // If user explicitly asks to create a plan and we have enough info — build suggestion
+      if (healthIntent.intent === "create_workout_plan" && healthIntent.missingFields.length === 0) {
+        const days = healthIntent.trainingDays && healthIntent.trainingDays.length
+          ? healthIntent.trainingDays
+          : pickDefaultTrainingDays(healthIntent.daysPerWeek ?? 3);
+        const equipPref: EquipmentType | "misto" =
+          healthIntent.preference === "machines" ? "aparelho"
+          : healthIntent.preference === "free_weights" ? "halter"
+          : healthIntent.preference === "bodyweight" ? "peso_corporal"
+          : "misto";
+        const built = buildWorkoutPlan({
+          trainingDays: days as WeekDay[],
+          goal: (healthIntent.goal ?? hp?.healthGoal ?? "saude_geral") as HealthGoal,
+          level: (healthIntent.level ?? (hp?.level as ExerciseLevel) ?? "iniciante"),
+          equipmentPreference: equipPref,
+          splitType: healthIntent.splitType,
+          avoidExercises: (hp?.avoidExercises as string[]) ?? [],
+        });
+        workoutSuggestion = built;
+        healthContext += `\n[Sugestão de plano gerada pela Bee — ${built.name}, ${built.trainingDays.length}x/semana, split ${built.splitType}]\n`;
+      } else if (healthIntent.intent === "create_workout_plan" && healthIntent.missingFields.length > 0) {
+        const firstMissing = healthIntent.missingFields[0];
+        healthContext += `\n[A Bee deve perguntar ao usuário: ${buildFollowUpQuestion(firstMissing)}]\n`;
+      } else if (healthIntent.intent === "ask_health_summary") {
+        const [activePlan] = await db
+          .select()
+          .from(workoutPlans)
+          .where(and(eq(workoutPlans.userId, userId), eq(workoutPlans.active, true)))
+          .limit(1)
+          .catch(() => [null]);
+        if (activePlan) {
+          healthContext += `\n[Plano ativo: ${activePlan.name} (${(activePlan.trainingDays as string[]).join(", ")})]\n`;
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    // ── Stream AI response (with research + health context injected) ─────────
     let fullResponse = "";
     try {
-      const combinedContext = [routineContext, calendarContext, researchContext].filter(Boolean).join("\n\n");
+      const combinedContext = [routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
       fullResponse = await streamChat(user, personality, chatHistory, content, (chunk) => {
         res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
       }, combinedContext);
@@ -727,7 +811,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
     if (alarmReminder?.scheduledAt) {
       const holiday = getBrazilNationalHoliday(new Date(alarmReminder.scheduledAt));
       if (holiday) {
-        cleanText = `${holiday.date} Ã© feriado nacional (${holiday.name}). VocÃª quer manter esse despertador mesmo assim?`;
+        cleanText = `${holiday.date} ÃƒÂ© feriado nacional (${holiday.name}). VocÃƒÂª quer manter esse despertador mesmo assim?`;
         assistantMetadata = JSON.stringify({
           type: "holiday_alarm_confirmation",
           holiday,
@@ -751,6 +835,11 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
     // Send research results as a separate SSE event for UI card rendering
     if (researchResults.length > 0) {
       res.write(`data: ${JSON.stringify({ type: "research_results", intent: researchIntent, results: researchResults })}\n\n`);
+    }
+
+    // Send health workout suggestion as SSE event (rendered as actionable card)
+    if (workoutSuggestion) {
+      res.write(`data: ${JSON.stringify({ type: "workout_suggestion", plan: workoutSuggestion })}\n\n`);
     }
 
     if (fetchNews?.query) {
@@ -999,12 +1088,12 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
   router.patch("/api/messages/:id", requireAuth, asyncHandler(async (req, res) => {
     const { content, metadata } = req.body ?? {};
     if (typeof content !== "string" || typeof metadata !== "string") {
-      throw badRequest("content e metadata sÃ£o obrigatÃ³rios");
+      throw badRequest("content e metadata sÃƒÂ£o obrigatÃƒÂ³rios");
     }
 
     const updated = await storage.updateMessageMetadata(req.params.id, req.userId!, { content, metadata });
     if (!updated) {
-      throw notFound("Mensagem nÃ£o encontrada");
+      throw notFound("Mensagem nÃƒÂ£o encontrada");
     }
 
     return sendOk(res, updated);
@@ -1013,12 +1102,12 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
   router.post("/api/news/summarize", requireAuth, asyncHandler(async (req, res) => {
     const { url, title } = req.body ?? {};
     if (!url || !title) {
-      throw badRequest("url e title obrigatÃ³rios");
+      throw badRequest("url e title obrigatÃƒÂ³rios");
     }
 
     const summary = await summarizeNewsArticle(url, title);
     if (!summary) {
-      return sendError(res, 502, "UPSTREAM_ERROR", "NÃ£o foi possÃ­vel gerar o resumo");
+      return sendError(res, 502, "UPSTREAM_ERROR", "NÃƒÂ£o foi possÃƒÂ­vel gerar o resumo");
     }
 
     return sendOk(res, { summary });
@@ -1027,7 +1116,7 @@ Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
   router.post("/api/transcribe", requireAuth, asyncHandler(async (req, res) => {
     const { audio, mimeType = "audio/webm" } = req.body ?? {};
     if (!audio || typeof audio !== "string") {
-      throw badRequest("audio Ã© obrigatÃ³rio");
+      throw badRequest("audio ÃƒÂ© obrigatÃƒÂ³rio");
     }
     const text = await transcribeAudio(audio, mimeType);
     return sendOk(res, { text });
