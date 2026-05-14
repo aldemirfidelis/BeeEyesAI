@@ -12,10 +12,10 @@ export function isAcceptedFeedImage(file: File): boolean {
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Nao foi possivel ler a imagem."));
+    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
     reader.onload = () => {
       if (typeof reader.result === "string") resolve(reader.result);
-      else reject(new Error("Nao foi possivel ler a imagem."));
+      else reject(new Error("Não foi possível ler a imagem."));
     };
     reader.readAsDataURL(file);
   });

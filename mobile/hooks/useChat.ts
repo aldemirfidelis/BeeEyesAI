@@ -126,7 +126,7 @@ export function useChat() {
             showAchievement({ id: "finance_logged", type: "finance_logged", title: `${label} registrada!`, description: (tx?.description || tx?.category || "Finanças") + amount });
           } else if (event.type === "alarm_created") {
             queryClient.invalidateQueries({ queryKey: ["colmeia-alarms"] });
-            showAchievement({ id: "alarm_created", type: "alarm_created", title: "Despertador criado!", description: event.alarm?.title || "Adicionado ao Relogio" });
+            showAchievement({ id: "alarm_created", type: "alarm_created", title: "Despertador criado!", description: event.alarm?.title || "Adicionado ao Relógio" });
           } else if (event.type === "done") {
             doneId = event.id;
             if (event.cleanText) fullText = event.cleanText;

@@ -1156,9 +1156,9 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      setAuthError("Se o e-mail existir, enviaremos um link de recuperacao.");
+      setAuthError("Se o e-mail existir, enviaremos um link de recuperação.");
     } catch {
-      setAuthError("Erro de conexao");
+      setAuthError("Erro de conexão");
     }
   };
 
@@ -1330,7 +1330,7 @@ export default function Home() {
               setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "alarm_created") {
               setColmeiaRefreshKey((value) => value + 1);
-              setAchievementData({ title: "Despertador criado!", description: event.alarm?.title ?? "Aviso adicionado ao Relogio." });
+              setAchievementData({ title: "Despertador criado!", description: event.alarm?.title ?? "Aviso adicionado ao Relógio." });
               setShowAchievement(true);
               setTimeout(() => setShowAchievement(false), 3500);
             } else if (event.type === "error") {
@@ -1401,7 +1401,7 @@ export default function Home() {
     reader.onload = () => {
       const result = reader.result;
       if (typeof result !== "string") {
-        setSettingsMessage("Nao foi possivel processar a imagem.");
+        setSettingsMessage("Não foi possível processar a imagem.");
         return;
       }
 
@@ -1417,7 +1417,7 @@ export default function Home() {
         canvas.height = targetSize;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          setSettingsMessage("Nao foi possivel preparar a imagem.");
+          setSettingsMessage("Não foi possível preparar a imagem.");
           return;
         }
 
@@ -1427,7 +1427,7 @@ export default function Home() {
         setProfilePhoto(compressedDataUrl);
         setProfilePhotoUrl(compressedDataUrl);
         apiFetch("/api/me/avatar", { method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ avatarUrl: compressedDataUrl }) }).catch(() => {});
-        setSettingsMessage("Foto atualizada com recorte e compressao.");
+        setSettingsMessage("Foto atualizada com recorte e compressão.");
       };
       image.onerror = () => {
         setSettingsMessage("Falha ao carregar o arquivo selecionado.");
@@ -1476,7 +1476,7 @@ export default function Home() {
       setPostImagePreviewUrl(imageUrl);
     } catch (error) {
       clearPostImage();
-      setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a foto."));
+      setSettingsMessage(getApiErrorMessage(error, "Não foi possível preparar a foto."));
     } finally {
       setPickingPostImage(false);
     }
@@ -1496,7 +1496,7 @@ export default function Home() {
       }
       setCommunityPostImageUrl(imageUrl);
     } catch (error) {
-      setSettingsMessage(getApiErrorMessage(error, "Nao foi possivel preparar a imagem."));
+      setSettingsMessage(getApiErrorMessage(error, "Não foi possível preparar a imagem."));
     } finally {
       setPickingCommunityPostImage(false);
     }
@@ -1975,7 +1975,7 @@ export default function Home() {
                     Despertar mesmo assim
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => handleHolidayAlarmDecision(message.id, meta, "skip")}>
-                    Nao despertar no feriado
+                    Não despertar no feriado
                   </Button>
                 </div>
               </div>

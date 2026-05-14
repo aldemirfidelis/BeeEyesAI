@@ -11,8 +11,8 @@ export default function AchievementPopupExample() {
         Mostrar Conquista
       </Button>
       <AchievementPopup
-        title="Primeira MissÃ£o!"
-        description="VocÃª completou sua primeira missÃ£o. Continue assim!"
+        title="Primeiro check-in!"
+        description="Você registrou seu primeiro avanço. Continue assim!"
         isVisible={visible}
         onClose={() => setVisible(false)}
       />

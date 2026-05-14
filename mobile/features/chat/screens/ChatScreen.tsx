@@ -223,7 +223,7 @@ export default function ChatScreen() {
   const unreadNotificationCount = Array.isArray(notificationCenter)
     ? notificationCenter.filter((item) => !item.read).length
     : 0;
-  const currentUserName = me?.displayName || user?.displayName || me?.username || user?.username || "Usuario";
+  const currentUserName = me?.displayName || user?.displayName || me?.username || user?.username || "Usuário";
   const currentUserAvatarUrl = me?.avatarUrl || user?.avatarUrl || profileImageUri || null;
 
   const pulseEyeExpression = useCallback((expression: EyeExpression, fallback: EyeExpression = "neutral", duration = 1600) => {
@@ -402,9 +402,9 @@ export default function ChatScreen() {
   const scoreTone = score?.scoreTone ?? (focusScore < 40 ? "Risco" : focusScore < 70 ? "Ritmo" : "Progresso");
 
   const fallbackInsightText = useMemo(() => {
-    if (lastActiveHours !== null && lastActiveHours >= 20) return `Voce ficou ${Math.round(lastActiveHours)}h longe. Retome com uma acao simples antes de perder ritmo.`;
-    if ((me?.currentStreak ?? 0) === 0) return "Sua sequencia ainda nao comecou. Uma acao concluida hoje muda esse estado.";
-    return "Se quiser, eu transformo sua prioridade atual em uma acao objetiva agora.";
+    if (lastActiveHours !== null && lastActiveHours >= 20) return `Você ficou ${Math.round(lastActiveHours)}h longe. Retome com uma ação simples antes de perder ritmo.`;
+    if ((me?.currentStreak ?? 0) === 0) return "Sua sequência ainda não começou. Uma ação concluída hoje muda esse estado.";
+    return "Se quiser, eu transformo sua prioridade atual em uma ação objetiva agora.";
   }, [lastActiveHours, me?.currentStreak]);
   const insightText = score?.insight ?? fallbackInsightText;
 
@@ -561,11 +561,11 @@ export default function ChatScreen() {
 
   async function handleSlashCommand(raw: string) {
     const command = raw.toLowerCase();
-    if (command === "/feed") return injectAssistantShortcut("Abrindo o feed da comunidade para voce.", "/feed");
-    if (command === "/compartilhar") return injectAssistantShortcut("O atalho de compartilhar abre o feed para voce criar um novo post.", "/feed");
+    if (command === "/feed") return injectAssistantShortcut("Abrindo o feed da comunidade para você.", "/feed");
+    if (command === "/compartilhar") return injectAssistantShortcut("O atalho de compartilhar abre o feed para você criar um novo post.", "/feed");
     if (command === "/comunidades") return injectAssistantShortcut("Abrindo as comunidades.", "/communities");
     if (command === "/mensagens" || command === "/inbox") return injectAssistantShortcut("Abrindo sua inbox.", "/inbox");
-    if (command === "/noticias" || command === "/notÃ­cias") {
+    if (command === "/noticias" || command === "/notícias") {
       await handleNewsCommand();
       return true;
     }
@@ -1066,9 +1066,9 @@ function HolidayAlarmCard({ pending, onCreate, onSkip, styles }: { pending: bool
   return (
     <View style={styles.metaCard}>
       <Text style={styles.metaTitle}>Despertador em feriado</Text>
-      <Text style={styles.metaText}>Escolha se quer manter esse aviso no Relogio.</Text>
+      <Text style={styles.metaText}>Escolha se quer manter esse aviso no Relógio.</Text>
       <View style={styles.metaActions}>
-        <TouchableOpacity style={styles.metaSecondaryButton} onPress={onSkip} disabled={pending}><Text style={styles.metaSecondaryText}>Nao despertar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.metaSecondaryButton} onPress={onSkip} disabled={pending}><Text style={styles.metaSecondaryText}>Não despertar</Text></TouchableOpacity>
         <TouchableOpacity style={styles.metaPrimaryButton} onPress={onCreate} disabled={pending}><Text style={styles.metaPrimaryText}>{pending ? "..." : "Despertar"}</Text></TouchableOpacity>
       </View>
     </View>

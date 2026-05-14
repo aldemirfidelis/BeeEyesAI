@@ -259,7 +259,7 @@ export default function FriendsScreen() {
     setSendingTestimonial(true);
     try {
       const { data } = await api.post(`/api/users/${selectedFriendId}/testimonials`, { content: testimonialInput.trim() });
-      setTestimonials((prev) => [{ ...data, authorUsername: "voce", authorDisplayName: "Voce" }, ...prev]);
+      setTestimonials((prev) => [{ ...data, authorUsername: "voce", authorDisplayName: "Você" }, ...prev]);
       setTestimonialInput("");
     } catch {
       Alert.alert(t("error"), t("friends_error_testimonial"));
@@ -411,7 +411,7 @@ export default function FriendsScreen() {
                             </View>
                           ) : null}
                         </View>
-                        <Text style={styles.matchReason}>{suggestion.matchReason || suggestion.suggestionMessage || "Boa conexao para voce."}</Text>
+                        <Text style={styles.matchReason}>{suggestion.matchReason || suggestion.suggestionMessage || "Boa conexão para você."}</Text>
                         {suggestion.matchSignals?.length ? (
                           <Text style={styles.matchSignals} numberOfLines={1}>{suggestion.matchSignals.join(" • ")}</Text>
                         ) : null}

@@ -59,7 +59,7 @@ Fluxo geral de uso:
 | `mobile/assets` | Ícones, splash e imagens do app mobile. | Assets mobile |
 | `mobile/components` | Componentes reutilizáveis mobile. | UI mobile |
 | `mobile/features` | Telas mobile por domínio: auth, chat, Colmeia, comunidades, feed, amigos, inbox, humor, notícias, notificações, perfil, settings. | Funcionalidades mobile |
-| `mobile/hooks` | Hooks mobile de chat, humor e missões. | Hooks mobile |
+| `mobile/hooks` | Hooks mobile de chat, humor e recursos auxiliares. | Hooks mobile |
 | `mobile/lib` | API, i18n, tema, notificações, Google Auth, social, medalhas e textos legais. | Utilitários mobile |
 | `mobile/locales` | Traduções `pt`, `en`, `es`. | Internacionalização |
 | `mobile/stores` | Zustand stores de autenticação, chat e UI. | Estado global mobile |
@@ -147,7 +147,7 @@ Migrations:
 | Arquivo | Função |
 | --- | --- |
 | `migrations/0000_bent_madame_web.sql` | Base inicial do schema. |
-| `migrations/0001_anonymous_profile_visits.sql` | Adiciona suporte a visitas anônimas desbloqueáveis. |
+| `migrations/0001_anonymous_profile_visits.sql` | Adiciona suporte a visitas anônimas. |
 | `migrations/0002_notification_reads.sql` | Leitura de notificações por usuário. |
 | `migrations/0003_post_images_and_community_members.sql` | Imagens em posts e membros de comunidades. |
 | `migrations/0004_profile_onboarding_testimonials.sql` | Onboarding/perfil/depoimentos. |
@@ -519,7 +519,7 @@ Ações do usuário: login/register/logout, enviar mensagem, resolver cards, cur
 
 | Arquivo | Função |
 | --- | --- |
-| `AchievementPopup.tsx` | Toast/modal visual de conquista desbloqueada. |
+| `AchievementPopup.tsx` | Toast/modal visual de conquista. |
 | `BeeEyes.tsx` | Avatar BeeEyes animado/expressivo. |
 | `BeeEyesSVG.tsx` | Versão SVG do avatar. |
 | `ChatMessage.tsx` | Renderiza mensagem de chat e metadados/cards. |
@@ -616,7 +616,7 @@ Expo Router em `mobile/app`.
 | --- | --- | --- |
 | `useChat` | `mobile/hooks/useChat.ts` | Envia `/api/chat`, interpreta SSE, limpa JSON de ações, atualiza stores e invalida queries. |
 | `useMood` | `mobile/hooks/useMood.ts` | Query `/api/mood`, mutation `POST /api/mood`, invalida mood/me. |
-| `useMissions` | `mobile/hooks/useMissions.ts` | Arquivo vazio/sem funcionalidade identificada. |
+| `useMissions` | `mobile/hooks/useMissions.ts` | Arquivo legado vazio/sem funcionalidade identificada. |
 
 ### Libs mobile
 
@@ -936,7 +936,7 @@ Tipos: push token, centro de notificações, conexão, comunidade, visitas, proa
 | `mobile/app/(tabs)/*.tsx` | Rotas tab; reexportam telas de features. |
 | `mobile/features/*/screens/*.tsx` | Telas principais mobile. |
 | `mobile/components/*.tsx` | Componentes mobile listados acima. |
-| `mobile/hooks/*.ts` | Hooks de chat/humor/missões. |
+| `mobile/hooks/*.ts` | Hooks de chat, humor e recursos auxiliares. |
 | `mobile/lib/*.ts` | API, tema, i18n, social, push, Google, textos. |
 | `mobile/locales/en.ts`, `es.ts`, `pt.ts` | Traduções. |
 | `mobile/stores/*.ts` | Zustand stores. |
@@ -992,10 +992,10 @@ E2E:
 | --- | --- |
 | `tests/e2e/auth.spec.ts` | Cadastro, logout, falha de login, login bem-sucedido. |
 | `tests/e2e/onboarding-community.spec.ts` | Onboarding, recuperação de sessão, comunidades. |
-| `tests/e2e/social-flows.spec.ts` | Feed, missões, comunidade e DM entre usuários reais. |
+| `tests/e2e/social-flows.spec.ts` | Feed, comunidade e DM entre usuários reais. |
 | `tests/e2e/helpers.ts` | Helpers para criar usuário, login/logout, abrir abas e aguardar ações. |
 
-Observação: helpers E2E ainda referenciam rótulos como `Missões`; o produto atual concentra muito disso em score/conquistas/Colmeia. Necessário validar se os testes acompanham todos os textos atuais.
+Observação: helpers E2E podem conter rótulos antigos; o produto atual concentra os fluxos em score, conquistas e Colmeia. Necessário validar se os testes acompanham todos os textos atuais.
 
 ## 13. Pontos de Atenção
 

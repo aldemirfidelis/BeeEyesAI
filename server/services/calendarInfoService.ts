@@ -236,7 +236,7 @@ export function getEntriesToNotifyToday(state?: string | null): PublicCalendarEn
 // ── Emoji map for national holidays ──────────────────────────────────────────
 
 const NATIONAL_HOLIDAY_EMOJI: Record<string, string> = {
-  "Confraternizacao Universal": "🎆",
+  "Confraternização Universal": "🎆",
   "Carnaval": "🎭",
   "Sexta-feira Santa": "✝️",
   "Pascoa": "🐣",
@@ -246,8 +246,8 @@ const NATIONAL_HOLIDAY_EMOJI: Record<string, string> = {
   "Independencia do Brasil": "🇧🇷",
   "Nossa Senhora Aparecida": "⛪",
   "Finados": "🕯️",
-  "Proclamacao da Republica": "🏛️",
-  "Consciencia Negra": "✊",
+  "Proclamação da República": "🏛️",
+  "Consciência Negra": "✊",
   "Natal": "🎄",
 };
 

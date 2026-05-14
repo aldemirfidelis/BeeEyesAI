@@ -18,7 +18,7 @@ export const TIER_COLORS: Record<MedalTier, { outer: string; body: string; shine
 };
 
 export const MEDAL_CATALOG: MedalSpec[] = [
-  // ── Primeiros Passos ─────────────────��────────────────────────────────────
+  // Primeiros passos
   {
     type: "early_adopter",
     title: "Pioneiro BeeEyes",
@@ -78,7 +78,7 @@ export const MEDAL_CATALOG: MedalSpec[] = [
     hint: "Mantenha uma sequência de 30 dias.",
   },
 
-  // ── Social ─────────────────────────────���──────────────────────────────────
+  // Social
   {
     type: "first_friend",
     title: "Primeira Conexão",

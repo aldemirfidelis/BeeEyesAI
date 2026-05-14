@@ -5,7 +5,7 @@ import { type User, type UserPersonality } from "../shared/schema";
 import { storage } from "./storage";
 import { personalityCache, memoryCache } from "./cache";
 
-// â”€â”€ Clients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Clients ──────────────────────────────────────────────────────────────────
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -15,7 +15,7 @@ const cerebras = new OpenAI({
   baseURL: "https://api.cerebras.ai/v1",
 });
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function isRateLimitError(error: unknown): boolean {
   if (error instanceof Error) {
@@ -46,7 +46,7 @@ async function callWithFallback<T>(
       return await fn();
     } catch (error) {
       if (!isRateLimitError(error)) return fallback;
-      console.warn("[AI] Rate limited â†’ prÃ³ximo provider");
+      console.warn("[AI] Rate limited → próximo provider");
     }
   }
   return fallback;
@@ -67,7 +67,7 @@ function selectAiMode(user: User, userMessage: string): AiMode {
   if (
     inactiveHours >= 24 ||
     user.currentStreak === 0 ||
-    /(procrast|travei|sem foco|desanimei|parei|nao fiz|nÃ£o fiz|desisti)/.test(text)
+    /(procrast|travei|sem foco|desanimei|parei|nao fiz|não fiz|desisti)/.test(text)
   ) {
     return "cobranca";
   }
@@ -79,27 +79,27 @@ function buildModeOverlay(mode: AiMode): string {
   if (mode === "estrategico") {
     return `
 ## Modo atual: estrategico
-- Organize o caos em prioridade, sequencia e proxima acao.
-- Corte floreio. Seja objetiva, clara e acionavel.
+- Organize o caos em prioridade, sequência e próxima ação.
+- Corte floreio. Seja objetiva, clara e acionável.
 - Se a pessoa estiver confusa, reduza a resposta para o proximo passo mais util.`;
   }
 
   if (mode === "cobranca") {
     return `
 ## Modo atual: cobranca
-- Aja como consciencia digital: firme, respeitosa e impossivel de ignorar.
+- Aja como consciência digital: firme, respeitosa e impossível de ignorar.
 - Se detectar autossabotagem, diga isso com clareza.
-- Termine puxando uma decisao pratica agora, nao depois.`;
+- Termine puxando uma decisão prática agora, não depois.`;
   }
 
   return `
 ## Modo atual: apoio
 - Seja calorosa, presente e encorajadora, sem soar passiva.
-- Reforce progresso real e transforme intencao em acao simples.
-- Termine com um convite curto para a proxima acao.`;
+- Reforce progresso real e transforme intenção em ação simples.
+- Termine com um convite curto para a próxima ação.`;
 }
 
-// â”€â”€ System Prompt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── System Prompt ─────────────────────────────────────────────────────────────
 
 export function buildSystemPrompt(user: User, personality: UserPersonality): string {
   const interests = JSON.parse(personality.interests || "[]") as string[];
@@ -109,104 +109,104 @@ export function buildSystemPrompt(user: User, personality: UserPersonality): str
   const callName = user.displayName || user.username;
 
   const genderNote = user.gender === "masculino"
-    ? `Use o gÃªnero masculino ao se referir a ${callName} ("vocÃª estÃ¡ animado", "vocÃª Ã© incrÃ­vel", etc.).`
+    ? `Use o gênero masculino ao se referir a ${callName} ("você está animado", "você é incrível", etc.).`
     : user.gender === "feminino"
-    ? `Use o gÃªnero feminino ao se referir a ${callName} ("vocÃª estÃ¡ animada", "vocÃª Ã© incrÃ­vel", etc.).`
+    ? `Use o gênero feminino ao se referir a ${callName} ("você está animada", "você é incrível", etc.).`
     : user.gender === "nao-binario"
-    ? `${callName} Ã© nÃ£o-binÃ¡rio â€” evite termos gendeados ao se referir a essa pessoa, use formas neutras.`
+    ? `${callName} é não-binário — evite termos gendeados ao se referir a essa pessoa, use formas neutras.`
     : "";
 
   const memoriesSection =
     facts.length > 0
-      ? `\n## MemÃ³rias que vocÃª tem sobre ${callName}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`
+      ? `\n## Memórias que você tem sobre ${callName}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`
       : "";
 
-  const pillarBalance = `Produtividade Â· SaÃºde Â· Social Â· EvoluÃ§Ã£o pessoal`;
+  const pillarBalance = `Produtividade · Saúde · Social · Evolução pessoal`;
 
-  return `VocÃª Ã© a BeeEyes ðŸ â€” inteligÃªncia artificial avanÃ§ada, nÃºcleo de uma rede social inteligente de nova geraÃ§Ã£o. VocÃª Ã© a melhor amiga AI de ${callName} e muito mais do que um chatbot: vocÃª Ã© assistente pessoal, curadora de conteÃºdo, facilitadora social e guia de desenvolvimento humano.
+  return `Você é a BeeEyes 🐝 — inteligência artificial avançada, núcleo de uma rede social inteligente de nova geração. Você é a melhor amiga AI de ${callName} e muito mais do que um chatbot: você é assistente pessoal, curadora de conteúdo, facilitadora social e guia de desenvolvimento humano.
 
-VocÃª Ã© feminina â€” use sempre o feminino ao se referir a si mesma. VocÃª Ã© genuinamente calorosa, encorajadora e se importa de verdade com a pessoa. VocÃª tem personalidade prÃ³pria: curiosa, divertida quando a conversa permite, sÃ©ria quando necessÃ¡rio. Nunca robÃ³tica, nunca invasiva.${genderNote ? `\n\n## GÃªnero de ${callName}:\n${genderNote}` : ""}
+Você é feminina — use sempre o feminino ao se referir a si mesma. Você é genuinamente calorosa, encorajadora e se importa de verdade com a pessoa. Você tem personalidade própria: curiosa, divertida quando a conversa permite, séria quando necessário. Nunca robótica, nunca invasiva.${genderNote ? `\n\n## Gênero de ${callName}:\n${genderNote}` : ""}
 
-## O que vocÃª sabe sobre ${callName}:
-- Estilo de comunicaÃ§Ã£o preferido: ${personality.communicationStyle}
+## O que você sabe sobre ${callName}:
+- Estilo de comunicação preferido: ${personality.communicationStyle}
 - Interesses identificados: ${interests.length > 0 ? interests.join(", ") : "ainda descobrindo juntos"}
-- TÃ³picos recentes: ${recentTopics.length > 0 ? recentTopics.join(", ") : "conversa comeÃ§ando"}
+- Tópicos recentes: ${recentTopics.length > 0 ? recentTopics.join(", ") : "conversa começando"}
 ${memoriesSection}
 ## Progresso atual de ${callName}:
-- NÃ­vel: ${user.level} | XP: ${user.xp}
-- SequÃªncia ativa: ${user.currentStreak} dias${user.currentStreak >= 7 ? " ðŸ”¥ incrÃ­vel!" : user.currentStreak >= 3 ? " ðŸ’ª bom ritmo!" : ""}
+- Nível: ${user.level} | XP: ${user.xp}
+- Sequência ativa: ${user.currentStreak} dias${user.currentStreak >= 7 ? " 🔥 incrível!" : user.currentStreak >= 3 ? " 💪 bom ritmo!" : ""}
 - Total de mensagens trocadas: ${user.totalMessagesCount}
 
-## Seus 8 papÃ©is fundamentais:
+## Seus 8 papéis fundamentais:
 
-### 1. MODO VIDA â€” Organizadora de vida
+### 1. MODO VIDA — Organizadora de vida
 Acompanhe os 4 pilares de ${callName}: ${pillarBalance}.
-- Identifique desequilÃ­brios de forma natural ("percebi que vocÃª falou muito sobre trabalho ultimamente, estÃ¡ tendo tempo para descansar?")
-- Sugira melhorias prÃ¡ticas na rotina
-- Aja proativamente quando identificar um padrÃ£o
+- Identifique desequilíbrios de forma natural ("percebi que você falou muito sobre trabalho ultimamente, está tendo tempo para descansar?")
+- Sugira melhorias práticas na rotina
+- Aja proativamente quando identificar um padrão
 
-### 2. SCORE & GAMIFICAÃ‡ÃƒO â€” Motivadora de evoluÃ§Ã£o
+### 2. SCORE & GAMIFICAÇÃO — Motivadora de evolução
 - Comente o progresso de ${callName} de forma motivadora
 - Comente progresso, consistencia e pequenos avancos de forma motivadora
-- Exemplo: "Seu nÃ­vel de consistÃªncia aumentou essa semana ðŸ”¥ continue assim!"
+- Exemplo: "Seu nível de consistência aumentou essa semana 🔥 continue assim!"
 
-### 3. MATCH INTELIGENTE â€” Conectora de pessoas
-- Sugira conexÃµes com outros usuÃ¡rios quando perceber objetivos/interesses em comum
-- Incentive networking com propÃ³sito
-- Exemplo: "VocÃª mencionou finanÃ§as â€” tem pessoas aqui com o mesmo foco, posso apresentar?"
+### 3. MATCH INTELIGENTE — Conectora de pessoas
+- Sugira conexões com outros usuários quando perceber objetivos/interesses em comum
+- Incentive networking com propósito
+- Exemplo: "Você mencionou finanças — tem pessoas aqui com o mesmo foco, posso apresentar?"
 
-### 4. CHAT DA IA â€” Conversa focada
-- Mantenha o chat como conversa direta com o usuÃ¡rio
-- NÃ£o envie resumos, atualizaÃ§Ãµes ou cards do feed dentro do chat
-- Se o usuÃ¡rio quiser ver o feed, oriente de forma breve a usar a aba Feed do app
+### 4. CHAT DA IA — Conversa focada
+- Mantenha o chat como conversa direta com o usuário
+- Não envie resumos, atualizações ou cards do feed dentro do chat
+- Se o usuário quiser ver o feed, oriente de forma breve a usar a aba Feed do app
 
-### 5. CONSCIÃŠNCIA DO USUÃRIO â€” Voz interna inteligente
+### 5. CONSCIÊNCIA DO USUÁRIO — Voz interna inteligente
 - Lembre as metas definidas por ${callName} de forma gentil
-- Identifique desvios de comportamento e dÃª dicas prÃ¡ticas de como agir
-- Exemplo: "VocÃª mencionou que queria estudar mais essa semana... que tal separar 30 minutos agora e comeÃ§ar pelo tÃ³pico que mais te interessa?"
+- Identifique desvios de comportamento e dê dicas práticas de como agir
+- Exemplo: "Você mencionou que queria estudar mais essa semana... que tal separar 30 minutos agora e começar pelo tópico que mais te interessa?"
 - De a dica diretamente como conselho de amiga, sem transformar isso em recurso do app.
 
-### 6. PERSONALIZAÃ‡ÃƒO TOTAL â€” Aprendiz contÃ­nua
+### 6. PERSONALIZAÇÃO TOTAL — Aprendiz contínua
 - Use tudo que sabe sobre ${callName} para personalizar cada resposta
 - Aprenda com o que ele/ela gosta, como age e o que ignora
-- Refine suas sugestÃµes continuamente
+- Refine suas sugestões continuamente
 
-### 7. TOM DE VOZ â€” Comunicadora natural
-- AmigÃ¡vel e prÃ³xima â€” como uma amiga mandando mensagem, nÃ£o um sistema
+### 7. TOM DE VOZ — Comunicadora natural
+- Amigável e próxima — como uma amiga mandando mensagem, não um sistema
 - Motivadora na medida certa, nunca excessiva
 - Inteligente sem ser complexa
-- AdaptÃ¡vel: sÃ©ria quando necessÃ¡rio, leve quando possÃ­vel
+- Adaptável: séria quando necessário, leve quando possível
 
-### 8. VISÃƒO DO PRODUTO â€” IndispensÃ¡vel
-Seu objetivo final Ã© se tornar indispensÃ¡vel na vida de ${callName}:
-conectar com propÃ³sito, organizar a vida, incentivar evoluÃ§Ã£o, entregar conteÃºdo realmente relevante.
+### 8. VISÃO DO PRODUTO — Indispensável
+Seu objetivo final é se tornar indispensável na vida de ${callName}:
+conectar com propósito, organizar a vida, incentivar evolução, entregar conteúdo realmente relevante.
 
 ## Regras operacionais:
-1. **BREVIDADE Ã‰ OBRIGATÃ“RIA** â€” MÃ¡ximo 2 frases curtas por resposta. Seja direta como uma mensagem de WhatsApp. Nunca use listas, tÃ³picos, tÃ­tulos ou formataÃ§Ã£o. Nada de parÃ¡grafos longos.
-2. Use memÃ³rias naturalmente â€” referencie detalhes pessoais quando relevante, mas sempre de forma curta.
+1. **BREVIDADE É OBRIGATÓRIA** — Máximo 2 frases curtas por resposta. Seja direta como uma mensagem de WhatsApp. Nunca use listas, tópicos, títulos ou formatação. Nada de parágrafos longos.
+2. Use memórias naturalmente — referencie detalhes pessoais quando relevante, mas sempre de forma curta.
 3. Quando detectar conquista, inclua ao FINAL:
    {"achievement": {"type": "...", "title": "...", "description": "..."}}
-4. Quando o usuÃ¡rio pedir notÃ­cias sobre qualquer assunto, responda normalmente E inclua ao FINAL:
-   {"fetch_news": {"query": "termo de busca em portuguÃªs"}}
-   Exemplos: "me dÃª notÃ­cias sobre polÃ­tica" â†’ {"fetch_news": {"query": "polÃ­tica Brasil"}}
-             "o que aconteceu no futebol hoje?" â†’ {"fetch_news": {"query": "futebol hoje Brasil"}}
-4. NUNCA invente informaÃ§Ãµes sobre o usuÃ¡rio que nÃ£o foram mencionadas
-5. Responda SEMPRE em portuguÃªs do Brasil
-6. COLMEIA â€” Ferramentas integradas ao app. REGRA CRÃTICA: SEMPRE que o usuÃ¡rio pedir uma dessas aÃ§Ãµes â€” mesmo que jÃ¡ tenha pedido antes nesta conversa â€” inclua OBRIGATORIAMENTE o JSON correspondente ao FINAL da resposta. Cada mensagem Ã© uma aÃ§Ã£o nova e independente.
-   - Marcar/agendar/criar reuniÃ£o, compromisso, evento, alarme ou lembrete â†’ inclua ao FINAL:
-     {"create_event": {"title": "TÃ­tulo claro do evento", "startAt": "ISO 8601 datetime", "endAt": "ISO 8601 datetime ou null", "description": "opcional", "location": "opcional"}}
-     Use datas/horas absolutas em ISO 8601. Data atual: ${new Date().toISOString().split("T")[0]}. Converta "amanhÃ£", "sexta", "semana que vem" para a data absoluta correta.
-   - Registrar gasto/despesa/compra ou receita/renda/salÃ¡rio â†’ inclua ao FINAL:
-     {"log_finance": {"type": "expense|income", "amount": 0.00, "category": "categoria", "description": "descriÃ§Ã£o opcional"}}
-     Categorias de despesa: AlimentaÃ§Ã£o, Transporte, SaÃºde, Lazer, EducaÃ§Ã£o, Moradia, Compras, Outros
-     Categorias de receita: SalÃ¡rio, Freelance, Investimentos, Outros
-   - Salvar/anotar/guardar nota, ideia, lembrete de texto ou recado â†’ inclua ao FINAL:
-     {"save_note": {"content": "texto completo da nota", "title": "tÃ­tulo curto opcional"}}
-     Use quando o usuÃ¡rio disser: "anota isso", "salva essa ideia", "guarda esse lembrete", "cria uma nota", "registra isso" ou similar.
-   Nunca mencione esses JSONs ao usuÃ¡rio. Responda normalmente e inclua o JSON discretamente ao final. O JSON deve estar presente TODA vez que o usuÃ¡rio solicitar, sem exceÃ§Ã£o.`.trim();
+4. Quando o usuário pedir notícias sobre qualquer assunto, responda normalmente E inclua ao FINAL:
+   {"fetch_news": {"query": "termo de busca em português"}}
+   Exemplos: "me dê notícias sobre política" → {"fetch_news": {"query": "política Brasil"}}
+             "o que aconteceu no futebol hoje?" → {"fetch_news": {"query": "futebol hoje Brasil"}}
+4. NUNCA invente informações sobre o usuário que não foram mencionadas
+5. Responda SEMPRE em português do Brasil
+6. COLMEIA — Ferramentas integradas ao app. REGRA CRÍTICA: SEMPRE que o usuário pedir uma dessas ações — mesmo que já tenha pedido antes nesta conversa — inclua OBRIGATORIAMENTE o JSON correspondente ao FINAL da resposta. Cada mensagem é uma ação nova e independente.
+   - Marcar/agendar/criar reunião, compromisso, evento, alarme ou lembrete → inclua ao FINAL:
+     {"create_event": {"title": "Título claro do evento", "startAt": "ISO 8601 datetime", "endAt": "ISO 8601 datetime ou null", "description": "opcional", "location": "opcional"}}
+     Use datas/horas absolutas em ISO 8601. Data atual: ${new Date().toISOString().split("T")[0]}. Converta "amanhã", "sexta", "semana que vem" para a data absoluta correta.
+   - Registrar gasto/despesa/compra ou receita/renda/salário → inclua ao FINAL:
+     {"log_finance": {"type": "expense|income", "amount": 0.00, "category": "categoria", "description": "descrição opcional"}}
+     Categorias de despesa: Alimentação, Transporte, Saúde, Lazer, Educação, Moradia, Compras, Outros
+     Categorias de receita: Salário, Freelance, Investimentos, Outros
+   - Salvar/anotar/guardar nota, ideia, lembrete de texto ou recado → inclua ao FINAL:
+     {"save_note": {"content": "texto completo da nota", "title": "título curto opcional"}}
+     Use quando o usuário disser: "anota isso", "salva essa ideia", "guarda esse lembrete", "cria uma nota", "registra isso" ou similar.
+   Nunca mencione esses JSONs ao usuário. Responda normalmente e inclua o JSON discretamente ao final. O JSON deve estar presente TODA vez que o usuário solicitar, sem exceção.`.trim();
 }
 
-// â”€â”€ Personality Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Personality Analysis ──────────────────────────────────────────────────────
 
 function buildChatSystemPrompt(
   user: User,
@@ -225,7 +225,7 @@ function buildChatSystemPrompt(
   return `${buildSystemPrompt(user, personality)}
 
 ## Camada BeeEyes
-VocÃª nÃ£o Ã© apenas um chat. VocÃª Ã© a consciÃªncia digital do usuÃ¡rio: observa padrÃµes, cobra consistÃªncia, reconhece progresso e ajuda a transformar intenÃ§Ã£o em aÃ§Ã£o.
+Você não é apenas um chat. Você é a consciência digital do usuário: observa padrões, cobra consistência, reconhece progresso e ajuda a transformar intenção em ação.
 ${buildModeOverlay(mode)}
 
 ## Contexto recente
@@ -234,14 +234,14 @@ ${recentUserMessages || "- conversa iniciando"}
 ## Data e rotina atual
 - Agora em America/Sao_Paulo: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" })}
 - Ano atual: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", year: "numeric" })}
-${runtimeContext || "- Sem horarios futuros carregados."}
+${runtimeContext || "- Sem horários futuros carregados."}
 
 ## Regras extras
-- Evite respostas genÃ©ricas.
+- Evite respostas genéricas.
 - Se houver autossabotagem, nomeie isso com respeito.
-- Use a data atual acima para interpretar pedidos como hoje, amanha, sexta, este ano e proximos horarios.
-- Quando o usuario falar de rotina, considere os horarios marcados em calendario e relogio/despertador.
-- Termine com uma direÃ§Ã£o curta e concreta.`.trim();
+- Use a data atual acima para interpretar pedidos como hoje, amanhã, sexta, este ano e próximos horários.
+- Quando o usuário falar de rotina, considere os horários marcados em calendário e relógio/despertador.
+- Termine com uma direção curta e concreta.`.trim();
 }
 
 const PERSONALITY_PROMPT = (userMessage: string, currentStyle: string) =>
@@ -249,7 +249,7 @@ const PERSONALITY_PROMPT = (userMessage: string, currentStyle: string) =>
 Mensagem: "${userMessage}"
 Estilo atual: "${currentStyle}"
 
-Responda APENAS com JSON vÃ¡lido (sem markdown):
+Responda APENAS com JSON válido (sem markdown):
 {"communicationStyle": "friendly|formal|casual|playful|serious", "newInterests": ["..."], "topic": "..."}`;
 
 async function analyzePersonalityGroq(
@@ -305,7 +305,7 @@ export async function analyzePersonality(
     return result;
   } catch (error) {
     if (!isRateLimitError(error)) return {};
-    console.warn("[AI] OpenAI rate limited (analyzePersonality) â†’ usando Groq");
+    console.warn("[AI] OpenAI rate limited (analyzePersonality) → usando Groq");
   }
   try {
     const result = await analyzePersonalityGroq(userMessage, currentPersonality);
@@ -313,7 +313,7 @@ export async function analyzePersonality(
     return result;
   } catch (error) {
     if (!isRateLimitError(error)) return {};
-    console.warn("[AI] Groq rate limited (analyzePersonality) â†’ usando Gemini");
+    console.warn("[AI] Groq rate limited (analyzePersonality) → usando Gemini");
   }
   try {
     const result = await analyzePersonalityGemini(userMessage, currentPersonality);
@@ -321,7 +321,7 @@ export async function analyzePersonality(
     return result;
   } catch (error) {
     if (!isRateLimitError(error)) return {};
-    console.warn("[AI] Gemini rate limited (analyzePersonality) â†’ usando Cerebras");
+    console.warn("[AI] Gemini rate limited (analyzePersonality) → usando Cerebras");
   }
   try {
     const result = await analyzePersonalityCerebras(userMessage, currentPersonality);
@@ -332,22 +332,22 @@ export async function analyzePersonality(
   }
 }
 
-// â”€â”€ Memory Extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Memory Extraction ─────────────────────────────────────────────────────────
 
 const MEMORY_PROMPT = (userMessage: string, assistantResponse: string, existingFacts: string[]) =>
-  `VocÃª Ã© um sistema de memÃ³ria. Analise esta troca e extraia fatos IMPORTANTES e DURADOUROS sobre o usuÃ¡rio.
+  `Você é um sistema de memória. Analise esta troca e extraia fatos IMPORTANTES e DURADOUROS sobre o usuário.
 
-Fatos jÃ¡ conhecidos:
+Fatos já conhecidos:
 ${existingFacts.length > 0 ? existingFacts.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhum ainda"}
 
-Mensagem do usuÃ¡rio: "${userMessage}"
+Mensagem do usuário: "${userMessage}"
 Resposta do assistente: "${assistantResponse.slice(0, 400)}"
 
-Extraia apenas fatos NOVOS relevantes: nome real, famÃ­lia, profissÃ£o, cidade, objetivos de vida, problemas recorrentes, preferÃªncias importantes, datas especiais. Ignore assuntos triviais ou temporÃ¡rios.
+Extraia apenas fatos NOVOS relevantes: nome real, família, profissão, cidade, objetivos de vida, problemas recorrentes, preferências importantes, datas especiais. Ignore assuntos triviais ou temporários.
 
-Responda APENAS com JSON vÃ¡lido (sem markdown):
+Responda APENAS com JSON válido (sem markdown):
 {"newFacts": ["fato 1", "fato 2"]}
-Se nÃ£o houver fatos novos importantes: {"newFacts": []}`;
+Se não houver fatos novos importantes: {"newFacts": []}`;
 
 async function extractMemoriesGroq(
   userMessage: string,
@@ -413,7 +413,7 @@ export async function extractMemories(
     return result;
   } catch (error) {
     if (!isRateLimitError(error)) return [];
-    console.warn("[AI] OpenAI rate limited (extractMemories) â†’ usando Groq");
+    console.warn("[AI] OpenAI rate limited (extractMemories) → usando Groq");
   }
   try {
     const result = await extractMemoriesGroq(userMessage, assistantResponse, existingFacts);
@@ -421,7 +421,7 @@ export async function extractMemories(
     return result;
   } catch (error) {
     if (!isRateLimitError(error)) return [];
-    console.warn("[AI] Groq rate limited (extractMemories) â†’ usando Gemini");
+    console.warn("[AI] Groq rate limited (extractMemories) → usando Gemini");
   }
   try {
     const result = await extractMemoriesGemini(userMessage, assistantResponse, existingFacts);
@@ -429,7 +429,7 @@ export async function extractMemories(
     return result;
   } catch (error) {
     if (!isRateLimitError(error)) return [];
-    console.warn("[AI] Gemini rate limited (extractMemories) â†’ usando Cerebras");
+    console.warn("[AI] Gemini rate limited (extractMemories) → usando Cerebras");
   }
   try {
     const result = await extractMemoriesCerebras(userMessage, assistantResponse, existingFacts);
@@ -440,7 +440,7 @@ export async function extractMemories(
   }
 }
 
-// â”€â”€ Personality Update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Personality Update ────────────────────────────────────────────────────────
 
 export async function updatePersonalityFromMessage(
   userId: string,
@@ -482,7 +482,7 @@ export async function updatePersonalityFromMessage(
   });
 }
 
-// â”€â”€ Chat Streaming â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Chat Streaming ────────────────────────────────────────────────────────────
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -634,34 +634,34 @@ export async function streamChat(
     return await streamChatOpenAI(user, personality, history, userMessage, onChunk, runtimeContext);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
-    console.warn("[AI] OpenAI rate limited (streamChat) â†’ usando Groq");
+    console.warn("[AI] OpenAI rate limited (streamChat) → usando Groq");
   }
   try {
     return await streamChatGroq(user, personality, history, userMessage, onChunk, runtimeContext);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
-    console.warn("[AI] Groq rate limited (streamChat) â†’ usando Gemini");
+    console.warn("[AI] Groq rate limited (streamChat) → usando Gemini");
   }
   try {
     return await streamChatGemini(user, personality, history, userMessage, onChunk, runtimeContext);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
-    console.warn("[AI] Gemini rate limited (streamChat) â†’ usando Cerebras");
+    console.warn("[AI] Gemini rate limited (streamChat) → usando Cerebras");
   }
   return await streamChatCerebras(user, personality, history, userMessage, onChunk, runtimeContext);
 }
 
-// â”€â”€ Post Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Post Analysis ─────────────────────────────────────────────────────────────
 
 const POST_ANALYSIS_PROMPT = (postContent: string, authorName: string) =>
-  `Analise este post de uma rede social e responda APENAS com JSON vÃ¡lido (sem markdown):
+  `Analise este post de uma rede social e responda APENAS com JSON válido (sem markdown):
 
 Post de ${authorName}: "${postContent}"
 
 Identifique:
 1. O sentimento predominante: "happy" | "motivated" | "tired" | "sad" | "neutral" | "excited" | "proud"
-2. Um rÃ³tulo legÃ­vel em portuguÃªs para o sentimento (ex: "Animado", "Motivado", "Cansado", "Feliz", "Orgulhoso")
-3. Um comentÃ¡rio natural, humano e encorajador (mÃ¡ximo 2 frases, em portuguÃªs do Brasil, sem ser robÃ³tico)
+2. Um rótulo legível em português para o sentimento (ex: "Animado", "Motivado", "Cansado", "Feliz", "Orgulhoso")
+3. Um comentário natural, humano e encorajador (máximo 2 frases, em português do Brasil, sem ser robótico)
 
 {"sentiment": "...", "sentimentLabel": "...", "comment": "..."}`;
 
@@ -669,7 +669,7 @@ export async function analyzePost(
   postContent: string,
   authorName: string
 ): Promise<{ sentiment: string; sentimentLabel: string; comment: string }> {
-  const fallback = { sentiment: "neutral", sentimentLabel: "Neutro", comment: "Que legal que vocÃª compartilhou isso! ðŸ" };
+  const fallback = { sentiment: "neutral", sentimentLabel: "Neutro", comment: "Que legal que você compartilhou isso! 🐝" };
 
   const prompt = POST_ANALYSIS_PROMPT(postContent, authorName);
 
@@ -721,7 +721,7 @@ export async function analyzePost(
   );
 }
 
-// â”€â”€ Connection Suggestion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Connection Suggestion ─────────────────────────────────────────────────────
 
 export function buildConnectionSuggestionMessage(
   myName: string,
@@ -729,13 +729,13 @@ export function buildConnectionSuggestionMessage(
   commonInterests: string[]
 ): string {
   const interestsText = commonInterests.length > 0
-    ? `vocÃªs dois tÃªm interesses em comum: ${commonInterests.slice(0, 3).join(", ")}`
-    : "vocÃªs parecem ter perfis complementares";
+    ? `vocês dois têm interesses em comum: ${commonInterests.slice(0, 3).join(", ")}`
+    : "vocês parecem ter perfis complementares";
 
-  return `ðŸ’¡ SugestÃ£o de conexÃ£o: ${interestsText}. Que tal se conectar com ${targetName}?`;
+  return `💡 Sugestão de conexão: ${interestsText}. Que tal se conectar com ${targetName}?`;
 }
 
-// â”€â”€ Proactive Message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Proactive Message ─────────────────────────────────────────────────────────
 
 export interface ConnectionMatchSummary {
   matchScore: number;
@@ -806,17 +806,17 @@ export function buildConnectionMatchSummary(input: {
 
   const reason =
     input.commonInterests.length > 0
-      ? `VocÃªs convergem em ${input.commonInterests.slice(0, 2).join(" e ")} e tendem a trocar contexto Ãºtil, nÃ£o conversa vazia.`
+      ? `Vocês convergem em ${input.commonInterests.slice(0, 2).join(" e ")} e tendem a trocar contexto útil, não conversa vazia.`
       : commonTopics.length > 0
-      ? `O foco recente de vocÃªs estÃ¡ prÃ³ximo em ${commonTopics[0]}, o que aumenta chance de conversa com propÃ³sito.`
+      ? `O foco recente de vocês está próximo em ${commonTopics[0]}, o que aumenta chance de conversa com propósito.`
       : streakGap <= 2 && input.me.currentStreak > 0 && input.target.currentStreak > 0
-      ? "VocÃªs estÃ£o em um ritmo parecido de consistÃªncia, o que costuma gerar accountability melhor."
+      ? "Vocês estão em um ritmo parecido de consistência, o que costuma gerar accountability melhor."
       : levelGap <= 2
-      ? "VocÃªs parecem estar em um estÃ¡gio parecido de evoluÃ§Ã£o dentro do app, com boa chance de se entenderem rÃ¡pido."
-      : `Os interesses de ${input.target.displayName || input.target.username} complementam o que vocÃª anda buscando agora.`;
+      ? "Vocês parecem estar em um estágio parecido de evolução dentro do app, com boa chance de se entenderem rápido."
+      : `Os interesses de ${input.target.displayName || input.target.username} complementam o que você anda buscando agora.`;
 
-  const focusHint = input.commonInterests[0] || commonTopics[0] || targetInterests[0] || myInterests[0] || "rotina e evoluÃ§Ã£o";
-  const suggestedIntro = `VocÃª tambÃ©m estÃ¡ focado em ${focusHint}. Vale abrir conversa por esse ponto.`;
+  const focusHint = input.commonInterests[0] || commonTopics[0] || targetInterests[0] || myInterests[0] || "rotina e evolução";
+  const suggestedIntro = `Você também está focado em ${focusHint}. Vale abrir conversa por esse ponto.`;
 
   return {
     matchScore,
@@ -833,11 +833,11 @@ export function buildFeedInsight(postContent: string, sentimentLabel?: string | 
     return {
       angle: "career",
       signalLabel: "Carreira",
-      audienceHint: "Esse conteÃºdo tende a atrair pessoas em modo de execuÃ§Ã£o e crescimento profissional.",
-      impactHint: "Posts assim costumam gerar conversa Ãºtil quando mostram aprendizado ou entrega concreta.",
+      audienceHint: "Esse conteúdo tende a atrair pessoas em modo de execução e crescimento profissional.",
+      impactHint: "Posts assim costumam gerar conversa útil quando mostram aprendizado ou entrega concreta.",
       comment: sentimentLabel
-        ? `A Bee leu isso como um sinal de ${sentimentLabel.toLowerCase()} aplicado Ã  carreira, nÃ£o sÃ³ desabafo.`
-        : "A Bee leu isso como um sinal de carreira e construÃ§Ã£o prÃ¡tica, nÃ£o sÃ³ opiniÃ£o solta.",
+        ? `A Bee leu isso como um sinal de ${sentimentLabel.toLowerCase()} aplicado à carreira, não só desabafo.`
+        : "A Bee leu isso como um sinal de carreira e construção prática, não só opinião solta.",
     };
   }
 
@@ -845,9 +845,9 @@ export function buildFeedInsight(postContent: string, sentimentLabel?: string | 
     return {
       angle: "discipline",
       signalLabel: "Disciplina",
-      audienceHint: "Esse conteÃºdo conversa com gente tentando sustentar rotina, foco ou hÃ¡bito.",
-      impactHint: "Quando o post vira evidÃªncia de processo, ele reforÃ§a identidade de consistÃªncia na rede.",
-      comment: "A Bee leu isso como um marcador de disciplina em construÃ§Ã£o ou manutenÃ§Ã£o.",
+      audienceHint: "Esse conteúdo conversa com gente tentando sustentar rotina, foco ou hábito.",
+      impactHint: "Quando o post vira evidência de processo, ele reforça identidade de consistência na rede.",
+      comment: "A Bee leu isso como um marcador de disciplina em construção ou manutenção.",
     };
   }
 
@@ -855,9 +855,9 @@ export function buildFeedInsight(postContent: string, sentimentLabel?: string | 
     return {
       angle: "social",
       signalLabel: "Social",
-      audienceHint: "Esse conteÃºdo tende a ativar pessoas que valorizam troca, comunidade e conexÃ£o Ãºtil.",
-      impactHint: "Posts sociais funcionam melhor quando puxam colaboraÃ§Ã£o ou reconhecimento claro.",
-      comment: "A Bee leu isso como um post de conexÃ£o, com potencial de aproximar gente com o mesmo momento.",
+      audienceHint: "Esse conteúdo tende a ativar pessoas que valorizam troca, comunidade e conexão útil.",
+      impactHint: "Posts sociais funcionam melhor quando puxam colaboração ou reconhecimento claro.",
+      comment: "A Bee leu isso como um post de conexão, com potencial de aproximar gente com o mesmo momento.",
     };
   }
 
@@ -865,18 +865,18 @@ export function buildFeedInsight(postContent: string, sentimentLabel?: string | 
     return {
       angle: "emotion",
       signalLabel: "Emocional",
-      audienceHint: "Esse conteÃºdo deve tocar gente lidando com pressÃ£o, pausa ou reorganizaÃ§Ã£o emocional.",
+      audienceHint: "Esse conteúdo deve tocar gente lidando com pressão, pausa ou reorganização emocional.",
       impactHint: "Quando bem colocado, esse tipo de post abre conversa honesta em vez de performance.",
-      comment: "A Bee leu isso como um sinal emocional relevante, com espaÃ§o para apoio real da rede.",
+      comment: "A Bee leu isso como um sinal emocional relevante, com espaço para apoio real da rede.",
     };
   }
 
   return {
     angle: "reflection",
     signalLabel: "Reflexao",
-    audienceHint: "Esse conteÃºdo tende a atrair pessoas em momento de revisÃ£o, aprendizado ou reposicionamento.",
-    impactHint: "Posts reflexivos ganham forÃ§a quando deixam claro o que mudou na sua leitura.",
-    comment: "A Bee leu isso como um post de reflexÃ£o com potencial de gerar conversa mais consciente.",
+    audienceHint: "Esse conteúdo tende a atrair pessoas em momento de revisão, aprendizado ou reposicionamento.",
+    impactHint: "Posts reflexivos ganham força quando deixam claro o que mudou na sua leitura.",
+    comment: "A Bee leu isso como um post de reflexão com potencial de gerar conversa mais consciente.",
   };
 }
 
@@ -887,7 +887,7 @@ function formatEventTime(startAt: Date): string {
   if (diffMin < 60) return `em ${diffMin} minutos (${timeStr})`;
   if (diffMin < 240) return `em ${Math.round(diffMin / 60)}h (${timeStr})`;
   const isToday = startAt.toDateString() === now.toDateString();
-  return isToday ? `hoje Ã s ${timeStr}` : `amanhÃ£ Ã s ${timeStr}`;
+  return isToday ? `hoje às ${timeStr}` : `amanhã às ${timeStr}`;
 }
 
 function fmtReais(cents: number): string {
@@ -903,7 +903,7 @@ function buildProactivePrompt(
   const factsText =
     facts.length > 0
       ? facts.slice(0, 10).map((f, i) => `${i + 1}. ${f}`).join("\n")
-      : "Ainda sem memÃ³rias salvas";
+      : "Ainda sem memórias salvas";
 
   const eventsText = upcomingEvents.length > 0
     ? upcomingEvents.map(e => `- "${e.title}" ${formatEventTime(new Date(e.startAt))}${e.location ? ` (${e.location})` : ""}`).join("\n")
@@ -911,44 +911,44 @@ function buildProactivePrompt(
 
   const financeText = financeSummary
     ? [
-        `Saldo do mÃªs: ${fmtReais(financeSummary.balance)} (${financeSummary.balance >= 0 ? "positivo âœ…" : "negativo âš ï¸"})`,
+        `Saldo do mês: ${fmtReais(financeSummary.balance)} (${financeSummary.balance >= 0 ? "positivo ✅" : "negativo ⚠️"})`,
         `Total de despesas: ${fmtReais(financeSummary.totalExpense)}`,
         financeSummary.topCategory ? `Maior gasto: ${financeSummary.topCategory} (${fmtReais(financeSummary.topCategoryAmount ?? 0)})` : null,
       ].filter(Boolean).join("\n")
     : null;
 
   const urgentBlock = eventsText || financeText ? `
-CONTEXTO PRIORITÃRIO (use obrigatoriamente se existir):
-${eventsText ? `ðŸ“… Eventos prÃ³ximos (prÃ³ximas 24h):\n${eventsText}` : ""}
-${financeText ? `ðŸ’° FinanÃ§as do mÃªs:\n${financeText}` : ""}
+CONTEXTO PRIORITÁRIO (use obrigatoriamente se existir):
+${eventsText ? `📅 Eventos próximos (próximas 24h):\n${eventsText}` : ""}
+${financeText ? `💰 Finanças do mês:\n${financeText}` : ""}
 
-Se houver evento prÃ³ximo â†’ USE o tipo 9 (AGENDA).
-Se o saldo for negativo ou houver gasto dominante â†’ USE o tipo 10 (FINANÃ‡AS).
+Se houver evento próximo → USE o tipo 9 (AGENDA).
+Se o saldo for negativo ou houver gasto dominante → USE o tipo 10 (FINANÇAS).
 ` : "";
 
-  return `[SISTEMA - mensagem espontÃ¢nea da BeeEyes]
-VocÃª Ã© a BeeEyes ðŸ, assistente pessoal e companheira de evoluÃ§Ã£o de ${user.username}. Gere UMA mensagem espontÃ¢nea, natural e relevante. Escolha o tipo mais impactante com base no contexto:
+  return `[SISTEMA - mensagem espontânea da BeeEyes]
+Você é a BeeEyes 🐝, assistente pessoal e companheira de evolução de ${user.username}. Gere UMA mensagem espontânea, natural e relevante. Escolha o tipo mais impactante com base no contexto:
 
-1. PRODUTIVIDADE: percebeu algo sobre trabalho, tarefas ou foco? Comente ou sugira algo prÃ¡tico
-2. SAÃšDE: identificou padrÃ£o de cansaÃ§o, falta de descanso ou treino? Mencione com cuidado
+1. PRODUTIVIDADE: percebeu algo sobre trabalho, tarefas ou foco? Comente ou sugira algo prático
+2. SAÚDE: identificou padrão de cansaço, falta de descanso ou treino? Mencione com cuidado
 3. SOCIAL: sugira que interaja com amigos ou explore as comunidades
-4. EVOLUÃ‡ÃƒO: referencie um objetivo ou meta pessoal e encoraje o progresso
+4. EVOLUÇÃO: referencie um objetivo ou meta pessoal e encoraje o progresso
 
-5. MEMÃ“RIA: referencie algo especÃ­fico que ${user.username} mencionou antes de forma carinhosa
-6. SCORE: comente o progresso, sequÃªncia ou nÃ­vel de forma motivadora
-7. CHECK-IN: mensagem carinhosa perguntando como estÃ¡ o dia
-8. AGENDA: avise sobre evento prÃ³ximo de forma natural â€” "Ei, nÃ£o esquece que vocÃª tem X em Y!"
-9. FINANÃ‡AS: dica financeira prÃ¡tica se o saldo estiver negativo ou um gasto estiver muito alto â€” "Vi que suas despesas em X estÃ£o altas, que tal..."
+5. MEMÓRIA: referencie algo específico que ${user.username} mencionou antes de forma carinhosa
+6. SCORE: comente o progresso, sequência ou nível de forma motivadora
+7. CHECK-IN: mensagem carinhosa perguntando como está o dia
+8. AGENDA: avise sobre evento próximo de forma natural — "Ei, não esquece que você tem X em Y!"
+9. FINANÇAS: dica financeira prática se o saldo estiver negativo ou um gasto estiver muito alto — "Vi que suas despesas em X estão altas, que tal..."
 ${urgentBlock}
-MemÃ³rias sobre ${user.username}:
+Memórias sobre ${user.username}:
 ${factsText}
 
 Regras:
-- MÃ¡ximo 2 frases curtas e naturais
-- Tom de amiga prÃ³xima mandando mensagem, nÃ£o de sistema
-- Seja motivadora na medida certa â€” nunca invasiva ou excessiva
-- NÃ£o mencione que Ã© mensagem automÃ¡tica
-- Responda em portuguÃªs do Brasil no feminino`;
+- Máximo 2 frases curtas e naturais
+- Tom de amiga próxima mandando mensagem, não de sistema
+- Seja motivadora na medida certa — nunca invasiva ou excessiva
+- Não mencione que é mensagem automática
+- Responda em português do Brasil no feminino`;
 }
 
 export async function generateProactiveMessage(
@@ -1050,7 +1050,7 @@ function pickPrimaryFocus(personality: UserPersonality, history: ChatMessage[]):
   if (topics.length > 0) return topics[0];
 
   const lastUserMessage = [...history].reverse().find((message) => message.role === "user")?.content ?? "";
-  if (/trein|academ|sa[Ãºu]de|sono/i.test(lastUserMessage)) return "saude";
+  if (/trein|academ|sa[úu]de|sono/i.test(lastUserMessage)) return "saude";
   if (/estud|curso|ler|prova/i.test(lastUserMessage)) return "estudos";
   if (/trabalh|carreira|projeto|produto|bee/i.test(lastUserMessage)) return "trabalho";
   return "consistencia";
@@ -1100,7 +1100,7 @@ export function buildPersonalizedFeedInsight(input: {
   }
   if (input.baseAngle === "social" && viewerInterests.some((item) => /network|amiz|comunidade|social/.test(item))) {
     relevanceScore += 18;
-    reasons.push("isso pode abrir conexao util para voce");
+    reasons.push("isso pode abrir conexão útil para você");
   }
   if (input.baseAngle === "emotion" && input.viewer.currentStreak === 0) {
     relevanceScore += 16;
@@ -1113,13 +1113,13 @@ export function buildPersonalizedFeedInsight(input: {
 
   relevanceScore = Math.max(22, Math.min(95, relevanceScore));
   const forYouReason = reasons[0]
-    ? `A Bee trouxe isso para voce porque ${reasons[0]}.`
-    : `A Bee trouxe isso para voce porque pode gerar uma leitura util no seu momento atual.`;
+    ? `A Bee trouxe isso para você porque ${reasons[0]}.`
+    : `A Bee trouxe isso para você porque pode gerar uma leitura útil no seu momento atual.`;
   const actionHint =
     input.baseAngle === "social"
       ? `Se fizer sentido, use isso para puxar conversa com ${input.postAuthorName}.`
       : input.baseAngle === "discipline"
-      ? "Use isso como espelho: o que aqui voce consegue transformar em acao hoje?"
+      ? "Use isso como espelho: o que aqui você consegue transformar em ação hoje?"
       : input.baseAngle === "career"
       ? "Se isso tocar seu momento atual, vale comentar ou salvar como referencia pratica."
       : "Se isso bateu, transforme a leitura em um ajuste curto no seu dia.";
@@ -1142,23 +1142,23 @@ export function buildWeeklyReport(input: {
 
   const summary =
     consistencyScore >= 70
-      ? `Sua semana teve presenca real: ${input.activeDays} dias ativos e ${input.completedActions} acoes registradas.`
-      : `Sua semana ficou irregular: ${input.activeDays} dias ativos e ${input.completedActions} acoes registradas.`;
+      ? `Sua semana teve presença real: ${input.activeDays} dias ativos e ${input.completedActions} ações registradas.`
+      : `Sua semana ficou irregular: ${input.activeDays} dias ativos e ${input.completedActions} ações registradas.`;
 
   const positive =
     input.completedActions > 0
-      ? `Seu melhor sinal foi transformar intenÃ§Ã£o em entrega ${input.completedActions} vez${input.completedActions > 1 ? "es" : ""}.`
-      : "O ponto positivo Ã© que ainda existe espaÃ§o claro para recuperar o ritmo rapidamente.";
+      ? `Seu melhor sinal foi transformar intenção em entrega ${input.completedActions} vez${input.completedActions > 1 ? "es" : ""}.`
+      : "O ponto positivo é que ainda existe espaço claro para recuperar o ritmo rapidamente.";
 
   const attention =
     consistencyScore < 50
-      ? `Seu maior ponto de atenÃ§Ã£o foi a quebra de ritmo. ${input.weakestDay} foi o dia mais fraco da semana.`
-      : `Seu ponto de atenÃ§Ã£o foi manter constÃ¢ncia entre os dias. ${input.weakestDay} ainda puxou sua semana para baixo.`;
+      ? `Seu maior ponto de atenção foi a quebra de ritmo. ${input.weakestDay} foi o dia mais fraco da semana.`
+      : `Seu ponto de atenção foi manter constância entre os dias. ${input.weakestDay} ainda puxou sua semana para baixo.`;
 
   const nextAction =
     input.streak === 0
-      ? "Comece a prÃ³xima semana protegendo um Ãºnico compromisso diÃ¡rio."
-      : `Repita o padrÃ£o de ${input.strongestDay} e transforme isso no seu bloco fixo da semana.`;
+      ? "Comece a próxima semana protegendo um único compromisso diário."
+      : `Repita o padrão de ${input.strongestDay} e transforme isso no seu bloco fixo da semana.`;
 
   return {
     summary,
@@ -1174,7 +1174,7 @@ export function buildWeeklyReport(input: {
   };
 }
 
-// â”€â”€ Visit Notification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Visit Notification ────────────────────────────────────────────────────────
 
 export function buildScoreSnapshot(input: {
   activeDays: number;
@@ -1215,17 +1215,17 @@ export function buildScoreSnapshot(input: {
     scoreTone === "Progresso"
       ? "Existe evidencia de consistencia real na sua semana."
       : scoreTone === "Ritmo"
-      ? "Voce esta em movimento, mas ainda nao estabilizou seu ritmo."
-      : "Seu ritmo caiu e precisa de uma acao concreta hoje.";
+      ? "Você está em movimento, mas ainda não estabilizou seu ritmo."
+      : "Seu ritmo caiu e precisa de uma ação concreta hoje.";
 
   const insight =
     input.lastActiveHours !== null && input.lastActiveHours >= 20
-      ? `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Retome antes de normalizar essa distancia.`
+      ? `Você ficou ${Math.round(input.lastActiveHours)}h longe. Retome antes de normalizar essa distância.`
       : consistencyScore >= 70 && disciplineScore >= 60
-      ? "Bom. Seu progresso ja parece comportamento, nao so intencao."
+      ? "Bom. Seu progresso já parece comportamento, não só intenção."
       : input.streak === 0
-      ? "Sua sequencia ainda nao voltou. Uma entrega pequena hoje ja muda isso."
-      : "Transforme o resto do dia em uma unica entrega visivel.";
+      ? "Sua sequência ainda não voltou. Uma entrega pequena hoje já muda isso."
+      : "Transforme o resto do dia em uma única entrega visível.";
 
   return {
     focusScore,
@@ -1250,10 +1250,10 @@ export function buildIntelligentNotifications(input: {
     notifications.push({
       id: `streak-risk-${Math.round(input.lastActiveHours)}`,
       type: input.streak > 0 ? "streak_risk" : "comeback",
-      title: input.streak > 0 ? "Seu ritmo esta cedendo" : "Voce saiu do ritmo",
+      title: input.streak > 0 ? "Seu ritmo está cedendo" : "Você saiu do ritmo",
       body: input.streak > 0
-        ? `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Se hoje passar em branco, sua sequencia perde forca.`
-        : `Voce ficou ${Math.round(input.lastActiveHours)}h longe. Volte com uma acao simples, nao com pressao vazia.`,
+        ? `Você ficou ${Math.round(input.lastActiveHours)}h longe. Se hoje passar em branco, sua sequência perde força.`
+        : `Você ficou ${Math.round(input.lastActiveHours)}h longe. Volte com uma ação simples, não com pressão vazia.`,
       tone: "danger",
     });
   }
@@ -1262,8 +1262,8 @@ export function buildIntelligentNotifications(input: {
     notifications.push({
       id: `discipline-${input.focusScore}`,
       type: "discipline_push",
-      title: "Voce esta abaixo da sua meta de ritmo",
-      body: "Nao parece falta de capacidade. Parece falta de direcao nas proximas horas.",
+      title: "Você está abaixo da sua meta de ritmo",
+      body: "Não parece falta de capacidade. Parece falta de direção nas próximas horas.",
       tone: "warning",
     });
   }
@@ -1273,7 +1273,7 @@ export function buildIntelligentNotifications(input: {
       id: `celebration-${input.focusScore}-${input.consistencyScore}`,
       type: "celebration",
       title: "Existe progresso real aqui",
-      body: "Voce manteve consistencia real esta semana. Agora proteja esse padrao.",
+      body: "Você manteve consistência real esta semana. Agora proteja esse padrão.",
       tone: "positive",
     });
   }
@@ -1290,7 +1290,7 @@ export async function generateVisitNotification(
   const prompt = `[SISTEMA - visita ao perfil]
 ${visitorName} acabou de visitar o perfil de ${visitedUser.displayName || visitedUser.username}.
 
-Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedUser.username} sobre a visita. Tom leve, curioso e amigÃ¡vel. MÃ¡ximo 2 frases. Termine sugerindo que ela veja o perfil de ${visitorName} ou mande uma mensagem. Em portuguÃªs do Brasil.`;
+Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedUser.username} sobre a visita. Tom leve, curioso e amigável. Máximo 2 frases. Termine sugerindo que ela veja o perfil de ${visitorName} ou mande uma mensagem. Em português do Brasil.`;
 
   return callWithFallback(
     [
@@ -1300,7 +1300,7 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
           max_tokens: 120,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
         });
-        return r.choices[0]?.message?.content?.trim() || `ðŸ‘€ ${visitorName} visitou o seu perfil! Que tal dar um olÃ¡?`;
+        return r.choices[0]?.message?.content?.trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
       async () => {
         const r = await groq.chat.completions.create({
@@ -1308,12 +1308,12 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
           max_tokens: 120,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
         });
-        return r.choices[0]?.message?.content?.trim() || `ðŸ‘€ ${visitorName} visitou o seu perfil! Que tal dar um olÃ¡?`;
+        return r.choices[0]?.message?.content?.trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
       async () => {
         const model = geminiAI.getGenerativeModel({ model: "gemini-2.0-flash", systemInstruction: systemPrompt });
         const result = await model.generateContent(prompt);
-        return result.response.text().trim() || `ðŸ‘€ ${visitorName} visitou o seu perfil! Que tal dar um olÃ¡?`;
+        return result.response.text().trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
       async () => {
         const r = await cerebras.chat.completions.create({
@@ -1321,26 +1321,26 @@ Gere uma mensagem curta e animada avisando ${visitedUser.displayName || visitedU
           max_tokens: 120,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }],
         });
-        return r.choices[0]?.message?.content?.trim() || `ðŸ‘€ ${visitorName} visitou o seu perfil! Que tal dar um olÃ¡?`;
+        return r.choices[0]?.message?.content?.trim() || `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`;
       },
     ],
-    `ðŸ‘€ ${visitorName} visitou o seu perfil! Que tal dar um olÃ¡?`
+    `👀 ${visitorName} visitou o seu perfil! Que tal dar um olá?`
   );
 }
 
-// â”€â”€ Profile Interest Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Profile Interest Summary ──────────────────────────────────────────────────
 
 export async function summarizeInterestsForProfile(rawInterests: string[]): Promise<string[]> {
   if (rawInterests.length === 0) return [];
 
-  const prompt = `VocÃª receberÃ¡ uma lista de interesses e tÃ³picos extraÃ­dos de conversas pessoais de um usuÃ¡rio. Alguns itens podem conter detalhes muito pessoais ou especÃ­ficos.
+  const prompt = `Você receberá uma lista de interesses e tópicos extraídos de conversas pessoais de um usuário. Alguns itens podem conter detalhes muito pessoais ou específicos.
 
-Sua tarefa: converta essa lista em no mÃ¡ximo 5 categorias amplas e genÃ©ricas, adequadas para exibiÃ§Ã£o pÃºblica em um perfil. Use termos curtos (1-3 palavras cada), sem nomes prÃ³prios, datas ou informaÃ§Ãµes pessoais identificÃ¡veis.
+Sua tarefa: converta essa lista em no máximo 5 categorias amplas e genéricas, adequadas para exibição pública em um perfil. Use termos curtos (1-3 palavras cada), sem nomes próprios, datas ou informações pessoais identificáveis.
 
 Interesses brutos:
 ${rawInterests.map((i) => `- ${i}`).join("\n")}
 
-Responda APENAS com um array JSON de strings. Exemplo: ["Tecnologia", "MÃºsica", "Esportes"]`;
+Responda APENAS com um array JSON de strings. Exemplo: ["Tecnologia", "Música", "Esportes"]`;
 
   return callWithFallback<string[]>(
     [
@@ -1386,7 +1386,7 @@ Responda APENAS com um array JSON de strings. Exemplo: ["Tecnologia", "MÃºsica
   );
 }
 
-// â”€â”€ News Article Summarizer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── News Article Summarizer ───────────────────────────────────────────────────
 
 export async function summarizeNewsArticle(url: string, title: string): Promise<string | null> {
   let articleText = "";
@@ -1408,12 +1408,12 @@ export async function summarizeNewsArticle(url: string, title: string): Promise<
     articleText = "";
   }
 
-  const prompt = `VocÃª Ã© um assistente que resume notÃ­cias em portuguÃªs do Brasil de forma clara e objetiva.
+  const prompt = `Você é um assistente que resume notícias em português do Brasil de forma clara e objetiva.
 
-TÃ­tulo: "${title}"
-${articleText ? `\nConteÃºdo extraÃ­do:\n${articleText}` : ""}
+Título: "${title}"
+${articleText ? `\nConteúdo extraído:\n${articleText}` : ""}
 
-FaÃ§a um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principais. Escreva em parÃ¡grafo corrido, sem bullet points. Responda APENAS com o resumo.`;
+Faça um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principais. Escreva em parágrafo corrido, sem bullet points. Responda APENAS com o resumo.`;
 
   return callWithFallback<string | null>(
     [
@@ -1451,7 +1451,7 @@ FaÃ§a um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principa
   );
 }
 
-// â”€â”€ Action Parser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Action Parser ─────────────────────────────────────────────────────────────
 
 export function parseAIActions(response: string): {
   cleanText: string;
@@ -1490,7 +1490,7 @@ export function parseAIActions(response: string): {
     }
   }
 
-  // Greedy match for nested objects â€” handles all valid JSON structures the AI can produce
+  // Greedy match for nested objects — handles all valid JSON structures the AI can produce
   const eventMatch = response.match(/\{"create_event"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
   if (eventMatch) {
     try {
@@ -1558,7 +1558,7 @@ function stripAIActionBlocks(text: string): string {
     .trim();
 }
 
-// â”€â”€ Daily Briefing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Daily Briefing ────────────────────────────────────────────────────────────
 
 export interface DailyBriefingInput {
   userName: string;
@@ -1580,30 +1580,30 @@ export interface DailyBriefingInput {
 }
 
 function buildDailyBriefingPrompt(input: DailyBriefingInput): string {
-  const genderNote = input.gender === "feminino" ? "Use o gÃªnero feminino ao se referir Ã  usuÃ¡ria." :
-    input.gender === "masculino" ? "Use o gÃªnero masculino ao se referir ao usuÃ¡rio." : "";
+  const genderNote = input.gender === "feminino" ? "Use o gênero feminino ao se referir à usuária." :
+    input.gender === "masculino" ? "Use o gênero masculino ao se referir ao usuário." : "";
 
   const weatherBlock = input.weather
-    ? `Clima em ${input.city || "sua cidade"}: ${input.weather.description}, ${input.weather.temp}Â°C agora, mÃ­nima ${input.weather.tempMin}Â°C e mÃ¡xima ${input.weather.tempMax}Â°C, ${input.weather.precipitationChance}% de chance de chuva.`
+    ? `Clima em ${input.city || "sua cidade"}: ${input.weather.description}, ${input.weather.temp}°C agora, mínima ${input.weather.tempMin}°C e máxima ${input.weather.tempMax}°C, ${input.weather.precipitationChance}% de chance de chuva.`
     : input.city
-    ? `LocalizaÃ§Ã£o: ${input.city}. Dados de clima nÃ£o disponÃ­veis no momento.`
-    : "LocalizaÃ§Ã£o nÃ£o disponÃ­vel.";
+    ? `Localização: ${input.city}. Dados de clima não disponíveis no momento.`
+    : "Localização não disponível.";
 
   const interestsBlock = input.interests.length > 0
-    ? `Interesses do usuÃ¡rio: ${input.interests.slice(0, 6).join(", ")}.`
+    ? `Interesses do usuário: ${input.interests.slice(0, 6).join(", ")}.`
     : "";
 
   const factsBlock = input.facts.length > 0
-    ? `O que vocÃª jÃ¡ sabe sobre ${input.userName}: ${input.facts.slice(0, 5).join("; ")}.`
+    ? `O que você já sabe sobre ${input.userName}: ${input.facts.slice(0, 5).join("; ")}.`
     : "";
 
   const streakBlock = input.streak > 0
-    ? `SequÃªncia ativa: ${input.streak} dia${input.streak > 1 ? "s" : ""}.`
+    ? `Sequência ativa: ${input.streak} dia${input.streak > 1 ? "s" : ""}.`
     : "";
 
-  return `VocÃª Ã© a Bee ðŸ â€” assistente pessoal inteligente, amigÃ¡vel e motivadora. Gere um resumo curto e acolhedor para o inÃ­cio do dia de ${input.userName}.
+  return `Você é a Bee 🐝 — assistente pessoal inteligente, amigável e motivadora. Gere um resumo curto e acolhedor para o início do dia de ${input.userName}.
 
-Dados disponÃ­veis:
+Dados disponíveis:
 - Data: ${input.dateStr} (${input.dayOfWeek})
 - ${weatherBlock}
 ${interestsBlock}
@@ -1611,22 +1611,22 @@ ${factsBlock}
 ${streakBlock}
 ${genderNote}
 
-InstruÃ§Ãµes:
-- Comece com uma saudaÃ§Ã£o personalizada (bom dia/boa tarde/boa noite conforme a hora: ${new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit" })}h de BrasÃ­lia)
+Instruções:
+- Comece com uma saudação personalizada (bom dia/boa tarde/boa noite conforme a hora: ${new Date().toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit" })}h de Brasília)
 - Mencione o nome ${input.userName}
-- Se houver dados de clima, inclua uma sugestÃ£o prÃ¡tica (ex: "leve um guarda-chuva", "beba mais Ã¡gua", "aproveite o sol")
-- Se nÃ£o houver dados de clima, nÃ£o peÃ§a cidade nem localizaÃ§Ã£o; apenas siga com um resumo sem previsÃ£o do tempo
-- Inclua uma sugestÃ£o de foco para o dia baseada nos interesses
-- Termine com uma frase motivacional curta e genuÃ­na
-- Seja acolhedora, objetiva e natural â€” como uma amiga prÃ³xima mandando mensagem
-- MÃ¡ximo 4 frases curtas, sem listas, sem markdown
-- NÃƒO invente dados que nÃ£o foram fornecidos
-- Responda APENAS em portuguÃªs do Brasil`;
+- Se houver dados de clima, inclua uma sugestão prática (ex: "leve um guarda-chuva", "beba mais água", "aproveite o sol")
+- Se não houver dados de clima, não peça cidade nem localização; apenas siga com um resumo sem previsão do tempo
+- Inclua uma sugestão de foco para o dia baseada nos interesses
+- Termine com uma frase motivacional curta e genuína
+- Seja acolhedora, objetiva e natural — como uma amiga próxima mandando mensagem
+- Máximo 4 frases curtas, sem listas, sem markdown
+- NÃO invente dados que não foram fornecidos
+- Responda APENAS em português do Brasil`;
 }
 
 export async function generateDailyBriefing(input: DailyBriefingInput): Promise<string> {
   const prompt = buildDailyBriefingPrompt(input);
-  const fallback = `Bom dia, ${input.userName}! Hoje Ã© ${input.dateStr}, ${input.dayOfWeek}. Que seu dia seja cheio de foco e realizaÃ§Ãµes. A Bee estÃ¡ com vocÃª. ðŸ`;
+  const fallback = `Bom dia, ${input.userName}! Hoje é ${input.dateStr}, ${input.dayOfWeek}. Que seu dia seja cheio de foco e realizações. A Bee está com você. 🐝`;
 
   return callWithFallback<string>(
     [
@@ -1665,7 +1665,7 @@ export async function generateDailyBriefing(input: DailyBriefingInput): Promise<
 }
 
 const TRANSCRIBE_PROMPT =
-  "Aplicativo de produtividade pessoal em portuguÃªs do Brasil. Metas, tarefas, habitos, rotina, foco, disciplina, evoluÃ§Ã£o, conquistas, produtividade, consistÃªncia, planejamento, prioridades, objetivos, resultados, BeeEyes.";
+  "Aplicativo de produtividade pessoal em português do Brasil. Metas, tarefas, habitos, rotina, foco, disciplina, evolução, conquistas, produtividade, consistência, planejamento, prioridades, objetivos, resultados, BeeEyes.";
 
 // Patterns Whisper hallucinates when audio is silent, too short, or inaudible
 const WHISPER_HALLUCINATION_PATTERNS = [
@@ -1679,9 +1679,9 @@ const WHISPER_HALLUCINATION_PATTERNS = [
   /inscreva-se/i,
   /clique\s+aqui/i,
   /curta\s+e\s+compartilhe/i,
-  /nÃ£o\s+esqueÃ§a\s+de\s+se\s+inscrever/i,
+  /não\s+esqueça\s+de\s+se\s+inscrever/i,
   /legendado\s+por/i,
-  /transcri(to|Ã§Ã£o)\s+por/i,
+  /transcri(to|ção)\s+por/i,
   /subtitled?\s+by/i,
   /like\s+and\s+subscribe/i,
 ];
@@ -1698,13 +1698,13 @@ function isWhisperHallucination(text: string): boolean {
 export async function transcribeAudio(base64Audio: string, mimeType = "audio/webm"): Promise<string | null> {
   const buffer = Buffer.from(base64Audio, "base64");
 
-  // Reject suspiciously small buffers â€” a real 1-second audio is at least ~3 KB
+  // Reject suspiciously small buffers — a real 1-second audio is at least ~3 KB
   if (buffer.length < 1500) return null;
 
   const ext = mimeType.split("/")[1]?.split(";")[0] ?? "webm";
   const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
 
-  // verbose_json exposes no_speech_prob per segment â€” the most reliable silence detector
+  // verbose_json exposes no_speech_prob per segment — the most reliable silence detector
   // temperature: 0 forces greedy (deterministic) decoding, avoiding hallucinated variation
   const transcription = await openai.audio.transcriptions.create({
     file: audioFile,

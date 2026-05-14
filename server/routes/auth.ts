@@ -45,8 +45,8 @@ async function sendPasswordResetEmail(to: string, link: string) {
     body: JSON.stringify({
       from,
       to,
-      subject: "Recuperacao de senha BeeEyes",
-      html: `<p>Recebemos uma solicitacao para redefinir sua senha.</p><p><a href="${link}">Clique aqui para criar uma nova senha</a>.</p><p>O link expira em 1 hora.</p>`,
+      subject: "Recuperação de senha BeeEyes",
+      html: `<p>Recebemos uma solicitação para redefinir sua senha.</p><p><a href="${link}">Clique aqui para criar uma nova senha</a>.</p><p>O link expira em 1 hora.</p>`,
       text: `Use este link para redefinir sua senha BeeEyes: ${link}\n\nO link expira em 1 hora.`,
     }),
   }).catch(() => {
@@ -60,14 +60,14 @@ export function createAuthRouter() {
   router.post("/api/auth/register", asyncHandler(async (req, res) => {
     const parsed = insertUserSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw validationError("Dados invÃ¡lidos", parsed.error.issues);
+      throw validationError("Dados inválidos", parsed.error.issues);
     }
 
     const email = normalizeEmail(parsed.data.email);
     const existing = await storage.getUserByUsername(parsed.data.username);
     if (!email) throw badRequest("E-mail e obrigatorio para cadastro com senha");
     if (existing) {
-      throw conflict("Nome de usuÃ¡rio jÃ¡ existe");
+      throw conflict("Nome de usuário já existe");
     }
     if (email) {
       const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
@@ -85,11 +85,11 @@ export function createAuthRouter() {
 
     req.logger.info("auth.register.success", { userId: user.id, username: user.username });
 
-    // Medalha early_adopter para todo novo usuÃ¡rio
+    // Medalha early_adopter para todo novo usuário
     storage.ensureAchievement(user.id, {
       type: "early_adopter",
       title: "Pioneiro BeeEyes",
-      description: "Faz parte da geraÃ§Ã£o fundadora do app. Obrigado por estar aqui desde o inÃ­cio.",
+      description: "Faz parte da geração fundadora do app. Obrigado por estar aqui desde o início.",
     }).catch(() => {});
 
     return sendCreated(res, {
@@ -115,7 +115,7 @@ export function createAuthRouter() {
   router.post("/api/auth/social", asyncHandler(async (req, res) => {
     const { provider, accessToken } = req.body ?? {};
     if (provider !== "google" || !accessToken) {
-      throw badRequest("Provider nÃ£o suportado");
+      throw badRequest("Provider não suportado");
     }
 
     let googleUser: { sub: string; name?: string; email?: string; picture?: string } | null = null;
@@ -125,11 +125,11 @@ export function createAuthRouter() {
       });
       googleUser = await response.json();
     } catch {
-      throw unauthorized("Token do Google invÃ¡lido");
+      throw unauthorized("Token do Google inválido");
     }
 
     if (!googleUser?.sub) {
-      throw unauthorized("Token do Google invÃ¡lido");
+      throw unauthorized("Token do Google inválido");
     }
 
     let user = await storage.getUserByGoogleId(googleUser.sub);
@@ -180,7 +180,7 @@ export function createAuthRouter() {
   router.post("/api/auth/login", asyncHandler(async (req, res) => {
     const { username, password } = req.body ?? {};
     if (!username || !password) {
-      throw badRequest("UsuÃ¡rio e senha sÃ£o obrigatÃ³rios");
+      throw badRequest("Usuário e senha são obrigatórios");
     }
 
     const login = String(username).trim();
@@ -189,7 +189,7 @@ export function createAuthRouter() {
       : await storage.getUserByUsername(login);
     if (!user || !(await verifyPassword(password, user.password))) {
       req.logger.warn("auth.login.failed", { username });
-      throw unauthorized("UsuÃ¡rio ou senha incorretos");
+      throw unauthorized("Usuário ou senha incorretos");
     }
 
     req.logger.info("auth.login.success", { userId: user.id, username: user.username });
@@ -229,7 +229,7 @@ export function createAuthRouter() {
       await sendPasswordResetEmail(email, resetPasswordUrl(req, token));
     }
 
-    return sendOk(res, { ok: true, message: "Se o e-mail existir, enviaremos um link de recuperacao." });
+    return sendOk(res, { ok: true, message: "Se o e-mail existir, enviaremos um link de recuperação." });
   }));
 
   router.post("/api/auth/password-reset/confirm", asyncHandler(async (req, res) => {
@@ -237,7 +237,7 @@ export function createAuthRouter() {
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     if (!token || !password) throw badRequest("Token e nova senha sao obrigatorios");
     if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      throw badRequest("A nova senha precisa ter ao menos 8 caracteres, uma letra e um numero");
+      throw badRequest("A nova senha precisa ter ao menos 8 caracteres, uma letra e um número");
     }
 
     const [row] = await db
@@ -260,7 +260,7 @@ export function createAuthRouter() {
   router.get("/api/me", requireAuth, asyncHandler(async (req, res) => {
     const user = await storage.getUser(req.userId!);
     if (!user) {
-      throw notFound("UsuÃ¡rio nÃ£o encontrado");
+      throw notFound("Usuário não encontrado");
     }
 
     return sendOk(res, sanitizeUser(user));
@@ -270,7 +270,7 @@ export function createAuthRouter() {
     const { avatarUrl } = req.body ?? {};
     const value = typeof avatarUrl === "string" && avatarUrl.startsWith("data:image/") ? avatarUrl : null;
     const user = await storage.getUser(req.userId!);
-    if (!user) throw notFound("UsuÃ¡rio nÃ£o encontrado");
+    if (!user) throw notFound("Usuário não encontrado");
     await storage.updateUserAvatar(req.userId!, value);
     return sendOk(res, { avatarUrl: value });
   }));
@@ -279,7 +279,7 @@ export function createAuthRouter() {
     const { anonymousProfileVisitsEnabled, displayName, bio, language, onboardingCompleted } = req.body ?? {};
 
     if (anonymousProfileVisitsEnabled !== undefined && typeof anonymousProfileVisitsEnabled !== "boolean") {
-      throw validationError("PreferÃƒÂªncias invÃƒÂ¡lidas", [
+      throw validationError("Preferências inválidas", [
         {
           path: ["anonymousProfileVisitsEnabled"],
           message: "Envie um valor booleano",
@@ -290,11 +290,11 @@ export function createAuthRouter() {
 
     const user = await storage.getUser(req.userId!);
     if (!user) {
-      throw notFound("UsuÃƒÂ¡rio nÃƒÂ£o encontrado");
+      throw notFound("Usuário não encontrado");
     }
 
     if (language !== undefined && !["pt-BR", "en", "es"].includes(String(language))) {
-      throw badRequest("Idioma nao suportado");
+      throw badRequest("Idioma não suportado");
     }
 
     const updatedUser = await storage.updateUserPreferences(req.userId!, {
@@ -319,11 +319,11 @@ export function createAuthRouter() {
       throw badRequest("Senha atual e nova senha sao obrigatorias");
     }
     if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      throw badRequest("A nova senha precisa ter ao menos 8 caracteres, uma letra e um numero");
+      throw badRequest("A nova senha precisa ter ao menos 8 caracteres, uma letra e um número");
     }
 
     const user = await storage.getUser(req.userId!);
-    if (!user) throw notFound("Usuario nao encontrado");
+    if (!user) throw notFound("Usuário não encontrado");
     if (!(await verifyPassword(currentPassword, user.password))) {
       throw unauthorized("Senha atual incorreta");
     }
@@ -356,9 +356,9 @@ export function createAuthRouter() {
 
     // Build fact strings so parseFacts() injects them into the AI system prompt
     const onboardingFacts: string[] = [
-      `Objetivos principais do usuÃ¡rio: ${rawObjectives.join(", ")}`,
+      `Objetivos principais do usuário: ${rawObjectives.join(", ")}`,
       ...(workProfile ? [`Perfil profissional: ${workProfile}`] : []),
-      ...(activePeriod.length > 0 ? [`PerÃ­odo mais ativo do dia: ${activePeriod.join(", ")}`] : []),
+      ...(activePeriod.length > 0 ? [`Período mais ativo do dia: ${activePeriod.join(", ")}`] : []),
       `Rotina: ${routine}`,
     ];
 
@@ -374,7 +374,7 @@ export function createAuthRouter() {
             typeof f === "string" &&
             !f.startsWith("Objetivos principais") &&
             !f.startsWith("Perfil profissional") &&
-            !f.startsWith("PerÃ­odo mais ativo") &&
+            !f.startsWith("Período mais ativo") &&
             !f.startsWith("Rotina:"),
         );
       }

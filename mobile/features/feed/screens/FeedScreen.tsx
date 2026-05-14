@@ -421,7 +421,7 @@ export default function FeedScreen() {
 
               {suggestions.length > 0 && (
                 <View style={styles.suggestionsCard}>
-                  <Text style={styles.sectionTitle}>Sugestoes de conexao</Text>
+                  <Text style={styles.sectionTitle}>Sugestões de conexão</Text>
                   {suggestions.map((s) => (
                     <View key={s.id} style={styles.suggestionRow}>
                       <TouchableOpacity onPress={() => setProfileUserId(s.id)}>
@@ -439,7 +439,7 @@ export default function FeedScreen() {
                           ) : null}
                         </View>
                         <Text style={styles.suggestionInterests} numberOfLines={2}>
-                          {s.commonInterests.slice(0, 3).join(" • ") || s.suggestionMessage || "Boa conexao para voce"}
+                          {s.commonInterests.slice(0, 3).join(" • ") || s.suggestionMessage || "Boa conexão para você"}
                         </Text>
                         {s.matchReason ? (
                           <Text style={styles.matchReasonText} numberOfLines={2}>
@@ -471,8 +471,8 @@ export default function FeedScreen() {
               : (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyEmoji}>🌐</Text>
-                  <Text style={styles.emptyTitle}>Seu feed esta vazio</Text>
-                  <Text style={styles.emptyDesc}>Publique algo ou conecte-se com outros usuarios para ver conteudos aqui.</Text>
+                  <Text style={styles.emptyTitle}>Seu feed está vazio</Text>
+                  <Text style={styles.emptyDesc}>Publique algo ou conecte-se com outros usuários para ver conteúdos aqui.</Text>
                 </View>
               )
           }
@@ -561,7 +561,7 @@ function PostCard({
         ...prev,
         {
           ...data,
-          username: data.username || "Voce",
+          username: data.username || "Você",
           displayName: data.displayName || null,
           avatarUrl: data.avatarUrl || null,
           likesCount: data.likesCount ?? 0,
@@ -739,7 +739,7 @@ function PostCard({
       {post.personalizedInsight ? (
         <View style={styles.forYouBox}>
           <View style={styles.forYouHeader}>
-            <Text style={styles.forYouTag}>Por que isso apareceu para voce</Text>
+            <Text style={styles.forYouTag}>Por que isso apareceu para você</Text>
             <Text style={styles.forYouScore}>{post.personalizedInsight.relevanceScore}% fit</Text>
           </View>
           <Text style={styles.forYouText}>{post.personalizedInsight.forYouReason}</Text>

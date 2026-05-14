@@ -14,7 +14,7 @@ interface ChatMessageProps {
   actions?: ReactNode;
 }
 
-export default function ChatMessage({ role, content, createdAt, userName = "Usuario", userAvatarUrl, actions }: ChatMessageProps) {
+export default function ChatMessage({ role, content, createdAt, userName = "Usuário", userAvatarUrl, actions }: ChatMessageProps) {
   const isUser = role === "user";
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);

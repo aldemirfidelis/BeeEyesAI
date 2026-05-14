@@ -18,61 +18,61 @@ const TOTAL_STEPS = 3; // 0 = welcome, 1 = goals, 2 = routine, 3 = interests
 // â”€â”€ Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ï¿½ï¿½ï¿½â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ï¿½ï¿½ï¿½â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const OBJECTIVES = [
-  { emoji: "ðŸ’°", label: "Dinheiro" },
-  { emoji: "ðŸ‹ï¸", label: "Treino" },
-  { emoji: "ðŸ“š", label: "Estudos" },
-  { emoji: "ðŸ’¼", label: "Carreira" },
-  { emoji: "â¤ï¸", label: "Relacionamentos" },
-  { emoji: "ðŸ§˜", label: "Bem-estar" },
-  { emoji: "ðŸš€", label: "NegÃ³cios" },
-  { emoji: "ðŸŽ", label: "SaÃºde" },
-  { emoji: "ðŸŽ¨", label: "Criatividade" },
-  { emoji: "ðŸ ", label: "FamÃ­lia" },
-  { emoji: "âœˆï¸", label: "Viagens" },
-  { emoji: "ðŸŽ¯", label: "Produtividade" },
+  { emoji: "💰", label: "Dinheiro" },
+  { emoji: "🏋️", label: "Treino" },
+  { emoji: "📚", label: "Estudos" },
+  { emoji: "💼", label: "Carreira" },
+  { emoji: "❤️", label: "Relacionamentos" },
+  { emoji: "🧘", label: "Bem-estar" },
+  { emoji: "🚀", label: "Negócios" },
+  { emoji: "🍎", label: "Saúde" },
+  { emoji: "🎨", label: "Criatividade" },
+  { emoji: "🏠", label: "Família" },
+  { emoji: "✈️", label: "Viagens" },
+  { emoji: "🎯", label: "Produtividade" },
 ];
 
 const WORK_PROFILES = [
-  { emoji: "ðŸ‘”", label: "Empregado" },
-  { emoji: "ðŸ§‘â€ðŸ’»", label: "AutÃ´nomo" },
-  { emoji: "ðŸŽ“", label: "Estudante" },
-  { emoji: "ðŸ ", label: "Do lar" },
-  { emoji: "ðŸ”", label: "Em transiÃ§Ã£o" },
+  { emoji: "👔", label: "Empregado" },
+  { emoji: "🧑‍💻", label: "Autônomo" },
+  { emoji: "🎓", label: "Estudante" },
+  { emoji: "🏠", label: "Do lar" },
+  { emoji: "🔍", label: "Em transição" },
 ];
 
 const ACTIVE_PERIODS = [
-  { emoji: "ðŸŒ…", label: "ManhÃ£" },
-  { emoji: "â˜€ï¸", label: "Tarde" },
-  { emoji: "ðŸŒ™", label: "Noite" },
+  { emoji: "🌅", label: "Manhã" },
+  { emoji: "☀️", label: "Tarde" },
+  { emoji: "🌙", label: "Noite" },
 ];
 
 const INTERESTS = [
-  { emoji: "ðŸ¤–", label: "IA" },
-  { emoji: "ðŸ’¹", label: "FinanÃ§as" },
-  { emoji: "ðŸƒ", label: "Fitness" },
-  { emoji: "ðŸ“°", label: "NotÃ­cias" },
-  { emoji: "âš¡", label: "Produtividade" },
-  { emoji: "ðŸ§ ", label: "Autoconhecimento" },
-  { emoji: "ðŸ’»", label: "Tecnologia" },
-  { emoji: "ðŸ“–", label: "Leitura" },
-  { emoji: "ðŸŽµ", label: "MÃºsica" },
-  { emoji: "ðŸŽ®", label: "Games" },
-  { emoji: "ðŸ•", label: "Gastronomia" },
-  { emoji: "ðŸŒ¿", label: "Sustentabilidade" },
-  { emoji: "ðŸŽ­", label: "Cultura" },
-  { emoji: "ðŸ“±", label: "Redes Sociais" },
-  { emoji: "ðŸ”¬", label: "CiÃªncia" },
-  { emoji: "ðŸ˜ï¸", label: "Comunidades" },
-  { emoji: "âœï¸", label: "Escrita" },
-  { emoji: "ðŸ“Š", label: "Business" },
-  { emoji: "ðŸ§˜", label: "MeditaÃ§Ã£o" },
-  { emoji: "ðŸŽ¬", label: "Cinema" },
+  { emoji: "🤖", label: "IA" },
+  { emoji: "💹", label: "Finanças" },
+  { emoji: "🏃", label: "Fitness" },
+  { emoji: "📰", label: "Notícias" },
+  { emoji: "⚡", label: "Produtividade" },
+  { emoji: "🧠", label: "Autoconhecimento" },
+  { emoji: "💻", label: "Tecnologia" },
+  { emoji: "📖", label: "Leitura" },
+  { emoji: "🎵", label: "Música" },
+  { emoji: "🎮", label: "Games" },
+  { emoji: "🍕", label: "Gastronomia" },
+  { emoji: "🌿", label: "Sustentabilidade" },
+  { emoji: "🎭", label: "Cultura" },
+  { emoji: "📱", label: "Redes Sociais" },
+  { emoji: "🔬", label: "Ciência" },
+  { emoji: "🏘️", label: "Comunidades" },
+  { emoji: "✍️", label: "Escrita" },
+  { emoji: "📊", label: "Business" },
+  { emoji: "🧘", label: "Meditação" },
+  { emoji: "🎬", label: "Cinema" },
 ];
 
 // â”€â”€ Bee expressions per step â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ï¿½ï¿½ï¿½â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BEE_EXPR = ["happy", "excited", "curious", "celebrating"] as const;
 
-// â”€â”€ Main screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
   const themeMode = useUIStore((state) => state.themeMode);
@@ -92,7 +92,7 @@ export default function OnboardingScreen() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
-  const firstName = user?.displayName?.split(" ")[0] || user?.username || "vocÃª";
+  const firstName = user?.displayName?.split(" ")[0] || user?.username || "você";
 
   // â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ï¿½ï¿½â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -116,7 +116,7 @@ export default function OnboardingScreen() {
     if (step === 0) { animateToStep(1); return; }
     if (step === 1) {
       if (selectedObjectives.length === 0) {
-        Alert.alert("Escolha pelo menos 1 objetivo", "Isso ajuda a Bee a entender o que Ã© mais importante para vocÃª.");
+        Alert.alert("Escolha pelo menos 1 objetivo", "Isso ajuda a Bee a entender o que é mais importante para você.");
         return;
       }
       animateToStep(2);
@@ -124,11 +124,11 @@ export default function OnboardingScreen() {
     }
     if (step === 2) {
       if (!workProfile) {
-        Alert.alert("Qual seu perfil?", "Selecione o que melhor descreve sua situaÃ§Ã£o atual.");
+        Alert.alert("Qual seu perfil?", "Selecione o que melhor descreve sua situação atual.");
         return;
       }
       if (!routine.trim()) {
-        Alert.alert("Conte sobre sua rotina", "Uma frase jÃ¡ basta â€” isso personaliza muito as respostas da Bee.");
+        Alert.alert("Conte sobre sua rotina", "Uma frase já basta — isso personaliza muito as respostas da Bee.");
         return;
       }
       animateToStep(3);
@@ -167,7 +167,7 @@ export default function OnboardingScreen() {
 
   async function handleFinish() {
     if (selectedInterests.length === 0) {
-      Alert.alert("Escolha pelo menos 1 interesse", "Isso ajuda a Bee a personalizar respostas e conteudos.");
+      Alert.alert("Escolha pelo menos 1 interesse", "Isso ajuda a Bee a personalizar respostas e conteúdos.");
       return;
     }
     setSaving(true);
@@ -188,17 +188,17 @@ export default function OnboardingScreen() {
       setUser(data);
       router.replace("/(tabs)");
     } catch (error) {
-      Alert.alert("Erro", getApiErrorMessage(error, "NÃ£o foi possÃ­vel salvar suas preferÃªncias."));
+      Alert.alert("Erro", getApiErrorMessage(error, "Não foi possível salvar suas preferências."));
     } finally {
       setSaving(false);
     }
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Progress bar â€” hidden on welcome */}
+      {/* Progress bar — hidden on welcome */}
       {step > 0 && (
         <View style={styles.progressBar}>
           {[1, 2, 3].map((s) => (
@@ -224,22 +224,22 @@ export default function OnboardingScreen() {
             <BeeEyes expression={BEE_EXPR[step]} size={step === 0 ? 100 : 72} />
           </LinearGradient>
 
-          {/* â”€â”€ Step 0: Welcome â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Step 0: Welcome ─────────────────────────────────────────── */}
           {step === 0 && (
             <View style={styles.stepContent}>
-              <Text style={styles.greeting}>Oi, {firstName}! ðŸ</Text>
-              <Text style={styles.title}>Vamos ajustar a Bee para vocÃª</Text>
+              <Text style={styles.greeting}>Oi, {firstName}! 🐝</Text>
+              <Text style={styles.title}>Vamos ajustar a Bee para você</Text>
               <Text style={styles.subtitle}>
-                Em 3 passos rÃ¡pidos eu aprendo o que importa para vocÃª â€” seus objetivos, sua rotina e seus interesses.
+                Em 3 passos rápidos eu aprendo o que importa para você — seus objetivos, sua rotina e seus interesses.
               </Text>
               <Text style={styles.subtitle}>
-                Com isso, minhas respostas e alertas ficam muito mais uteis e relevantes para a sua vida real.
+                Com isso, minhas respostas e alertas ficam muito mais úteis e relevantes para a sua vida real.
               </Text>
               <View style={styles.featureList}>
                 {[
-                  { emoji: "ðŸŽ¯", text: "Apoio personalizado para seus objetivos" },
-                  { emoji: "ðŸ’¬", text: "Conversas que fazem sentido para vocÃª" },
-                  { emoji: "âš¡", text: "Alertas e dicas alinhados Ã  sua rotina" },
+                  { emoji: "🎯", text: "Apoio personalizado para seus objetivos" },
+                  { emoji: "💬", text: "Conversas que fazem sentido para você" },
+                  { emoji: "⚡", text: "Alertas e dicas alinhados à sua rotina" },
                 ].map((item) => (
                   <View key={item.text} style={styles.featureRow}>
                     <Text style={styles.featureEmoji}>{item.emoji}</Text>
@@ -256,7 +256,7 @@ export default function OnboardingScreen() {
               <Text style={styles.stepLabel}>Passo 1 de 3</Text>
               <Text style={styles.title}>Quais seus principais objetivos?</Text>
               <Text style={styles.subtitle}>
-                Escolha atÃ© 3 que mais representam o que vocÃª quer conquistar agora.
+                Escolha até 3 que mais representam o que você quer conquistar agora.
               </Text>
               <View style={styles.grid}>
                 {OBJECTIVES.map((item) => {
@@ -278,7 +278,7 @@ export default function OnboardingScreen() {
                       <Text style={[styles.goalLabel, active && styles.goalLabelActive]}>
                         {item.label}
                       </Text>
-                      {active && <Text style={styles.checkmark}>âœ“</Text>}
+                      {active && <Text style={styles.checkmark}>✓</Text>}
                     </TouchableOpacity>
                   );
                 })}
@@ -291,13 +291,13 @@ export default function OnboardingScreen() {
             </View>
           )}
 
-          {/* â”€â”€ Step 2: Routine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Step 2: Routine ────────────────────────────────────────── */}
           {step === 2 && (
             <View style={styles.stepContent}>
               <Text style={styles.stepLabel}>Passo 2 de 3</Text>
-              <Text style={styles.title}>Como Ã© a sua rotina?</Text>
+              <Text style={styles.title}>Como é a sua rotina?</Text>
               <Text style={styles.subtitle}>
-                Essas informaÃ§Ãµes ajudam a Bee a entender seu contexto e propor aÃ§Ãµes no momento certo.
+                Essas informações ajudam a Bee a entender seu contexto e propor ações no momento certo.
               </Text>
 
               <Text style={styles.sectionTitle}>Seu perfil</Text>
@@ -320,7 +320,7 @@ export default function OnboardingScreen() {
                 })}
               </View>
 
-              <Text style={styles.sectionTitle}>Quando vocÃª Ã© mais ativo(a)?</Text>
+              <Text style={styles.sectionTitle}>Quando você é mais ativo(a)?</Text>
               <View style={styles.chipRow}>
                 {ACTIVE_PERIODS.map((item) => {
                   const active = activePeriods.includes(item.label);
@@ -345,7 +345,7 @@ export default function OnboardingScreen() {
                 style={styles.textArea}
                 value={routine}
                 onChangeText={setRoutine}
-                placeholder="Ex.: trabalho de manhÃ£ em home office, estudo Ã  noite, treino 3x por semana..."
+                placeholder="Ex.: trabalho de manhã em home office, estudo à noite, treino 3x por semana..."
                 placeholderTextColor={colors.muted}
                 multiline
                 maxLength={300}
@@ -363,7 +363,7 @@ export default function OnboardingScreen() {
               <Text style={styles.stepLabel}>Passo 3 de 3</Text>
               <Text style={styles.title}>O que te interessa?</Text>
               <Text style={styles.subtitle}>
-                Escolha ate 8 temas. Isso define o conteudo que a Bee traz para voce.
+                Escolha até 8 temas. Isso define o conteúdo que a Bee traz para você.
               </Text>
               <View style={styles.interestGrid}>
                 {INTERESTS.map((item) => {
@@ -401,7 +401,7 @@ export default function OnboardingScreen() {
       <View style={styles.footer}>
         {step > 0 && (
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>â† Voltar</Text>
+            <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -419,10 +419,10 @@ export default function OnboardingScreen() {
               {saving
                 ? "Salvando..."
                 : step === 0
-                ? "Vamos comeÃ§ar! ðŸ"
+                ? "Vamos começar! 🐝"
                 : step === 3
-                ? "Entrar no BeeEyes ðŸš€"
-                : "PrÃ³ximo â†’"}
+                ? "Entrar no BeeEyes 🚀"
+                : "Próximo →"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -431,7 +431,7 @@ export default function OnboardingScreen() {
   );
 }
 
-// â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 function makeStyles(colors: ReturnType<typeof getThemeColors>) {
   return StyleSheet.create({

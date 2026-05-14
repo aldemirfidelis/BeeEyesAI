@@ -191,7 +191,7 @@ export const communities = pgTable("communities", {
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
   category: varchar("category", { length: 60 }).notNull().default("geral"),
-  emoji: varchar("emoji", { length: 10 }).notNull().default("ðŸ"),
+  emoji: varchar("emoji", { length: 10 }).notNull().default("🐝"),
   imageUrl: text("image_url"),
   isPrivate: boolean("is_private").notNull().default(false),
   ownerId: varchar("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -264,15 +264,15 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: z
     .string()
     .trim()
-    .min(3, "Nome de usuÃ¡rio deve ter ao menos 3 caracteres")
-    .max(30, "Nome de usuÃ¡rio deve ter no mÃ¡ximo 30 caracteres")
-    .regex(/^[a-zA-Z0-9_.-]+$/, "Use apenas letras, nÃºmeros, ponto, traÃ§o e underscore"),
+    .min(3, "Nome de usuário deve ter ao menos 3 caracteres")
+    .max(30, "Nome de usuário deve ter no máximo 30 caracteres")
+    .regex(/^[a-zA-Z0-9_.-]+$/, "Use apenas letras, números, ponto, traço e underscore"),
   password: z
     .string()
     .min(8, "Senha deve ter ao menos 8 caracteres")
-    .max(72, "Senha deve ter no mÃ¡ximo 72 caracteres")
+    .max(72, "Senha deve ter no máximo 72 caracteres")
     .regex(/[A-Za-z]/, "Senha deve conter ao menos uma letra")
-    .regex(/[0-9]/, "Senha deve conter ao menos um nÃºmero"),
+    .regex(/[0-9]/, "Senha deve conter ao menos um número"),
   email: z
     .string()
     .trim()
@@ -353,7 +353,7 @@ export const insertPostCommentSchema = createInsertSchema(postComments).omit({
   createdAt: true,
 });
 
-// â”€â”€ Colmeia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Colmeia ───────────────────────────────────────────────────────────────────
 
 export const calendarEvents = pgTable("calendar_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -657,7 +657,7 @@ export type InsertWishlistPreference = z.infer<typeof insertWishlistPreferenceSc
 export type CalendarPreferences = typeof calendarPreferences.$inferSelect;
 export type CalendarNotificationLog = typeof calendarNotificationLog.$inferSelect;
 
-// â”€â”€ Legacy types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Legacy types ──────────────────────────────────────────────────────────────
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;

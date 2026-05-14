@@ -57,7 +57,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const authorName = initialPost.displayName || initialPost.username || "UsuÃ¡rio";
+  const authorName = initialPost.displayName || initialPost.username || "Usuário";
 
   const handleLike = async () => {
     const newLiked = !liked;
@@ -192,7 +192,7 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
         {initialPost.imageUrl && (
           <img
             src={initialPost.imageUrl}
-            alt="Imagem da publicacao na comunidade"
+            alt="Imagem da publicação na comunidade"
             className="w-full max-h-[480px] rounded-xl object-contain bg-black/5 border border-border/40"
           />
         )}
@@ -242,10 +242,10 @@ export default function CommunityPostCard({ post: initialPost, communityName, co
           >
             <div className="px-4 pb-4 pt-3 border-t border-border/20 space-y-3">
               {commentsLoading && (
-                <p className="text-xs text-muted-foreground text-center py-1">Carregando comentÃ¡rios...</p>
+                <p className="text-xs text-muted-foreground text-center py-1">Carregando comentários...</p>
               )}
               {!commentsLoading && comments.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-1">Nenhum comentÃ¡rio ainda.</p>
+                <p className="text-xs text-muted-foreground text-center py-1">Nenhum comentário ainda.</p>
               )}
               {comments.map((comment) => {
                 const cName = comment.displayName || comment.username;

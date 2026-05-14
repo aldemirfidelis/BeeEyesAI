@@ -75,7 +75,7 @@ async function pickCommunityImage(onChange: (imageUrl: string) => void) {
   );
 
   if (!processed.base64) {
-    Alert.alert("Erro", "Nao foi possivel preparar a foto da comunidade.");
+    Alert.alert("Erro", "Não foi possível preparar a foto da comunidade.");
     return;
   }
 
@@ -445,7 +445,7 @@ function CommunityDetail({
       queryClient.invalidateQueries({ queryKey: ["community-posts", community.id] });
     },
     onError: (error: any) => {
-      Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel publicar.");
+      Alert.alert("Erro", error?.response?.data?.message || "Não foi possível publicar.");
     },
   });
 
@@ -462,7 +462,7 @@ function CommunityDetail({
       setShowEditModal(false);
     },
     onError: (error: any) => {
-      Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel salvar.");
+      Alert.alert("Erro", error?.response?.data?.message || "Não foi possível salvar.");
     },
   });
 
@@ -874,7 +874,7 @@ export default function CommunitiesScreen() {
       queryClient.invalidateQueries({ queryKey: ["communities"] });
     },
     onError: (error: any) => {
-      Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel criar a comunidade.");
+      Alert.alert("Erro", error?.response?.data?.message || "Não foi possível criar a comunidade.");
     },
   });
 

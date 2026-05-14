@@ -1,6 +1,7 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
@@ -15,6 +16,10 @@ import type { PendingDMUser } from "@mobile/stores/uiStore";
 export default function NotificationsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+  const bottomInset = tabBarHeight > 0
+    ? tabBarHeight + (Platform.OS === "ios" ? 12 : 16)
+    : Math.max(insets.bottom, 12) + 12;
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -95,7 +100,7 @@ export default function NotificationsScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomInset + 72 }]} showsVerticalScrollIndicator={false}>
         {safeNotifications.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="bell" size={32} color={colors.muted} style={{ alignSelf: "center", marginBottom: 8 }} />
@@ -144,7 +149,7 @@ export default function NotificationsScreen() {
       </ScrollView>
       {safeNotifications.length > 0 ? (
         <TouchableOpacity
-          style={[styles.clearButton, { bottom: Math.max(insets.bottom, 12) + 12 }]}
+          style={[styles.clearButton, { bottom: bottomInset }]}
           onPress={() => clearNotifications.mutate()}
           disabled={clearNotifications.isPending}
           activeOpacity={0.85}

@@ -1023,7 +1023,7 @@ function NotesSection({ authHeaders }: { authHeaders: () => Record<string, strin
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
 function alarmKindLabel(kind: AlarmReminder["kind"]) {
-  if (kind === "medicine") return "Remedio";
+  if (kind === "medicine") return "Remédio";
   if (kind === "appointment") return "Compromisso";
   return "Despertador";
 }
@@ -1208,8 +1208,8 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
       <div className="rounded-xl border border-border bg-card p-3 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">Relogio inteligente</p>
-            <p className="text-xs text-muted-foreground mt-1">Alarmes, remedios e compromissos com aviso, som e vibracao.</p>
+            <p className="text-sm font-semibold">Relógio inteligente</p>
+            <p className="text-xs text-muted-foreground mt-1">Alarmes, remédios e compromissos com aviso, som e vibração.</p>
           </div>
           <Clock className="w-5 h-5 text-primary shrink-0" />
         </div>

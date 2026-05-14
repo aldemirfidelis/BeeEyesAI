@@ -64,7 +64,7 @@ export function AuthScreen(props: AuthScreenProps) {
 
   return (
     <div className="bee-app-shell flex h-[100dvh] overflow-hidden bg-background">
-      {/* Left panel â€” decorative, always amber */}
+      {/* Left panel — decorative, always amber */}
       <div
         className="bee-honeycomb hidden md:flex md:w-[44%] flex-col items-center justify-center relative overflow-hidden border-r border-amber-900/10"
         style={{ backgroundColor: "#FFE8A3" }}
@@ -92,7 +92,7 @@ export function AuthScreen(props: AuthScreenProps) {
         </motion.div>
 
         <motion.div className="relative z-10 flex flex-wrap justify-center gap-2 mt-10 px-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-          {["Chat inteligente", "Feed social", "MissÃµes diÃ¡rias"].map((feature) => (
+          {["Chat inteligente", "Feed social", "Alertas úteis"].map((feature) => (
             <span key={feature} className="text-xs px-3 py-1.5 rounded-full border border-amber-950/10 bg-white/45 text-gray-900 font-bold shadow-sm backdrop-blur">
               {feature}
             </span>
@@ -100,7 +100,7 @@ export function AuthScreen(props: AuthScreenProps) {
         </motion.div>
       </div>
 
-      {/* Right panel â€” form */}
+      {/* Right panel — form */}
       <div className="flex-1 flex flex-col items-center justify-center px-5 py-8 overflow-y-auto">
         <motion.div className="md:hidden mb-6" animate={{ y: [-8, 0, -8] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
           <BeeEyes expression={authMode === "register" ? "excited" : "happy"} />
@@ -109,9 +109,9 @@ export function AuthScreen(props: AuthScreenProps) {
 
         <motion.div key={authMode} className="bee-surface w-full max-w-[420px] rounded-2xl p-5 md:p-7" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
           <div className="mb-7">
-            <h2 className="text-2xl font-black text-foreground">{authMode === "login" ? "OlÃ¡ de novo!" : "Criar conta"}</h2>
+            <h2 className="text-2xl font-black text-foreground">{authMode === "login" ? "Olá de novo!" : "Criar conta"}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {authMode === "login" ? "Entre para continuar sua jornada" : "Ã‰ rÃ¡pido, grÃ¡tis e a BeeEyes te espera."}
+              {authMode === "login" ? "Entre para continuar sua jornada" : "É rápido, grátis e a BeeEyes te espera."}
             </p>
           </div>
 
@@ -159,25 +159,25 @@ export function AuthScreen(props: AuthScreenProps) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Nome de exibiÃ§Ã£o (opcional)</label>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Nome de exibição (opcional)</label>
                   <Input
-                    placeholder="Como vocÃª quer ser chamado?"
+                    placeholder="Como você quer ser chamado?"
                     value={authDisplayName}
                     onChange={(event) => onDisplayNameChange(event.target.value)}
                     className="h-12 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">GÃªnero (opcional)</label>
+                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Gênero (opcional)</label>
                   <select
                     value={authGender}
                     onChange={(event) => onGenderChange(event.target.value)}
                     className="w-full h-12 px-3 rounded-lg border border-input bg-card/75 text-foreground text-base outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
                   >
-                    <option value="">Prefiro nÃ£o informar</option>
+                    <option value="">Prefiro não informar</option>
                     <option value="masculino">Masculino</option>
                     <option value="feminino">Feminino</option>
-                    <option value="nao-binario">NÃ£o-binÃ¡rio</option>
+                    <option value="nao-binario">Não-binário</option>
                     <option value="outro">Outro</option>
                   </select>
                 </div>
@@ -185,7 +185,7 @@ export function AuthScreen(props: AuthScreenProps) {
             )}
 
             <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">UsuÃ¡rio</label>
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Usuário</label>
               <Input
                 placeholder="seu_usuario"
                 value={authUsername}
@@ -201,7 +201,7 @@ export function AuthScreen(props: AuthScreenProps) {
               <div className="relative">
                 <Input
                   type={authShowPassword ? "text" : "password"}
-                  placeholder={authMode === "register" ? "minimo 8 caracteres, letra e numero" : "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"}
+                  placeholder={authMode === "register" ? "mínimo 8 caracteres, letra e número" : "••••••••"}
                   value={authPassword}
                   onChange={(event) => onPasswordChange(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && onSubmit()}
@@ -254,7 +254,7 @@ export function AuthScreen(props: AuthScreenProps) {
 
           {authMode === "register" && (
             <p className="text-center text-xs text-muted-foreground mt-3">
-              Ao criar uma conta voce concorda com os{" "}
+              Ao criar uma conta você concorda com os{" "}
               <button type="button" className="text-yellow-600 font-semibold hover:underline" onClick={() => setLegalModal("terms")}>Termos de Uso</button>
               {" "}e a{" "}
               <button type="button" className="text-yellow-600 font-semibold hover:underline" onClick={() => setLegalModal("privacy")}>Politica de Privacidade</button>
@@ -268,7 +268,7 @@ export function AuthScreen(props: AuthScreenProps) {
               onClearError();
             }}
           >
-            {authMode === "login" ? "NÃ£o tem conta? Criar conta" : "JÃ¡ tem conta? Entrar"}
+            {authMode === "login" ? "Não tem conta? Criar conta" : "Já tem conta? Entrar"}
           </button>
         </motion.div>
       </div>

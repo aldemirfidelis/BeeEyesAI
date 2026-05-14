@@ -41,7 +41,7 @@ export default function NewsScreen() {
       setSummaryByUrl((prev) => ({ ...prev, [variables.url]: data.summary }));
     },
     onError: (error: any) => {
-      Alert.alert("Erro", error?.response?.data?.message || "Nao foi possivel resumir o artigo.");
+      Alert.alert("Erro", error?.response?.data?.message || "Não foi possível resumir o artigo.");
     },
   });
 
@@ -176,4 +176,3 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     summaryText: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 20, color: colors.foreground },
   });
 }
-

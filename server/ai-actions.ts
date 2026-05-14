@@ -290,14 +290,14 @@ function inferAlarmAction(message: string, normalized: string): AlarmReminderAct
     .replace(/\b(?:me|para|por favor)\b/gi, " ")
     .replace(/\b(?:desperte|despertar|acorde|acordar|alarme|avise|avisar|lembre|lembrar|notifique|toque)\b/gi, " ")
     .replace(/\b(?:dia\s+)?\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b/gi, " ")
-    .replace(/(?:[aÃ ]s|@)\s*\d{1,2}(?:[:h]\d{2})?\s*h?\b/gi, " ")
+    .replace(/(?:[aà]s|@)\s*\d{1,2}(?:[:h]\d{2})?\s*h?\b/gi, " ")
     .replace(/\ba\s*\d{1,2}(?:[:h]\d{2})?\s*h?\b/gi, " ")
     .replace(/\b(?:a cada|de)\s+\d{1,2}\s*(?:h|hora|horas|min|minutos)\b/gi, " ")
     .replace(/\b(?:todo dia|todos os dias|diario|diaria|diariamente|toda semana|semanal|semanalmente)\b/gi, " ");
 
   title = cleanSpaces(title.replace(/^[:,.-]+|[:,.-]+$/g, ""));
   if (!title) {
-    title = kind === "medicine" ? "Tomar remedio" : kind === "appointment" ? "Compromisso" : "Despertar";
+    title = kind === "medicine" ? "Tomar remédio" : kind === "appointment" ? "Compromisso" : "Despertar";
   }
 
   return {

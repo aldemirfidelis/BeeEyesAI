@@ -39,7 +39,7 @@ export function getBrazilNationalHoliday(date: Date): HolidayInfo | null {
   const target = ymd(date);
   const easter = easterSunday(year);
   const holidays: HolidayInfo[] = [
-    { date: `${year}-01-01`, name: "Confraternizacao Universal" },
+    { date: `${year}-01-01`, name: "Confraternização Universal" },
     { date: ymd(addDays(easter, -48)), name: "Carnaval" },
     { date: ymd(addDays(easter, -47)), name: "Carnaval" },
     { date: ymd(addDays(easter, -2)), name: "Sexta-feira Santa" },
@@ -50,8 +50,8 @@ export function getBrazilNationalHoliday(date: Date): HolidayInfo | null {
     { date: `${year}-09-07`, name: "Independencia do Brasil" },
     { date: `${year}-10-12`, name: "Nossa Senhora Aparecida" },
     { date: `${year}-11-02`, name: "Finados" },
-    { date: `${year}-11-15`, name: "Proclamacao da Republica" },
-    { date: `${year}-11-20`, name: "Consciencia Negra" },
+    { date: `${year}-11-15`, name: "Proclamação da República" },
+    { date: `${year}-11-20`, name: "Consciência Negra" },
     { date: `${year}-12-25`, name: "Natal" },
   ];
 

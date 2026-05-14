@@ -21,13 +21,13 @@ export default function ResetPassword() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMessage(data.message || "Nao foi possivel redefinir a senha.");
+        setMessage(data.message || "Não foi possível redefinir a senha.");
         return;
       }
-      setMessage("Senha redefinida com sucesso. Voce ja pode entrar.");
+      setMessage("Senha redefinida com sucesso. Você já pode entrar.");
       setTimeout(() => navigate("/"), 900);
     } catch {
-      setMessage("Erro de conexao.");
+      setMessage("Erro de conexão.");
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ export default function ResetPassword() {
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="minimo 8 caracteres, letra e numero"
+            placeholder="mínimo 8 caracteres, letra e número"
             className="h-12 rounded-lg"
           />
         </div>
