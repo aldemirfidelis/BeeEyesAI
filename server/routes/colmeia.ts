@@ -15,7 +15,7 @@ import {
   userIntegrations,
 } from "../../shared/schema";
 
-const ALARM_KINDS = new Set(["alarm", "medicine", "appointment"]);
+const ALARM_KINDS = new Set(["alarm", "reminder", "medicine", "appointment"]);
 const ALARM_REPEAT_TYPES = new Set(["once", "daily", "weekly", "interval"]);
 
 function normalizeAlarmKind(value: unknown) {
@@ -549,7 +549,18 @@ export function createColmeiaRouter(): Router {
   }));
 
   router.post("/api/colmeia/alarms", requireAuth, asyncHandler(async (req, res) => {
-    const { title, message, kind, scheduledAt, repeatType, intervalMinutes, repeatDays, localNotificationId } = req.body ?? {};
+    const {
+      title,
+      message,
+      kind,
+      scheduledAt,
+      repeatType,
+      intervalMinutes,
+      repeatDays,
+      localNotificationId,
+      linkedEventId,
+      reminderOffsetMinutes,
+    } = req.body ?? {};
     if (!title?.trim() || !scheduledAt) throw badRequest("title e scheduledAt são obrigatórios");
 
     const start = new Date(scheduledAt);
@@ -560,6 +571,8 @@ export function createColmeiaRouter(): Router {
     const normalizedInterval = normalizedRepeat === "interval"
       ? Math.max(1, Math.min(24 * 60, parseInt(String(intervalMinutes ?? 60))))
       : null;
+    const parsedReminderOffset = parseInt(String(reminderOffsetMinutes ?? ""));
+    const normalizedReminderOffset = Number.isFinite(parsedReminderOffset) ? Math.max(0, parsedReminderOffset) : null;
     const firstTrigger = computeInitialAlarmTrigger(start, normalizedRepeatDays);
 
     const [row] = await db
@@ -575,6 +588,8 @@ export function createColmeiaRouter(): Router {
         intervalMinutes: normalizedInterval,
         repeatDays: normalizedRepeatDays,
         localNotificationId: localNotificationId?.trim() ?? null,
+        linkedEventId: typeof linkedEventId === "string" && linkedEventId.trim() ? linkedEventId.trim() : null,
+        reminderOffsetMinutes: normalizedReminderOffset,
         active: true,
       })
       .returning();

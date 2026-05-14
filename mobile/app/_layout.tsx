@@ -11,6 +11,7 @@ import { configureGoogleSignin } from "../lib/googleAuth";
 import {
   setupNotificationChannels,
   setupNotificationTapListener,
+  setupAlarmNotificationCategory,
   registerPushToken,
 } from "../lib/notifications";
 import { useAuthStore } from "../stores/authStore";
@@ -44,6 +45,9 @@ export default function RootLayout() {
     });
     // Cria os canais Android antes de qualquer notificação
     setupNotificationChannels().catch(() => {});
+
+    // Registra categorias de ação dos alarmes (snooze, dispensar)
+    setupAlarmNotificationCategory().catch(() => {});
 
     // Listener de tap na notificação → navega para a tela correta
     const unsubscribe = setupNotificationTapListener();

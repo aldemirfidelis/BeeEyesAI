@@ -26,6 +26,8 @@ import { type ConnectionRequestMeta, type NewsDigestMeta, isConnectionRequestMet
 import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
 import { SponsoredChatCard } from "@mobile/components/SponsoredChatCard";
+import { ResearchResultCard, ResearchLoadingCard } from "@mobile/components/ResearchResultCard";
+import type { ResearchResult } from "@mobile/components/ResearchResultCard";
 import { useAdEngine } from "@mobile/hooks/useAdEngine";
 import { hideAd } from "@mobile/lib/adService";
 import type { SponsoredMessageMeta } from "@mobile/lib/ads";
@@ -880,6 +882,27 @@ export default function ChatScreen() {
                     />
                   ) : null}
                   {isNewsDigestMeta(meta) ? <NewsDigestCard meta={meta} styles={styles} /> : null}
+                  {rawMeta.type === "research" && Array.isArray((rawMeta as any).results) ? (
+                    <View style={{ marginTop: 8, gap: 6 }}>
+                      {((rawMeta as any).results as ResearchResult[]).map((result) => (
+                        <ResearchResultCard
+                          key={result.id}
+                          result={result}
+                          colors={colors}
+                          onSaveToWishlist={async (r) => {
+                            try {
+                              const token = await (await import("expo-secure-store")).getItemAsync("bee_token");
+                              await fetch(`${API_URL_RAW}/api/wishlist/items`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                body: JSON.stringify({ title: r.title, description: r.description, originalUrl: r.url, category: r.category, sourceType: "research" }),
+                              });
+                            } catch { /* ignore */ }
+                          }}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
                   {rawMeta.type === "welcome" ? (
                     <View style={styles.welcomeActionsContainer}>
                       {[

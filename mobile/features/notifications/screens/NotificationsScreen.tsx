@@ -37,6 +37,14 @@ export default function NotificationsScreen() {
     },
   });
 
+  const clearNotifications = useMutation({
+    mutationFn: () => api.post("/api/notifications/clear").then((r) => r.data),
+    onSuccess: () => {
+      queryClient.setQueryData(["notifications-center"], []);
+      queryClient.invalidateQueries({ queryKey: ["notifications-center"] });
+    },
+  });
+
   const safeNotifications = Array.isArray(notifications) ? notifications : [];
 
   function iconForNotification(item: NotificationCenterItem): React.ComponentProps<typeof Feather>["name"] {
@@ -67,6 +75,10 @@ export default function NotificationsScreen() {
 
     if (item.source === "connection") { router.push("/friends" as never); return; }
     if (item.source === "community") { router.push("/communities" as never); return; }
+    if (item.source === "visit" && item.fromUserId) {
+      router.push({ pathname: "/friends", params: { openProfile: item.fromUserId } } as never);
+      return;
+    }
     if (item.source === "visit") { router.push("/profile" as never); return; }
     router.push("/" as never);
   }
@@ -119,6 +131,8 @@ export default function NotificationsScreen() {
               <Text style={styles.notificationBody}>{item.body}</Text>
               {item.source === "direct_message" ? (
                 <Text style={styles.notificationAction}>Abrir conversa →</Text>
+              ) : item.source === "visit" && item.fromUserId ? (
+                <Text style={styles.notificationAction}>Ver perfil de {item.fromName || "quem visitou"} {"->"}</Text>
               ) : (
                 <Text style={styles.notificationSource}>
                   {item.category === "social" ? t("notifications_social") : item.category === "activity" ? t("notifications_activity") : t("notifications_alert")} · {item.source}
@@ -128,6 +142,17 @@ export default function NotificationsScreen() {
           ))
         )}
       </ScrollView>
+      {safeNotifications.length > 0 ? (
+        <TouchableOpacity
+          style={[styles.clearButton, { bottom: Math.max(insets.bottom, 12) + 12 }]}
+          onPress={() => clearNotifications.mutate()}
+          disabled={clearNotifications.isPending}
+          activeOpacity={0.85}
+        >
+          <Feather name="trash-2" size={16} color={colors.primaryDark ?? colors.foreground} />
+          <Text style={styles.clearButtonText}>{clearNotifications.isPending ? "Limpando..." : "Limpar alertas"}</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -148,7 +173,7 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     headerTitle: { fontFamily: FONTS.display, fontSize: 24, fontWeight: "800", color: colors.foreground },
     headerSub: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
-    content: { padding: 16, gap: 12, paddingBottom: 32 },
+    content: { padding: 16, gap: 12, paddingBottom: 96 },
     emptyState: {
       backgroundColor: colors.card,
       borderRadius: 20,
@@ -172,6 +197,22 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     notificationBody: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground },
     notificationSource: { fontFamily: FONTS.mono, fontSize: 11, color: colors.muted, textTransform: "lowercase" },
     notificationAction: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "600", color: colors.primary },
+    clearButton: {
+      position: "absolute",
+      right: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      borderRadius: 999,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: colors.primary,
+      shadowColor: colors.foreground,
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      elevation: 6,
+    },
+    clearButtonText: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "800", color: colors.primaryDark ?? colors.foreground },
     unreadDot: {
       width: 8,
       height: 8,

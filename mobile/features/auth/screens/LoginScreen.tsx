@@ -23,10 +23,10 @@ import { signInWithGoogleNative } from "@mobile/lib/googleAuth";
 WebBrowser.maybeCompleteAuthSession();
 
 const { height } = Dimensions.get("window");
-const PRIVACY_TEXT = "A BeeEyes coleta dados de conta, conteudos publicados, conversas com a IA, missoes, interacoes sociais, preferencias e sinais tecnicos necessarios para operar o app. Usamos esses dados para autenticar usuarios, personalizar respostas da IA, recomendar missoes, proteger a comunidade, gerar alertas e melhorar a experiencia. Conversas com IA podem ser processadas por provedores de inteligencia artificial para gerar respostas e memorias uteis. Nao vendemos dados pessoais.";
+const PRIVACY_TEXT = "A BeeEyes coleta dados de conta, conteudos publicados, conversas com a IA, interacoes sociais, preferencias e sinais tecnicos necessarios para operar o app. Usamos esses dados para autenticar usuarios, personalizar respostas da IA, proteger a comunidade, gerar alertas e melhorar a experiencia. Conversas com IA podem ser processadas por provedores de inteligencia artificial para gerar respostas e memorias uteis. Nao vendemos dados pessoais.";
 const TERMS_TEXT = "Ao usar a BeeEyes, voce concorda em manter uma conta segura, publicar apenas conteudo permitido, respeitar outros usuarios e nao usar o app para assedio, spam, fraude, conteudo ilegal ou violacao de direitos. A IA oferece apoio, organizacao, dicas e sugestoes, mas nao substitui aconselhamento profissional. O uso continuo do app significa aceitacao destes termos.";
 
-// ── Google "G" Icon ──────────────────────────────────────────────────────────
+// â”€â”€ Google "G" Icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function GoogleIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24">
@@ -38,7 +38,7 @@ function GoogleIcon() {
   );
 }
 
-// ── Apple Icon ───────────────────────────────────────────────────────────────
+// â”€â”€ Apple Icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AppleIcon({ color = "#fff" }: { color?: string }) {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill={color}>
@@ -47,7 +47,7 @@ function AppleIcon({ color = "#fff" }: { color?: string }) {
   );
 }
 
-// ── Eye Icon ─────────────────────────────────────────────────────────────────
+// â”€â”€ Eye Icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EyeIcon({ visible, color = "#888" }: { visible: boolean; color?: string }) {
   return visible ? (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -224,7 +224,7 @@ export default function LoginScreen() {
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 placeholderTextColor={COLORS.muted}
                 value={password}
                 onChangeText={setPassword}
@@ -276,7 +276,7 @@ export default function LoginScreen() {
             ) : (
               <TouchableOpacity
                 style={[styles.socialBtn, styles.btnDisabled]}
-                onPress={() => Alert.alert("Google indisponível", "Configure EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID para ativar o login com Google.")}
+                onPress={() => Alert.alert("Google indisponÃ­vel", "Configure EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID para ativar o login com Google.")}
                 activeOpacity={0.8}
               >
                 <GoogleIcon />

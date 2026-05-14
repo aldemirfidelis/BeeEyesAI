@@ -26,8 +26,6 @@ interface SettingsScreenProps {
   themeMode: ThemeMode;
   settingsMessage: string;
   anonymousProfileVisitsEnabled: boolean;
-  anonymousProfileVisitsUnlocked: boolean;
-  anonymousProfileVisitsUnlockHint: string;
   authHeaders: () => Record<string, string>;
   onClose: () => void;
   onUserUpdate: (user: User) => void;
@@ -41,7 +39,7 @@ interface SettingsScreenProps {
 export function SettingsScreen(props: SettingsScreenProps) {
   const {
     show, user, profilePhotoUrl, themeMode, settingsMessage,
-    anonymousProfileVisitsEnabled, anonymousProfileVisitsUnlocked, anonymousProfileVisitsUnlockHint,
+    anonymousProfileVisitsEnabled,
     authHeaders, onClose, onUserUpdate, onSelectProfilePhoto, onRemoveProfilePhoto,
     onThemeSelect, onAnonymousProfileVisitsToggle, onLogout,
   } = props;
@@ -226,9 +224,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
                     <p className="text-sm font-semibold">Navegacao anonima</p>
                     <p className="text-xs text-muted-foreground">Suas visitas em perfis deixam de mostrar seu nome.</p>
                   </div>
-                  <Switch checked={anonymousProfileVisitsEnabled} disabled={!anonymousProfileVisitsUnlocked} onCheckedChange={onAnonymousProfileVisitsToggle} />
+                  <Switch checked={anonymousProfileVisitsEnabled} onCheckedChange={onAnonymousProfileVisitsToggle} />
                 </div>
-                <p className="rounded-xl border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">{anonymousProfileVisitsUnlocked ? "Recurso liberado." : anonymousProfileVisitsUnlockHint}</p>
                 <div className="grid md:grid-cols-3 gap-2">
                   <Input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} placeholder="Senha atual" />
                   <Input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="Nova senha" />

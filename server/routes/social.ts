@@ -15,7 +15,6 @@ import { parseBoundedInt } from "../http";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { sendPushToUser } from "../push";
-import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 import { saveBase64Image, isBase64Image } from "../media";
 
 export function createSocialRouter() {
@@ -37,7 +36,7 @@ export function createSocialRouter() {
     ]);
 
     if (!viewer) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     const postIds = feed.map((p) => p.id);
@@ -96,10 +95,10 @@ export function createSocialRouter() {
       ? req.body.imageUrl
       : null;
     if (!content && !rawImageUrl) {
-      throw badRequest("Conteúdo não pode ser vazio");
+      throw badRequest("ConteÃºdo nÃ£o pode ser vazio");
     }
     if (content.length > 500) {
-      throw badRequest("Post muito longo (máximo 500 caracteres)");
+      throw badRequest("Post muito longo (mÃ¡ximo 500 caracteres)");
     }
 
     const [user, imageUrl] = await Promise.all([
@@ -107,7 +106,7 @@ export function createSocialRouter() {
       rawImageUrl ? saveBase64Image(rawImageUrl).catch(() => rawImageUrl) : Promise.resolve(null),
     ]);
     if (!user) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     const post = await storage.createPost({ userId: req.userId!, content: content || "Imagem compartilhada", imageUrl });
@@ -124,8 +123,8 @@ export function createSocialRouter() {
         await storage.createAchievement({
           userId: req.userId!,
           type: "first_post",
-          title: "Primeira Publicação!",
-          description: "Você compartilhou seu primeiro momento na comunidade 🌟",
+          title: "Primeira PublicaÃ§Ã£o!",
+          description: "VocÃª compartilhou seu primeiro momento na comunidade ðŸŒŸ",
         });
         await storage.updateUserXP(req.userId!, 15);
       })
@@ -136,23 +135,23 @@ export function createSocialRouter() {
 
   router.patch("/api/posts/:id", requireAuth, asyncHandler(async (req, res) => {
     const content = String(req.body?.content || "").trim();
-    if (!content) throw badRequest("Conteúdo não pode ser vazio");
-    if (content.length > 500) throw badRequest("Post muito longo (máximo 500 caracteres)");
+    if (!content) throw badRequest("ConteÃºdo nÃ£o pode ser vazio");
+    if (content.length > 500) throw badRequest("Post muito longo (mÃ¡ximo 500 caracteres)");
     const updated = await storage.updatePost(req.params.id, req.userId!, content);
-    if (!updated) throw notFound("Post não encontrado ou sem permissão");
+    if (!updated) throw notFound("Post nÃ£o encontrado ou sem permissÃ£o");
     return sendOk(res, updated);
   }));
 
   router.delete("/api/posts/:id", requireAuth, asyncHandler(async (req, res) => {
     const deleted = await storage.deletePost(req.params.id, req.userId!);
-    if (!deleted) throw notFound("Post não encontrado ou sem permissão");
+    if (!deleted) throw notFound("Post nÃ£o encontrado ou sem permissÃ£o");
     return sendOk(res, { ok: true });
   }));
 
   router.post("/api/posts/:id/like", requireAuth, asyncHandler(async (req, res) => {
     const post = await storage.getPostById(req.params.id);
     if (!post) {
-      throw notFound("Post não encontrado");
+      throw notFound("Post nÃ£o encontrado");
     }
 
     const alreadyLiked = await storage.hasLikedPost(req.params.id, req.userId!);
@@ -204,7 +203,7 @@ export function createSocialRouter() {
   router.post("/api/posts/:id/comments", requireAuth, asyncHandler(async (req, res) => {
     const content = String(req.body?.content || "").trim();
     if (!content) {
-      throw badRequest("Comentário vazio");
+      throw badRequest("ComentÃ¡rio vazio");
     }
 
     const [comment, user] = await Promise.all([
@@ -235,7 +234,7 @@ export function createSocialRouter() {
       ]);
 
       if (!me) {
-        throw notFound("Usuário não encontrado");
+        throw notFound("UsuÃ¡rio nÃ£o encontrado");
       }
 
       return sendOk(res, suggestions.map((user) => {
@@ -284,12 +283,12 @@ export function createSocialRouter() {
   router.post("/api/connections", requireAuth, asyncHandler(async (req, res) => {
     const { targetUserId } = req.body ?? {};
     if (!targetUserId || targetUserId === req.userId) {
-      throw badRequest("Usuário inválido");
+      throw badRequest("UsuÃ¡rio invÃ¡lido");
     }
 
     const target = await storage.getUser(targetUserId);
     if (!target) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     const existing = await storage.getConnectionStatus(req.userId!, targetUserId);
@@ -297,7 +296,7 @@ export function createSocialRouter() {
       if (existing.status === "pending" && existing.targetUserId === req.userId) {
         const accepted = await storage.acceptConnection(existing.id, req.userId!);
         if (!accepted) {
-          throw conflict("Solicitação já processada");
+          throw conflict("SolicitaÃ§Ã£o jÃ¡ processada");
         }
 
         const accepter = await storage.getUser(req.userId!);
@@ -306,16 +305,16 @@ export function createSocialRouter() {
           await storage.createMessage({
             userId: accepted.userId,
             role: "assistant",
-            content: `${accepterName} aceitou sua solicitação de amizade. Agora vocês podem conversar!`,
+            content: `${accepterName} aceitou sua solicitaÃ§Ã£o de amizade. Agora vocÃªs podem conversar!`,
             metadata: JSON.stringify({ type: "connection_accepted", byUserId: req.userId }),
           });
-          sendPushToUser(accepted.userId, "Solicitação aceita! 🎉", `${accepterName} aceitou sua conexão.`, { screen: "/(tabs)" }).catch(() => {});
+          sendPushToUser(accepted.userId, "SolicitaÃ§Ã£o aceita! ðŸŽ‰", `${accepterName} aceitou sua conexÃ£o.`, { screen: "/(tabs)" }).catch(() => {});
         }
 
         return sendOk(res, accepted);
       }
 
-      throw conflict("Solicitação já enviada");
+      throw conflict("SolicitaÃ§Ã£o jÃ¡ enviada");
     }
 
     const connection = await storage.createConnection({ userId: req.userId!, targetUserId });
@@ -325,7 +324,7 @@ export function createSocialRouter() {
       await storage.createMessage({
         userId: targetUserId,
         role: "assistant",
-        content: `${requesterName} quer se conectar com você. Deseja aceitar a solicitação de amizade?`,
+        content: `${requesterName} quer se conectar com vocÃª. Deseja aceitar a solicitaÃ§Ã£o de amizade?`,
         metadata: JSON.stringify({
           type: "connection_request",
           connectionId: connection.id,
@@ -333,7 +332,7 @@ export function createSocialRouter() {
           fromName: requesterName,
         }),
       });
-      sendPushToUser(targetUserId, "Nova solicitação de conexão 🤝", `${requesterName} quer se conectar com você.`, { screen: "/(tabs)" }).catch(() => {});
+      sendPushToUser(targetUserId, "Nova solicitaÃ§Ã£o de conexÃ£o ðŸ¤", `${requesterName} quer se conectar com vocÃª.`, { screen: "/(tabs)" }).catch(() => {});
     }
 
     return sendCreated(res, connection);
@@ -341,20 +340,20 @@ export function createSocialRouter() {
 
   router.delete("/api/connections/to/:targetUserId", requireAuth, asyncHandler(async (req, res) => {
     const cancelled = await storage.cancelConnectionRequest(req.userId!, req.params.targetUserId);
-    if (!cancelled) throw notFound("Solicitação não encontrada");
+    if (!cancelled) throw notFound("SolicitaÃ§Ã£o nÃ£o encontrada");
     return sendOk(res, { ok: true });
   }));
 
   router.delete("/api/connections/with/:targetUserId", requireAuth, asyncHandler(async (req, res) => {
     const removed = await storage.removeConnection(req.userId!, req.params.targetUserId);
-    if (!removed) throw notFound("Amizade não encontrada");
+    if (!removed) throw notFound("Amizade nÃ£o encontrada");
     return sendOk(res, { ok: true });
   }));
 
   router.put("/api/connections/:id/accept", requireAuth, asyncHandler(async (req, res) => {
     const connection = await storage.acceptConnection(req.params.id, req.userId!);
     if (!connection) {
-      throw notFound("Solicitação não encontrada");
+      throw notFound("SolicitaÃ§Ã£o nÃ£o encontrada");
     }
 
     const accepter = await storage.getUser(req.userId!);
@@ -363,24 +362,24 @@ export function createSocialRouter() {
       await storage.createMessage({
         userId: connection.userId,
         role: "assistant",
-        content: `${accepterName} aceitou sua solicitação de amizade. Agora vocês podem conversar!`,
+        content: `${accepterName} aceitou sua solicitaÃ§Ã£o de amizade. Agora vocÃªs podem conversar!`,
         metadata: JSON.stringify({ type: "connection_accepted", byUserId: req.userId }),
       });
-      sendPushToUser(connection.userId, "Solicitação aceita! 🎉", `${accepterName} aceitou sua conexão.`, { screen: "/(tabs)" }).catch(() => {});
+      sendPushToUser(connection.userId, "SolicitaÃ§Ã£o aceita! ðŸŽ‰", `${accepterName} aceitou sua conexÃ£o.`, { screen: "/(tabs)" }).catch(() => {});
     }
 
     // Medalhas de amizade para quem aceitou
     storage.ensureAchievement(req.userId!, {
       type: "first_friend",
-      title: "Primeira Conexão",
-      description: "Fez sua primeira conexão no BeeEyes. A rede começa aqui.",
+      title: "Primeira ConexÃ£o",
+      description: "Fez sua primeira conexÃ£o no BeeEyes. A rede comeÃ§a aqui.",
     }).catch(() => {});
     storage.getFriends(req.userId!).then((friends) => {
       if (friends.length >= 5) {
         storage.ensureAchievement(req.userId!, {
           type: "five_friends",
-          title: "Rede em Expansão",
-          description: "5 conexões ativas. Sua rede social está crescendo.",
+          title: "Rede em ExpansÃ£o",
+          description: "5 conexÃµes ativas. Sua rede social estÃ¡ crescendo.",
         }).catch(() => {});
       }
     }).catch(() => {});
@@ -391,7 +390,7 @@ export function createSocialRouter() {
   router.put("/api/connections/:id/reject", requireAuth, asyncHandler(async (req, res) => {
     const rejected = await storage.rejectConnection(req.params.id, req.userId!);
     if (!rejected) {
-      throw notFound("Solicitação não encontrada");
+      throw notFound("SolicitaÃ§Ã£o nÃ£o encontrada");
     }
 
     return sendOk(res, { ok: true });
@@ -433,12 +432,12 @@ export function createSocialRouter() {
 
   router.get("/api/dm/:userId", requireAuth, asyncHandler(async (req, res) => {
     if (!req.params.userId || req.params.userId === req.userId) {
-      throw badRequest("Usuário inválido");
+      throw badRequest("UsuÃ¡rio invÃ¡lido");
     }
 
     const otherUser = await storage.getUser(req.params.userId);
     if (!otherUser) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     const conversation = await storage.getDirectMessagesBetweenUsers(req.userId!, req.params.userId, 200);
@@ -470,29 +469,29 @@ export function createSocialRouter() {
     const content = String(req.body?.content || "").trim();
 
     if (!recipientId || recipientId === req.userId) {
-      throw badRequest("Usuário inválido");
+      throw badRequest("UsuÃ¡rio invÃ¡lido");
     }
     if (!content) {
-      throw badRequest("Mensagem não pode ser vazia");
+      throw badRequest("Mensagem nÃ£o pode ser vazia");
     }
     if (content.length > 1500) {
-      throw badRequest("Mensagem muito longa (máximo 1500 caracteres)");
+      throw badRequest("Mensagem muito longa (mÃ¡ximo 1500 caracteres)");
     }
 
     const recipient = await storage.getUser(recipientId);
     if (!recipient) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     const [created, sender] = await Promise.all([
       storage.sendDirectMessage({ senderId: req.userId!, recipientId, content }),
       storage.getUser(req.userId!),
     ]);
-    const senderName = sender?.displayName || sender?.username || "Alguém";
+    const senderName = sender?.displayName || sender?.username || "AlguÃ©m";
 
-    sendPushToUser(recipientId, `Nova mensagem de ${senderName} 💬`, content.length > 80 ? content.slice(0, 80) + "…" : content, { screen: "/(tabs)/inbox" }, "bee-social").catch(() => {});
+    sendPushToUser(recipientId, `Nova mensagem de ${senderName} ðŸ’¬`, content.length > 80 ? content.slice(0, 80) + "â€¦" : content, { screen: "/(tabs)/inbox" }, "bee-social").catch(() => {});
 
-    // Create notification center entry — skip if there's already an unread one from this sender in the last 10 min
+    // Create notification center entry â€” skip if there's already an unread one from this sender in the last 10 min
     storage.getRecentAssistantMessages(recipientId, 10).then((recent) => {
       const alreadyNotified = recent.some((m) => {
         try {
@@ -504,7 +503,7 @@ export function createSocialRouter() {
         if (process.env.NODE_ENV !== "production") {
           console.log("[BeeAlerts] Direct message received:", created.id);
         }
-        const preview = content.length > 60 ? content.slice(0, 60) + "…" : content;
+        const preview = content.length > 60 ? content.slice(0, 60) + "â€¦" : content;
         return storage.createMessage({
           userId: recipientId,
           role: "assistant",
@@ -542,7 +541,7 @@ export function createSocialRouter() {
   router.get("/api/users/:userId/testimonials", requireAuth, asyncHandler(async (req, res) => {
     const user = await storage.getUser(req.params.userId);
     if (!user) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
     return sendOk(res, await storage.getTestimonialsForProfile(req.params.userId));
   }));
@@ -554,10 +553,10 @@ export function createSocialRouter() {
       throw badRequest("Depoimento vazio");
     }
     if (content.length > 500) {
-      throw badRequest("Depoimento muito longo (máximo 500 caracteres)");
+      throw badRequest("Depoimento muito longo (mÃ¡ximo 500 caracteres)");
     }
     if (profileUserId === req.userId) {
-      throw badRequest("Você não pode escrever depoimento para si mesmo");
+      throw badRequest("VocÃª nÃ£o pode escrever depoimento para si mesmo");
     }
 
     const [profileUser, acceptedIds] = await Promise.all([
@@ -565,7 +564,7 @@ export function createSocialRouter() {
       storage.getAcceptedConnectionIds(req.userId!),
     ]);
     if (!profileUser) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
     if (!acceptedIds.includes(profileUserId)) {
       throw forbidden("Apenas amigos podem escrever depoimentos");
@@ -587,7 +586,7 @@ export function createSocialRouter() {
   router.get("/api/users/:userId/profile", requireAuth, asyncHandler(async (req, res) => {
     const profile = await storage.getUserPublicProfile(req.params.userId);
     if (!profile) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     let interests = profile.interests;
@@ -616,13 +615,13 @@ export function createSocialRouter() {
       return sendOk(res, { ok: true });
     }
 
-    const anonymousVisit = visitor.anonymousProfileVisitsEnabled && hasAnonymousProfileVisitsUnlocked(visitor);
+    const anonymousVisit = visitor.anonymousProfileVisitsEnabled;
 
     if (anonymousVisit) {
       storage.createMessage({
         userId: visitedId,
         role: "assistant",
-        content: "👻 Alguém visitou seu perfil anonimamente. Continue evoluindo nas missões para liberar novas formas de interação.",
+        content: "Alguem visitou seu perfil anonimamente.",
         metadata: JSON.stringify({ proactive: true, visitFrom: req.userId, anonymous: true }),
       }).catch(() => {});
     } else {
@@ -632,7 +631,7 @@ export function createSocialRouter() {
           userId: visitedId,
           role: "assistant",
           content,
-          metadata: JSON.stringify({ proactive: true, visitFrom: req.userId, anonymous: false }),
+          metadata: JSON.stringify({ proactive: true, visitFrom: req.userId, visitorName, anonymous: false }),
         }))
         .catch(() => {});
     }

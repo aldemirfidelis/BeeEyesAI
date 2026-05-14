@@ -5,6 +5,7 @@ import {
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { api } from "@mobile/lib/api";
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { WhyThisAdModal } from "./WhyThisAdModal";
@@ -30,6 +31,8 @@ export function SponsoredChatCard({
   const [showMenu, setShowMenu] = useState(false);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [wishlistSaving, setWishlistSaving] = useState(false);
+  const [wishlistFeedback, setWishlistFeedback] = useState("");
 
   const { ad, beeIntroMessage, isPersonalized, adId } = meta;
 
@@ -69,6 +72,41 @@ export function SponsoredChatCard({
   function handleAdjustPreferences() {
     setShowWhyModal(false);
     router.push("/ad-settings" as never);
+  }
+
+  async function handleAddToWishlist() {
+    if (wishlistSaving) return;
+    setWishlistSaving(true);
+    setWishlistFeedback("");
+
+    try {
+      const response = await api.post("/api/wishlist/items", {
+        sourceAdId: adId,
+        title: ad.title,
+        description: ad.description,
+        imageUrl: ad.imageUrl,
+        originalUrl: ad.targetUrl,
+        category: ad.category,
+        brand: ad.advertiserName,
+        storeName: ad.advertiserName,
+        sourceType: "sponsored_ad",
+        metadata: {
+          tags: ad.tags ?? [],
+          callToActionText: ad.callToActionText,
+        },
+      });
+
+      const data = response.data;
+      const message = data?.message
+        ?? (data?.alreadyExists
+          ? "Esse item já está na sua Lista de Desejos."
+          : "Prontinho! Salvei isso na sua Lista de Desejos.");
+      setWishlistFeedback(message);
+    } catch (error) {
+      setWishlistFeedback("Não consegui salvar agora. Tente de novo em instantes.");
+    } finally {
+      setWishlistSaving(false);
+    }
   }
 
   return (
@@ -138,10 +176,25 @@ export function SponsoredChatCard({
             <Text style={styles.ctaBtnText}>{ad.callToActionText}</Text>
             <Feather name="external-link" size={13} color="#000" />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.wishlistBtn}
+            onPress={handleAddToWishlist}
+            activeOpacity={0.75}
+            disabled={wishlistSaving}
+          >
+            <Feather name="heart" size={13} color={colors.primaryDark} />
+            <Text style={styles.wishlistBtnText}>
+              {wishlistSaving ? "Salvando..." : "Adicionar à Lista de Desejos"}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.hideBtn} onPress={handleHide} activeOpacity={0.7}>
             <Text style={styles.hideBtnText}>Não quero ver isso</Text>
           </TouchableOpacity>
         </View>
+
+        {wishlistFeedback ? (
+          <Text style={styles.wishlistFeedback}>{wishlistFeedback}</Text>
+        ) : null}
 
         {/* Why this ad link */}
         <TouchableOpacity onPress={() => setShowWhyModal(true)} style={styles.whyLink}>
@@ -245,6 +298,27 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       paddingVertical: 10,
     },
     ctaBtnText: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "800", color: "#000" },
+    wishlistBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.primary + "18",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary + "44",
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    wishlistBtnText: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "800", color: colors.primaryDark },
+    wishlistFeedback: {
+      fontFamily: FONTS.sans,
+      fontSize: 12,
+      color: colors.primaryDark,
+      backgroundColor: colors.primary + "12",
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
     hideBtn: {
       paddingHorizontal: 12,
       paddingVertical: 10,

@@ -24,6 +24,7 @@ interface ChatWorkspaceProps {
   msgSearchQuery: string;
   messages: Message[];
   streamingText: string;
+  researchLoadingSlot?: ReactNode;
   processingConnectionRequestId: string | null;
   chatScrollRef: RefObject<HTMLDivElement>;
   chatEndRef: RefObject<HTMLDivElement>;
@@ -40,11 +41,26 @@ interface ChatWorkspaceProps {
   onInputFocusChange: (focused: boolean) => void;
   onSendMessage: () => void;
   onSendVoiceMessage: (text: string) => void;
+  onOpenUserProfile: (userId: string) => void;
+  onNotificationsCleared?: () => void;
 }
 
-function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { authHeaders: () => Record<string, string>; onClose: () => void; onNotificationClick: (item: any) => void }) {
+function NotificationsDropdown({
+  authHeaders,
+  onClose,
+  onNotificationClick,
+  onOpenUserProfile,
+  onNotificationsCleared,
+}: {
+  authHeaders: () => Record<string, string>;
+  onClose: () => void;
+  onNotificationClick: (item: any) => void;
+  onOpenUserProfile: (userId: string) => void;
+  onNotificationsCleared?: () => void;
+}) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,13 +79,35 @@ function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { 
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
+  const markRead = useCallback((id: string) => {
+    fetch("/api/notifications/read", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id] })
+    }).catch(() => {});
+  }, [authHeaders]);
+
+  const clearAlerts = useCallback(async () => {
+    setClearing(true);
+    try {
+      await fetch("/api/notifications/clear", {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      setItems([]);
+      onNotificationsCleared?.();
+    } finally {
+      setClearing(false);
+    }
+  }, [authHeaders]);
+
   return (
     <div ref={ref} className="bg-card border border-border shadow-xl absolute right-0 top-12 w-[min(20rem,calc(100vw-1.5rem))] rounded-xl z-50 overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <span className="font-bold text-sm">Alertas</span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
       </div>
-      <div className="max-h-96 overflow-y-auto">
+      <div className="max-h-96 overflow-y-auto pb-14">
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">Carregando...</div>
         ) : items.length === 0 ? (
@@ -80,20 +118,42 @@ function NotificationsDropdown({ authHeaders, onClose, onNotificationClick }: { 
             className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!item.read ? "bg-primary/5" : ""}`}
             onClick={() => {
               if (!item.read) {
-                fetch("/api/notifications/read", {
-                  method: "POST",
-                  headers: { ...authHeaders(), "Content-Type": "application/json" },
-                  body: JSON.stringify({ ids: [item.id] })
-                }).catch(() => {});
+                markRead(item.id);
+              }
+              if (item.source === "visit" && item.fromUserId) {
+                onOpenUserProfile(item.fromUserId);
+                onClose();
+                return;
               }
               onNotificationClick(item);
             }}
           >
             <p className="text-sm font-semibold text-foreground">{item.title}</p>
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.body}</p>
+            {item.source === "visit" && item.fromUserId && (
+              <button
+                type="button"
+                className="mt-1 text-xs font-semibold text-primary hover:underline"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!item.read) markRead(item.id);
+                  onOpenUserProfile(item.fromUserId);
+                  onClose();
+                }}
+              >
+                Ver perfil de {item.fromName || "quem visitou"}
+              </button>
+            )}
           </div>
         ))}
       </div>
+      {!loading && items.length > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card/95 px-3 py-2 backdrop-blur">
+          <Button size="sm" variant="outline" className="w-full text-xs" onClick={clearAlerts} disabled={clearing}>
+            {clearing ? "Limpando..." : "Limpar alertas"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,6 +191,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     msgSearchQuery,
     messages,
     streamingText,
+    researchLoadingSlot,
     chatScrollRef,
     chatEndRef,
     inputRef,
@@ -148,6 +209,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     onInputFocusChange,
     onSendMessage,
     onSendVoiceMessage,
+    onOpenUserProfile,
+    onNotificationsCleared,
   } = props;
 
   const handleMicToggle = useCallback(async () => {
@@ -279,6 +342,11 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
               <NotificationsDropdown
                 authHeaders={authHeaders}
                 onClose={() => setShowNotifications(false)}
+                onOpenUserProfile={onOpenUserProfile}
+                onNotificationsCleared={() => {
+                  setUnreadCount(0);
+                  onNotificationsCleared?.();
+                }}
                 onNotificationClick={(item) => {
                   onSearchQueryChange(item.body);
                   setShowNotifications(false);
@@ -352,6 +420,9 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
                 <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} profilePhotoUrl={profilePhotoUrl} />
               );
             })}
+            {researchLoadingSlot && (
+              <div className="px-4 py-1">{researchLoadingSlot}</div>
+            )}
             {streamingText && <ChatMessage key="streaming" role="assistant" content={`${streamingText}▌`} timestamp={new Date()} />}
           </AnimatePresence>
           <div ref={chatEndRef} />

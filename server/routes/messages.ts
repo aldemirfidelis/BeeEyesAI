@@ -1,10 +1,11 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
 import { createDueAlarmReactivationPrompts, findOpenAlarmReactivationPrompt } from "../alarm-reactivation";
 import { inferExplicitToolActions } from "../ai-actions";
+import { parseBeeCommand, type BeeCommandAction } from "../bee-command-parser";
 import { db } from "../db";
 import { getBrazilNationalHoliday } from "../holidays";
 import { alarmReminders, calendarEvents, financeTransactions, notes } from "../../shared/schema";
@@ -22,54 +23,51 @@ import { parseBoundedInt } from "../http";
 import { requireAuth } from "../middleware/requireAuth";
 import { checkRateLimit } from "../rateLimit";
 import { storage } from "../storage";
+import { runResearch, formatResultsForContext, type ResearchResult } from "../services/beeResearchService";
+import { classifyIntent, type SearchIntent } from "../services/searchIntentService";
+import { buildCalendarContextForAI } from "../services/calendarInfoService";
+import { calendarPreferences } from "../../shared/schema";
 
 const APP_TIPS: { id: number; text: string }[] = [
-  // ── Chat & IA ──────────────────────────────────────────────────────────────
-  { id: 1,  text: "💡 Dica: sente que está travado? Me manda uma frase sobre o que está bloqueando. Eu não deixo você ficar parado — te ajudo a encontrar o próximo passo agora." },
-  { id: 2,  text: "💡 Dica: o painel Insight mostra seu foco, constância e disciplina da semana. Toque no ícone de insight no chat para ver sua pontuação atual e o que ela significa." },
-  { id: 3,  text: "💡 Dica: me chame pelo que você precisa agora: 'Quero evoluir', 'Me cobre hoje' ou 'Criar meta'. Os botões de ação rápida no chat são atalhos para começar rápido." },
-  { id: 4,  text: "💡 Dica: eu lembro de tudo que você me conta. Quanto mais você compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestões para você." },
-  { id: 5,  text: "💡 Dica: se quiser notícias relevantes, toque em 'Buscar notícias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
-  { id: 6,  text: "💡 Dica: você pode conversar comigo sobre qualquer coisa — produtividade, reflexões, ideias, planos. Quanto mais natural a conversa, melhores minhas análises sobre você." },
-  { id: 8,  text: "💡 Dica: mantenha sua sequência (streak) ativa todos os dias. Sequências de 3, 7 e 30 dias mostram que você é constante de verdade." },
+  // â”€â”€ Chat & IA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 1,  text: "ðŸ’¡ Dica: sente que estÃ¡ travado? Me manda uma frase sobre o que estÃ¡ bloqueando. Eu nÃ£o deixo vocÃª ficar parado â€” te ajudo a encontrar o prÃ³ximo passo agora." },
+  { id: 2,  text: "ðŸ’¡ Dica: o painel Insight mostra seu foco, constÃ¢ncia e disciplina da semana. Toque no Ã­cone de insight no chat para ver sua pontuaÃ§Ã£o atual e o que ela significa." },
+  { id: 3,  text: "ðŸ’¡ Dica: me chame pelo que vocÃª precisa agora: 'Quero evoluir', 'Me cobre hoje' ou 'Criar meta'. Os botÃµes de aÃ§Ã£o rÃ¡pida no chat sÃ£o atalhos para comeÃ§ar rÃ¡pido." },
+  { id: 4,  text: "ðŸ’¡ Dica: eu lembro de tudo que vocÃª me conta. Quanto mais vocÃª compartilha seus objetivos e desafios, mais personalizadas ficam minhas sugestÃµes para vocÃª." },
+  { id: 5,  text: "ðŸ’¡ Dica: se quiser notÃ­cias relevantes, toque em 'Buscar notÃ­cias' ou mande /noticias. Eu filtro as manchetes com base no seu perfil e interesses." },
+  { id: 6,  text: "ðŸ’¡ Dica: vocÃª pode conversar comigo sobre qualquer coisa â€” produtividade, reflexÃµes, ideias, planos. Quanto mais natural a conversa, melhores minhas anÃ¡lises sobre vocÃª." },
+  { id: 8,  text: "ðŸ’¡ Dica: mantenha sua sequÃªncia (streak) ativa todos os dias. SequÃªncias de 3, 7 e 30 dias mostram que vocÃª Ã© constante de verdade." },
 
-  // ── Comunidades ────────────────────────────────────────────────────────────
-  { id: 17, text: "💡 Dica: Comunidades são grupos temáticos. Entre em comunidades alinhadas com seus objetivos — você encontra pessoas com os mesmos focos e objetivos que você." },
-  { id: 18, text: "💡 Dica: postar numa Comunidade conta como interação social e pode desbloquear a conquista 'first_community_post'. Comunidades ativas aparecem para mais pessoas." },
-  { id: 19, text: "💡 Dica: ao entrar em uma comunidade, você ganha pontos de conquista. Toque no nome da comunidade para ver todos os membros ativos." },
+  // â”€â”€ Comunidades â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 17, text: "ðŸ’¡ Dica: Comunidades sÃ£o grupos temÃ¡ticos. Entre em comunidades alinhadas com seus objetivos â€” vocÃª encontra pessoas com os mesmos focos e objetivos que vocÃª." },
 
-  // ── Amigos & Conexões ──────────────────────────────────────────────────────
-  { id: 20, text: "💡 Dica: use a busca em Amigos para encontrar pessoas pelo nome de usuário. Quando você conecta com alguém, você pode acompanhar o progresso dela no app." },
-  { id: 21, text: "💡 Dica: a aba Matches da Bee em Amigos mostra sugestões inteligentes baseadas nos seus interesses e comportamento. Pessoas que pensam parecido com você." },
-  { id: 22, text: "💡 Dica: escreva um depoimento para um amigo! Vá ao perfil dele e toque em 'Depoimento'. É uma forma autêntica de reconhecer o crescimento de alguém." },
-  { id: 23, text: "💡 Dica: ao aceitar uma conexão, vocês dois ganham a conquista de conexão. Com 5 amigos, você desbloqueia a medalha 'Abelha Social'." },
+  // â”€â”€ Amigos & ConexÃµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 20, text: "ðŸ’¡ Dica: use a busca em Amigos para encontrar pessoas pelo nome de usuÃ¡rio. Quando vocÃª conecta com alguÃ©m, vocÃª pode acompanhar o progresso dela no app." },
+  { id: 21, text: "ðŸ’¡ Dica: a aba Matches da Bee em Amigos mostra sugestÃµes inteligentes baseadas nos seus interesses e comportamento. Pessoas que pensam parecido com vocÃª." },
+  { id: 22, text: "ðŸ’¡ Dica: escreva um depoimento para um amigo! VÃ¡ ao perfil dele e toque em 'Depoimento'. Ã‰ uma forma autÃªntica de reconhecer o crescimento de alguÃ©m." },
 
-  // ── Mensagens Diretas ──────────────────────────────────────────────────────
-  { id: 24, text: "💡 Dica: Mensagens Diretas estão liberadas desde o início. Chame seus amigos quando quiser e continue a conversa em privado." },
-  { id: 25, text: "💡 Dica: na sua inbox, você pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para você acompanhar facilmente." },
+  // â”€â”€ Mensagens Diretas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 24, text: "ðŸ’¡ Dica: Mensagens Diretas estÃ£o liberadas desde o inÃ­cio. Chame seus amigos quando quiser e continue a conversa em privado." },
+  { id: 25, text: "ðŸ’¡ Dica: na sua inbox, vocÃª pode responder em tempo real aos seus amigos. As conversas ficam organizadas por pessoa para vocÃª acompanhar facilmente." },
 
-  // ── Humor & Bem-estar ──────────────────────────────────────────────────────
-  { id: 26, text: "💡 Dica: registre seu humor todo dia no módulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e minhas análises sobre você." },
-  { id: 27, text: "💡 Dica: o calendário de humor mostra os últimos 30 dias em cores. Padrões de humor ruim repetido podem ser um sinal que vale levar ao insight da semana." },
+  // â”€â”€ Humor & Bem-estar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 26, text: "ðŸ’¡ Dica: registre seu humor todo dia no mÃ³dulo Humor. Eu uso esses dados para ajustar o tom das minhas mensagens e minhas anÃ¡lises sobre vocÃª." },
+  { id: 27, text: "ðŸ’¡ Dica: o calendÃ¡rio de humor mostra os Ãºltimos 30 dias em cores. PadrÃµes de humor ruim repetido podem ser um sinal que vale levar ao insight da semana." },
 
-  // ── Alertas & Notificações ────────────────────────────────────────────────
-  { id: 28, text: "💡 Dica: os Alertas da Bee mostram sinais que precisam da sua atenção: riscos de streak, progresso social, novas conexões. Passe lá antes de fechar o app." },
-  { id: 29, text: "💡 Dica: alertas com borda vermelha são urgentes — risco real de perder progresso. Amarelo é atenção. Verde é celebração. Fique de olho nas cores." },
+  // â”€â”€ Alertas & NotificaÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 28, text: "ðŸ’¡ Dica: os Alertas da Bee mostram sinais que precisam da sua atenÃ§Ã£o: riscos de streak, progresso social, novas conexÃµes. Passe lÃ¡ antes de fechar o app." },
+  { id: 29, text: "ðŸ’¡ Dica: alertas com borda vermelha sÃ£o urgentes â€” risco real de perder progresso. Amarelo Ã© atenÃ§Ã£o. Verde Ã© celebraÃ§Ã£o. Fique de olho nas cores." },
 
-  // ── Medalhas & Conquistas ──────────────────────────────────────────────────
-  { id: 30, text: "💡 Dica: as medalhas ficam no seu perfil e mostram sua trajetória no app. Cada uma tem critérios específicos — toque nela para ver como desbloquear." },
-  { id: 31, text: "💡 Dica: o primeiro post, o primeiro amigo, a primeira comunidade — cada marco inicial te dá uma medalha. Veja as que ainda estão travadas para saber o que falta." },
+  // â”€â”€ Medalhas & Conquistas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ── Configurações & Privacidade ────────────────────────────────────────────
-  { id: 32, text: "💡 Dica: a navegação anônima (nível 3) faz suas visitas a perfis não aparecerem para o dono. Ative nas Configurações quando não quiser ser identificado ao explorar perfis." },
-  { id: 33, text: "💡 Dica: você pode alterar nome de exibição e bio a qualquer momento nas Configurações. Manter seu perfil atualizado ajuda a IA a entender melhor quem você é hoje." },
-  { id: 34, text: "💡 Dica: o tema escuro está disponível nas Configurações em Aparência. O app detecta automaticamente o idioma do seu dispositivo — português, inglês ou espanhol." },
+  // â”€â”€ ConfiguraÃ§Ãµes & Privacidade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 33, text: "ðŸ’¡ Dica: vocÃª pode alterar nome de exibiÃ§Ã£o e bio a qualquer momento nas ConfiguraÃ§Ãµes. Manter seu perfil atualizado ajuda a IA a entender melhor quem vocÃª Ã© hoje." },
+  { id: 34, text: "ðŸ’¡ Dica: o tema escuro estÃ¡ disponÃ­vel nas ConfiguraÃ§Ãµes em AparÃªncia. O app detecta automaticamente o idioma do seu dispositivo â€” portuguÃªs, inglÃªs ou espanhol." },
 
-  // ── Estratégia de uso ──────────────────────────────────────────────────────
-  { id: 35, text: "💡 Dica: o melhor jeito de usar o BeeEyes é abrir o chat uma vez por dia e me contar o que está na cabeça. Não precisa ser longo — uma frase já ativa o sistema." },
-  { id: 36, text: "💡 Dica: trate suas missões como compromissos reais, não sugestões. Completar todas do dia, mesmo as simples, muda sua relação com consistência ao longo do tempo." },
-  { id: 37, text: "💡 Dica: invista uns 5 minutos por semana lendo o Resumo Semanal. Ele mostra onde você está evoluindo e o que está travado antes que vire um problema maior." },
-  { id: 38, text: "💡 Dica: o BeeEyes foi feito para ser parte da sua rotina diária, não uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessões longas e raras." },
+  // â”€â”€ EstratÃ©gia de uso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  { id: 35, text: "ðŸ’¡ Dica: o melhor jeito de usar o BeeEyes Ã© abrir o chat uma vez por dia e me contar o que estÃ¡ na cabeÃ§a. NÃ£o precisa ser longo â€” uma frase jÃ¡ ativa o sistema." },
+  { id: 37, text: "ðŸ’¡ Dica: invista uns 5 minutos por semana lendo o Resumo Semanal. Ele mostra onde vocÃª estÃ¡ evoluindo e o que estÃ¡ travado antes que vire um problema maior." },
+  { id: 38, text: "ðŸ’¡ Dica: o BeeEyes foi feito para ser parte da sua rotina diÃ¡ria, nÃ£o uma tarefa pesada. Pequenos check-ins frequentes valem muito mais do que sessÃµes longas e raras." },
 ];
 
 function formatRoutineContext(
@@ -85,6 +83,175 @@ function formatRoutineContext(
   });
   const lines = [...eventLines, ...alarmLines];
   return lines.length > 0 ? `Horarios marcados do usuario:\n${lines.join("\n")}` : "";
+}
+
+function normalizeComparableTitle(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function formatBeeTime(date: Date) {
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+function formatBeeDateTime(date: Date) {
+  return `${date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  })} às ${formatBeeTime(date)}`;
+}
+
+function formatOffset(minutes: number | null | undefined) {
+  if (!minutes) return "antes";
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hora${hours > 1 ? "s" : ""}`;
+  }
+  return `${minutes} minutos`;
+}
+
+async function findDuplicateCalendarEvent(userId: string, title: string, startAt: Date) {
+  const from = new Date(startAt.getTime() - 60_000);
+  const to = new Date(startAt.getTime() + 60_000);
+  const candidates = await db
+    .select()
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), gte(calendarEvents.startAt, from), lte(calendarEvents.startAt, to)))
+    .limit(10);
+  const normalizedTitle = normalizeComparableTitle(title);
+  return candidates.find((event) => normalizeComparableTitle(event.title) === normalizedTitle) ?? null;
+}
+
+async function findDuplicateAlarmReminder(userId: string, title: string, scheduledAt: Date) {
+  const from = new Date(scheduledAt.getTime() - 60_000);
+  const to = new Date(scheduledAt.getTime() + 60_000);
+  const candidates = await db
+    .select()
+    .from(alarmReminders)
+    .where(and(eq(alarmReminders.userId, userId), gte(alarmReminders.nextTriggerAt, from), lte(alarmReminders.nextTriggerAt, to)))
+    .limit(10);
+  const normalizedTitle = normalizeComparableTitle(title);
+  return candidates.find((alarm) => normalizeComparableTitle(alarm.title) === normalizedTitle) ?? null;
+}
+
+async function findBeeCommandDuplicate(userId: string, actions: BeeCommandAction[]) {
+  for (const action of actions) {
+    if (action.type === "calendar_event" && action.startAt) {
+      const startAt = new Date(action.startAt);
+      if (!isNaN(startAt.getTime()) && await findDuplicateCalendarEvent(userId, action.title, startAt)) {
+        return "Já existe um compromisso parecido nesse horário 🐝 Deseja criar outro mesmo assim?";
+      }
+    }
+    if (action.type === "alarm_reminder" && action.scheduledAt) {
+      const scheduledAt = new Date(action.scheduledAt);
+      if (!isNaN(scheduledAt.getTime()) && await findDuplicateAlarmReminder(userId, action.title, scheduledAt)) {
+        return "Já existe um lembrete parecido nesse horário 🐝 Deseja criar outro mesmo assim?";
+      }
+    }
+  }
+  return null;
+}
+
+async function executeBeeCommandActions(userId: string, actions: BeeCommandAction[], res: Response) {
+  const createdEvents: Array<typeof calendarEvents.$inferSelect> = [];
+  const createdAlarms: Array<typeof alarmReminders.$inferSelect> = [];
+  const firstEventByTitle = new Map<string, typeof calendarEvents.$inferSelect>();
+
+  for (const action of actions) {
+    if (action.type !== "calendar_event" || !action.startAt) continue;
+    const startAt = new Date(action.startAt);
+    if (isNaN(startAt.getTime())) continue;
+
+    const [event] = await db.insert(calendarEvents).values({
+      userId,
+      title: action.title,
+      description: action.description ?? null,
+      startAt,
+      endAt: action.endAt ? new Date(action.endAt) : null,
+      allDay: !!action.allDay,
+      location: null,
+    }).returning();
+
+    if (event) {
+      createdEvents.push(event);
+      firstEventByTitle.set(normalizeComparableTitle(action.title), event);
+      res.write(`data: ${JSON.stringify({ type: "event_created", event })}\n\n`);
+    }
+  }
+
+  for (const action of actions) {
+    if (action.type !== "alarm_reminder" || !action.scheduledAt) continue;
+    const scheduledAt = new Date(action.scheduledAt);
+    if (isNaN(scheduledAt.getTime())) continue;
+
+    const linkedEvent = action.linkedEvent
+      ? firstEventByTitle.get(normalizeComparableTitle(action.title.replace(/^Lembrete:\s*/i, ""))) ?? createdEvents[0] ?? null
+      : null;
+
+    const [alarm] = await db.insert(alarmReminders).values({
+      userId,
+      title: action.title,
+      message: action.message ?? null,
+      kind: action.kind,
+      scheduledAt,
+      nextTriggerAt: scheduledAt,
+      repeatType: action.repeatType,
+      intervalMinutes: action.repeatType === "interval" ? action.intervalMinutes ?? 60 : null,
+      repeatDays: action.repeatDays ?? [],
+      active: true,
+      linkedEventId: linkedEvent?.id ?? null,
+      reminderOffsetMinutes: action.reminderOffsetMinutes ?? null,
+    }).returning();
+
+    if (alarm) {
+      createdAlarms.push(alarm);
+      res.write(`data: ${JSON.stringify({ type: "alarm_created", alarm })}\n\n`);
+    }
+  }
+
+  return { createdEvents, createdAlarms };
+}
+
+function buildBeeCommandConfirmation(actions: BeeCommandAction[]) {
+  const events = actions.filter((action) => action.type === "calendar_event");
+  const alarms = actions.filter((action) => action.type === "alarm_reminder");
+  const linkedAlarm = alarms.find((action) => action.linkedEvent);
+
+  if (events.length === 1 && linkedAlarm && events[0].startAt) {
+    return `Prontinho 🐝✨ Marquei ${events[0].title} no seu calendário para ${formatBeeDateTime(new Date(events[0].startAt))} e também vou te lembrar ${formatOffset(linkedAlarm.reminderOffsetMinutes)} antes.`;
+  }
+
+  if (events.length === 1 && alarms.length === 0 && events[0].startAt) {
+    return `Prontinho 🐝✨ Marquei ${events[0].title} no seu calendário para ${formatBeeDateTime(new Date(events[0].startAt))}.`;
+  }
+
+  if (events.length === 0 && alarms.length === 1 && alarms[0].scheduledAt) {
+    const verb = alarms[0].kind === "alarm" ? "Criei um alarme" : "Vou te lembrar";
+    return `Prontinho 🐝✨ ${verb} de ${alarms[0].title.replace(/^Lembrete:\s*/i, "")} em ${formatBeeDateTime(new Date(alarms[0].scheduledAt))}.`;
+  }
+
+  const lines = ["Prontinho 🐝✨"];
+  for (const event of events) {
+    if (event.startAt) lines.push(`Agendei ${event.title} no seu calendário para ${formatBeeDateTime(new Date(event.startAt))}.`);
+  }
+  for (const alarm of alarms) {
+    if (alarm.scheduledAt && alarm.linkedEvent) {
+      lines.push(`Também vou te avisar ${formatOffset(alarm.reminderOffsetMinutes)} antes.`);
+    } else if (alarm.scheduledAt) {
+      lines.push(`Vou te lembrar de ${alarm.title.replace(/^Lembrete:\s*/i, "")} em ${formatBeeDateTime(new Date(alarm.scheduledAt))}.`);
+    }
+  }
+  return lines.join("\n");
 }
 
 export function createMessagesRouter() {
@@ -111,7 +278,7 @@ export function createMessagesRouter() {
     ]);
 
     if (!user) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     const now = new Date();
@@ -147,8 +314,8 @@ export function createMessagesRouter() {
     return {
       user,
       activeDays,
-      completedMissions: 0,
-      totalMissionsTouched: 0,
+      completedActions: 0,
+      totalActionsTouched: 0,
       lastActiveHours,
     };
   }
@@ -163,29 +330,29 @@ export function createMessagesRouter() {
         const name = user?.displayName || user?.username || "";
         return name.trim().split(/\s+/)[0] || "";
       })();
-      const greeting = firstName ? `Oi, ${firstName}! 🐝✨` : "Oi! 🐝✨";
+      const greeting = firstName ? `Oi, ${firstName}! ðŸâœ¨` : "Oi! ðŸâœ¨";
 
       const welcomeContent = `${greeting}
 
-Eu sou a Bee, sua assistente pessoal. Estou muito feliz em te ver por aqui! 💛
+Eu sou a Bee, sua assistente pessoal. Estou muito feliz em te ver por aqui! ðŸ’›
 
-A partir de agora posso te ajudar a organizar sua rotina, criar planos, lembrar tarefas, cuidar melhor dos seus hábitos, apoiar seus estudos, acompanhar sua produtividade e transformar suas ideias em ações.
+A partir de agora posso te ajudar a organizar sua rotina, criar planos, lembrar tarefas, cuidar melhor dos seus hÃ¡bitos, apoiar seus estudos, acompanhar sua produtividade e transformar suas ideias em aÃ§Ãµes.
 
-📌 Dicas para aproveitar melhor nossa conversa:
+ðŸ“Œ Dicas para aproveitar melhor nossa conversa:
 
-• Me diga o que você quer fazer
+â€¢ Me diga o que vocÃª quer fazer
   Ex: "Bee, monte um plano de estudos para essa semana."
 
-• ⏰ Informe datas e horários quando precisar
-  Ex: "Me lembre de beber água todo dia às 10h."
+â€¢ â° Informe datas e horÃ¡rios quando precisar
+  Ex: "Me lembre de beber Ã¡gua todo dia Ã s 10h."
 
-• 🎯 Conte seu objetivo
+â€¢ ðŸŽ¯ Conte seu objetivo
   Ex: "Quero criar uma rotina mais organizada para estudar e treinar."
 
-• 💬 Fale comigo do seu jeito
-  Quanto mais contexto você me der, mais precisa será minha ajuda.
+â€¢ ðŸ’¬ Fale comigo do seu jeito
+  Quanto mais contexto vocÃª me der, mais precisa serÃ¡ minha ajuda.
 
-Estou pronta para voar com você nessa jornada 🐝💛`;
+Estou pronta para voar com vocÃª nessa jornada ðŸðŸ’›`;
 
       const welcome = await storage.createMessage({
         userId: req.userId!,
@@ -203,8 +370,8 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     const snapshot = await getUserActivitySnapshot(req.userId!);
     return sendOk(res, buildScoreSnapshot({
       activeDays: snapshot.activeDays,
-      completedMissions: snapshot.completedMissions,
-      totalMissionsTouched: snapshot.totalMissionsTouched,
+      completedActions: snapshot.completedActions,
+      totalActionsTouched: snapshot.totalActionsTouched,
       streak: snapshot.user.currentStreak,
       level: snapshot.user.level,
       xp: snapshot.user.xp,
@@ -216,8 +383,8 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     const snapshot = await getUserActivitySnapshot(req.userId!);
     const score = buildScoreSnapshot({
       activeDays: snapshot.activeDays,
-      completedMissions: snapshot.completedMissions,
-      totalMissionsTouched: snapshot.totalMissionsTouched,
+      completedActions: snapshot.completedActions,
+      totalActionsTouched: snapshot.totalActionsTouched,
       streak: snapshot.user.currentStreak,
       level: snapshot.user.level,
       xp: snapshot.user.xp,
@@ -233,14 +400,13 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     }));
   }));
 
-  router.get("/api/notifications/center", requireAuth, asyncHandler(async (req, res) => {
+  async function getNotificationCenterItems(userId: string, includeRead = false) {
     const [recentMessages, notificationReads] = await Promise.all([
-      storage.getMessagesByUser(req.userId!, 40),
-      storage.getNotificationReadsByUser(req.userId!),
+      storage.getMessagesByUser(userId, 40),
+      storage.getNotificationReadsByUser(userId),
     ]);
     const readIds = new Set(notificationReads.map((item) => item.notificationId));
 
-    // Apenas eventos reais — sem leitura de score/análise (essa fica no Insight do Chat)
     const messageItems = recentMessages.flatMap<NotificationCenterItem>((message) => {
       if (message.role !== "assistant") return [];
 
@@ -252,6 +418,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
       }
 
       if (metadata.visitFrom) {
+        const anonymous = metadata.anonymous === true;
         return [{
           id: `visit-${message.id}`,
           category: "social" as const,
@@ -261,6 +428,8 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
           tone: "positive" as const,
           createdAt: new Date(message.createdAt).toISOString(),
           read: false,
+          fromUserId: anonymous ? undefined : String(metadata.visitFrom || ""),
+          fromName: anonymous ? undefined : String(metadata.visitorName || ""),
         }];
       }
 
@@ -321,19 +490,30 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
       return [];
     });
 
-    const deduped: NotificationCenterItem[] = [...messageItems]
+    return [...messageItems]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .filter((item, index, array) => array.findIndex((candidate) => candidate.id === item.id) === index)
       .map((item) => ({ ...item, read: readIds.has(item.id) }))
+      .filter((item) => includeRead || !item.read)
       .slice(0, 12);
+  }
 
-    return sendOk(res, deduped);
+  router.get("/api/notifications/center", requireAuth, asyncHandler(async (req, res) => {
+    return sendOk(res, await getNotificationCenterItems(req.userId!, req.query.includeRead === "true"));
+  }));
+
+  router.post("/api/notifications/clear", requireAuth, asyncHandler(async (req, res) => {
+    const items = await getNotificationCenterItems(req.userId!, true);
+    if (items.length > 0) {
+      await storage.markNotificationsAsRead(items.map((item) => ({ userId: req.userId!, notificationId: item.id })));
+    }
+    return sendOk(res, { acknowledged: true, count: items.length });
   }));
 
   router.post("/api/notifications/push-token", requireAuth, asyncHandler(async (req, res) => {
     const { token } = req.body ?? {};
     if (typeof token !== "string" || !token.trim()) {
-      throw badRequest("token obrigatório");
+      throw badRequest("token obrigatÃ³rio");
     }
     await storage.updateUserPushToken(req.userId!, token.trim());
     return sendOk(res, { registered: true });
@@ -368,7 +548,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     const { content, isSystem = false } = req.body ?? {};
 
     if (!content?.trim()) {
-      return sendError(res, 400, "VALIDATION_ERROR", "Mensagem não pode ser vazia");
+      return sendError(res, 400, "VALIDATION_ERROR", "Mensagem nÃ£o pode ser vazia");
     }
 
     if (!isSystem) {
@@ -379,7 +559,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
           res,
           429,
           "RATE_LIMITED",
-          `Você enviou muitas mensagens. Aguarde ${minutes} minuto${minutes > 1 ? "s" : ""} para continuar. 🐝`,
+          `VocÃª enviou muitas mensagens. Aguarde ${minutes} minuto${minutes > 1 ? "s" : ""} para continuar. ðŸ`,
         );
       }
     }
@@ -415,7 +595,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     ]);
 
     if (!user || !personality) {
-      return sendError(res, 404, "NOT_FOUND", "Usuário não encontrado");
+      return sendError(res, 404, "NOT_FOUND", "UsuÃ¡rio nÃ£o encontrado");
     }
 
     if (!isSystem) {
@@ -428,24 +608,115 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     res.setHeader("Connection", "keep-alive");
     res.setHeader("Access-Control-Allow-Origin", "*");
 
+    const beeCommand = parseBeeCommand(content, {
+      now: new Date(),
+      defaultReminderTime: "08:00",
+      defaultReminderOffsetMinutes: 30,
+    });
+
+    if (beeCommand.actions.length > 0) {
+      let cleanText = beeCommand.clarificationQuestion ?? "";
+      let assistantMetadata: string | undefined;
+
+      if (!beeCommand.needsClarification) {
+        const holidayAlarm = beeCommand.actions.length === 1 && beeCommand.actions[0].type === "alarm_reminder"
+          ? beeCommand.actions[0]
+          : null;
+        const holiday = holidayAlarm?.scheduledAt ? getBrazilNationalHoliday(new Date(holidayAlarm.scheduledAt)) : null;
+
+        if (holiday && holidayAlarm) {
+          cleanText = `${holiday.date} é feriado nacional (${holiday.name}). Você quer manter esse despertador mesmo assim?`;
+          assistantMetadata = JSON.stringify({
+            type: "holiday_alarm_confirmation",
+            holiday,
+            alarmDraft: holidayAlarm,
+          });
+        } else {
+          const duplicateMessage = await findBeeCommandDuplicate(userId, beeCommand.actions);
+          if (duplicateMessage) {
+          cleanText = duplicateMessage;
+          assistantMetadata = JSON.stringify({
+            type: "duplicate_schedule_confirmation",
+            actions: beeCommand.actions,
+          });
+          } else {
+            await executeBeeCommandActions(userId, beeCommand.actions, res);
+            cleanText = buildBeeCommandConfirmation(beeCommand.actions);
+          }
+        }
+      }
+
+      const assistantMessage = await storage.createMessage({
+        userId,
+        role: "assistant",
+        content: cleanText,
+        metadata: assistantMetadata,
+      });
+
+      storage.updateUserStreak(userId).catch(() => {});
+      updatePersonalityFromMessage(userId, content, cleanText).catch(() => {});
+
+      res.write(`data: ${JSON.stringify({ type: "done", cleanText, id: assistantMessage.id, metadata: assistantMessage.metadata ?? null })}\n\n`);
+      res.end();
+      return;
+    }
+
     const chatHistory = history.map((message) => ({
       role: message.role as "user" | "assistant",
       content: message.content,
     }));
+
+    // Inject public calendar context (holidays + special dates) for the next 30 days.
+    // Only include if the message seems calendar-related OR once per session (up to the AI to use).
+    const [calPrefs] = await db
+      .select()
+      .from(calendarPreferences)
+      .where(eq(calendarPreferences.userId, userId))
+      .limit(1)
+      .catch(() => [null]);
+    const calendarContext = buildCalendarContextForAI(30, calPrefs?.state ?? user.city?.slice(0, 2) ?? null);
+
     const routineContext = formatRoutineContext(routineEvents, routineAlarms);
 
+    // ── Research: classify intent, run search, inject context into AI ─────────
+    let researchResults: ResearchResult[] = [];
+    let researchIntent: SearchIntent = "none";
+    let researchContext = "";
+
+    const searchRequest = classifyIntent(content);
+    if (searchRequest.intent !== "none") {
+      researchIntent = searchRequest.intent;
+      res.write(`data: ${JSON.stringify({ type: "research_start", intent: researchIntent })}\n\n`);
+      try {
+        const { results } = await Promise.race([
+          runResearch(content, user.city ?? undefined, null),
+          new Promise<{ request: typeof searchRequest; results: ResearchResult[] }>((resolve) =>
+            setTimeout(() => resolve({ request: searchRequest, results: [] }), 7000),
+          ),
+        ]);
+        researchResults = results;
+        if (results.length > 0) {
+          researchContext = formatResultsForContext(researchIntent, results);
+        }
+      } catch {
+        // Non-fatal: continue without research context
+      }
+    }
+
+    // ── Stream AI response (with research context injected) ───────────────────
     let fullResponse = "";
     try {
+      const combinedContext = [routineContext, calendarContext, researchContext].filter(Boolean).join("\n\n");
       fullResponse = await streamChat(user, personality, chatHistory, content, (chunk) => {
         res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
-      }, routineContext);
+      }, combinedContext);
     } catch {
       res.write(`data: ${JSON.stringify({ type: "error", message: "Erro ao gerar resposta" })}\n\n`);
       res.end();
       return;
     }
 
-    let { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
+    let { cleanText, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
     const explicitActions = inferExplicitToolActions(content);
     createEvent ??= explicitActions.createEvent;
     logFinance ??= explicitActions.logFinance;
@@ -456,7 +727,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     if (alarmReminder?.scheduledAt) {
       const holiday = getBrazilNationalHoliday(new Date(alarmReminder.scheduledAt));
       if (holiday) {
-        cleanText = `${holiday.date} é feriado nacional (${holiday.name}). Você quer manter esse despertador mesmo assim?`;
+        cleanText = `${holiday.date} Ã© feriado nacional (${holiday.name}). VocÃª quer manter esse despertador mesmo assim?`;
         assistantMetadata = JSON.stringify({
           type: "holiday_alarm_confirmation",
           holiday,
@@ -465,33 +736,22 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
       }
     }
 
+    // Include research results in message metadata so cards persist in history
+    const researchMeta = researchResults.length > 0
+      ? JSON.stringify({ type: "research", intent: researchIntent, results: researchResults })
+      : undefined;
+
     const assistantMessage = await storage.createMessage({
       userId,
       role: "assistant",
       content: cleanText,
-      metadata: assistantMetadata,
+      metadata: assistantMetadata ?? researchMeta,
     });
 
-    if (achievement) {
-      const alreadyHas = await storage.hasAchievement(userId, achievement.type);
-      if (!alreadyHas) {
-        const unlocked = await storage.createAchievement({ userId, ...achievement });
-        res.write(`data: ${JSON.stringify({ type: "achievement_unlocked", achievement: unlocked })}\n\n`);
-      }
+    // Send research results as a separate SSE event for UI card rendering
+    if (researchResults.length > 0) {
+      res.write(`data: ${JSON.stringify({ type: "research_results", intent: researchIntent, results: researchResults })}\n\n`);
     }
-
-    storage.hasAchievement(userId, "first_message")
-      .then(async (hasAchievement) => {
-        if (hasAchievement) return;
-        const unlocked = await storage.createAchievement({
-          userId,
-          type: "first_message",
-          title: "Primeira Conversa!",
-          description: "Você começou sua jornada com o BeeEyes 🐝",
-        });
-        res.write(`data: ${JSON.stringify({ type: "achievement_unlocked", achievement: unlocked })}\n\n`);
-      })
-      .catch(() => {});
 
     if (fetchNews?.query) {
       try {
@@ -739,12 +999,12 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
   router.patch("/api/messages/:id", requireAuth, asyncHandler(async (req, res) => {
     const { content, metadata } = req.body ?? {};
     if (typeof content !== "string" || typeof metadata !== "string") {
-      throw badRequest("content e metadata são obrigatórios");
+      throw badRequest("content e metadata sÃ£o obrigatÃ³rios");
     }
 
     const updated = await storage.updateMessageMetadata(req.params.id, req.userId!, { content, metadata });
     if (!updated) {
-      throw notFound("Mensagem não encontrada");
+      throw notFound("Mensagem nÃ£o encontrada");
     }
 
     return sendOk(res, updated);
@@ -753,12 +1013,12 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
   router.post("/api/news/summarize", requireAuth, asyncHandler(async (req, res) => {
     const { url, title } = req.body ?? {};
     if (!url || !title) {
-      throw badRequest("url e title obrigatórios");
+      throw badRequest("url e title obrigatÃ³rios");
     }
 
     const summary = await summarizeNewsArticle(url, title);
     if (!summary) {
-      return sendError(res, 502, "UPSTREAM_ERROR", "Não foi possível gerar o resumo");
+      return sendError(res, 502, "UPSTREAM_ERROR", "NÃ£o foi possÃ­vel gerar o resumo");
     }
 
     return sendOk(res, { summary });
@@ -767,7 +1027,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
   router.post("/api/transcribe", requireAuth, asyncHandler(async (req, res) => {
     const { audio, mimeType = "audio/webm" } = req.body ?? {};
     if (!audio || typeof audio !== "string") {
-      throw badRequest("audio é obrigatório");
+      throw badRequest("audio Ã© obrigatÃ³rio");
     }
     const text = await transcribeAudio(audio, mimeType);
     return sendOk(res, { text });

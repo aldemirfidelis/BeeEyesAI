@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ExternalLink, EyeOff, Flag, Info, MoreHorizontal, X } from "lucide-react";
+import { ExternalLink, EyeOff, Flag, Heart, Info, MoreHorizontal, X } from "lucide-react";
 import { WhyThisAdModal } from "./WhyThisAdModal";
 import type { SponsoredMessageMeta } from "@/lib/ads";
 
@@ -21,6 +21,8 @@ export function SponsoredChatCard({
   const [showMenu, setShowMenu] = useState(false);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [wishlistSaving, setWishlistSaving] = useState(false);
+  const [wishlistFeedback, setWishlistFeedback] = useState("");
   const { ad, beeIntroMessage, isPersonalized, adId } = meta;
 
   if (dismissed) return null;
@@ -45,6 +47,38 @@ export function SponsoredChatCard({
 
   function handleCta() {
     window.open(ad.targetUrl, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleAddToWishlist() {
+    setWishlistSaving(true);
+    setWishlistFeedback("");
+    try {
+      const token = localStorage.getItem("bee_token");
+      const res = await fetch("/api/wishlist/items", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          sourceAdId: ad.id,
+          title: ad.title,
+          description: ad.body,
+          originalUrl: ad.targetUrl,
+          category: ad.category,
+          brand: ad.advertiserName,
+          storeName: ad.advertiserName,
+          sourceType: "sponsored_ad",
+          metadata: { topicKeywords: ad.topicKeywords, ctaLabel: ad.ctaLabel },
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      setWishlistFeedback(data?.message ?? "Prontinho! Salvei isso na sua Lista de Desejos 🐝");
+    } catch {
+      setWishlistFeedback("Não consegui salvar agora. Tente novamente em instantes.");
+    } finally {
+      setWishlistSaving(false);
+    }
   }
 
   return (
@@ -131,7 +165,7 @@ export function SponsoredChatCard({
         </div>
 
         {/* CTA button */}
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-3 space-y-2">
           <button
             onClick={handleCta}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 transition-opacity"
@@ -139,6 +173,19 @@ export function SponsoredChatCard({
             {ad.ctaLabel}
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
+          <button
+            onClick={handleAddToWishlist}
+            disabled={wishlistSaving}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 py-2.5 text-xs font-bold text-primary hover:bg-primary/15 transition-colors disabled:opacity-60"
+          >
+            <Heart className="w-3.5 h-3.5" />
+            {wishlistSaving ? "Salvando..." : "Adicionar à Lista de Desejos"}
+          </button>
+          {wishlistFeedback ? (
+            <p className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-[11px] text-foreground">
+              {wishlistFeedback}
+            </p>
+          ) : null}
         </div>
 
         {/* Footer links */}

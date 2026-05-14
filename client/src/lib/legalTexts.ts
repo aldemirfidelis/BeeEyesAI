@@ -1,7 +1,7 @@
 export const PRIVACY_POLICY = `POLITICA DE PRIVACIDADE - BeeEyes
 Ultima atualizacao: maio de 2026
 
-A BeeEyes e uma plataforma social com assistente de inteligencia artificial. Coletamos dados de conta, perfil, publicacoes, comunidades, depoimentos, registros de humor, missoes, interacoes sociais e conversas com a IA para autenticar usuarios, personalizar respostas, gerar missoes e alertas, manter seguranca, entregar notificacoes e melhorar o servico.
+A BeeEyes e uma plataforma social com assistente de inteligencia artificial. Coletamos dados de conta, perfil, publicacoes, comunidades, depoimentos, registros de humor, interacoes sociais e conversas com a IA para autenticar usuarios, personalizar respostas, gerar alertas, manter seguranca, entregar notificacoes e melhorar o servico.
 
 Nao vendemos dados pessoais. Podemos compartilhar informacoes com provedores de hospedagem, banco de dados, inteligencia artificial, autenticacao social, notificacoes e autoridades quando houver obrigacao legal. Conteudos publicados no Feed, Comunidades e Depoimentos ficam visiveis conforme o contexto social do recurso.
 
@@ -22,7 +22,7 @@ Ultima atualizacao: maio de 2026
 
 Ao criar conta ou usar o BeeEyes, voce concorda com estes Termos e com a Politica de Privacidade. Se nao concordar, nao utilize o servico.
 
-O BeeEyes oferece chat com IA, missoes, XP, medalhas, feed social, amizades, comunidades, depoimentos, registros de humor, alertas e recomendacoes. Esses recursos sao motivacionais e sociais; XP, medalhas e pontuacoes nao possuem valor monetario.
+O BeeEyes oferece chat com IA, XP, medalhas, feed social, amizades, comunidades, depoimentos, registros de humor, alertas e recomendacoes. Esses recursos sao motivacionais e sociais; XP, medalhas e pontuacoes nao possuem valor monetario.
 
 Voce deve ter pelo menos 13 anos, manter suas credenciais em sigilo, fornecer informacoes verdadeiras e usar o servico de forma licita. E proibido publicar conteudo ilegal, abusivo, discriminatorio, enganoso, violento, sexual explicito, que viole direitos de terceiros ou exponha dados pessoais sem autorizacao.
 

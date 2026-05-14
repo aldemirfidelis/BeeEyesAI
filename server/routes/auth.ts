@@ -2,14 +2,13 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
-import { badRequest, conflict, forbidden, notFound, unauthorized, validationError } from "../api/errors";
+import { badRequest, conflict, notFound, unauthorized, validationError } from "../api/errors";
 import { sendCreated, sendOk } from "../api/response";
 import { hashPassword, signToken, verifyPassword } from "../auth";
 import { db } from "../db";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { insertUserSchema, passwordResetTokens, users } from "../../shared/schema";
-import { hasAnonymousProfileVisitsUnlocked } from "../../shared/unlocks";
 
 function sanitizeUser(user: NonNullable<Awaited<ReturnType<typeof storage.getUser>>>) {
   if (!user) return null;
@@ -61,14 +60,14 @@ export function createAuthRouter() {
   router.post("/api/auth/register", asyncHandler(async (req, res) => {
     const parsed = insertUserSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw validationError("Dados inválidos", parsed.error.issues);
+      throw validationError("Dados invÃ¡lidos", parsed.error.issues);
     }
 
     const email = normalizeEmail(parsed.data.email);
     const existing = await storage.getUserByUsername(parsed.data.username);
     if (!email) throw badRequest("E-mail e obrigatorio para cadastro com senha");
     if (existing) {
-      throw conflict("Nome de usuário já existe");
+      throw conflict("Nome de usuÃ¡rio jÃ¡ existe");
     }
     if (email) {
       const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
@@ -86,11 +85,11 @@ export function createAuthRouter() {
 
     req.logger.info("auth.register.success", { userId: user.id, username: user.username });
 
-    // Medalha early_adopter para todo novo usuário
+    // Medalha early_adopter para todo novo usuÃ¡rio
     storage.ensureAchievement(user.id, {
       type: "early_adopter",
       title: "Pioneiro BeeEyes",
-      description: "Faz parte da geração fundadora do app. Obrigado por estar aqui desde o início.",
+      description: "Faz parte da geraÃ§Ã£o fundadora do app. Obrigado por estar aqui desde o inÃ­cio.",
     }).catch(() => {});
 
     return sendCreated(res, {
@@ -116,7 +115,7 @@ export function createAuthRouter() {
   router.post("/api/auth/social", asyncHandler(async (req, res) => {
     const { provider, accessToken } = req.body ?? {};
     if (provider !== "google" || !accessToken) {
-      throw badRequest("Provider não suportado");
+      throw badRequest("Provider nÃ£o suportado");
     }
 
     let googleUser: { sub: string; name?: string; email?: string; picture?: string } | null = null;
@@ -126,11 +125,11 @@ export function createAuthRouter() {
       });
       googleUser = await response.json();
     } catch {
-      throw unauthorized("Token do Google inválido");
+      throw unauthorized("Token do Google invÃ¡lido");
     }
 
     if (!googleUser?.sub) {
-      throw unauthorized("Token do Google inválido");
+      throw unauthorized("Token do Google invÃ¡lido");
     }
 
     let user = await storage.getUserByGoogleId(googleUser.sub);
@@ -181,7 +180,7 @@ export function createAuthRouter() {
   router.post("/api/auth/login", asyncHandler(async (req, res) => {
     const { username, password } = req.body ?? {};
     if (!username || !password) {
-      throw badRequest("Usuário e senha são obrigatórios");
+      throw badRequest("UsuÃ¡rio e senha sÃ£o obrigatÃ³rios");
     }
 
     const login = String(username).trim();
@@ -190,7 +189,7 @@ export function createAuthRouter() {
       : await storage.getUserByUsername(login);
     if (!user || !(await verifyPassword(password, user.password))) {
       req.logger.warn("auth.login.failed", { username });
-      throw unauthorized("Usuário ou senha incorretos");
+      throw unauthorized("UsuÃ¡rio ou senha incorretos");
     }
 
     req.logger.info("auth.login.success", { userId: user.id, username: user.username });
@@ -261,7 +260,7 @@ export function createAuthRouter() {
   router.get("/api/me", requireAuth, asyncHandler(async (req, res) => {
     const user = await storage.getUser(req.userId!);
     if (!user) {
-      throw notFound("Usuário não encontrado");
+      throw notFound("UsuÃ¡rio nÃ£o encontrado");
     }
 
     return sendOk(res, sanitizeUser(user));
@@ -271,7 +270,7 @@ export function createAuthRouter() {
     const { avatarUrl } = req.body ?? {};
     const value = typeof avatarUrl === "string" && avatarUrl.startsWith("data:image/") ? avatarUrl : null;
     const user = await storage.getUser(req.userId!);
-    if (!user) throw notFound("Usuário não encontrado");
+    if (!user) throw notFound("UsuÃ¡rio nÃ£o encontrado");
     await storage.updateUserAvatar(req.userId!, value);
     return sendOk(res, { avatarUrl: value });
   }));
@@ -280,7 +279,7 @@ export function createAuthRouter() {
     const { anonymousProfileVisitsEnabled, displayName, bio, language, onboardingCompleted } = req.body ?? {};
 
     if (anonymousProfileVisitsEnabled !== undefined && typeof anonymousProfileVisitsEnabled !== "boolean") {
-      throw validationError("PreferÃªncias invÃ¡lidas", [
+      throw validationError("PreferÃƒÂªncias invÃƒÂ¡lidas", [
         {
           path: ["anonymousProfileVisitsEnabled"],
           message: "Envie um valor booleano",
@@ -291,11 +290,7 @@ export function createAuthRouter() {
 
     const user = await storage.getUser(req.userId!);
     if (!user) {
-      throw notFound("UsuÃ¡rio nÃ£o encontrado");
-    }
-
-    if (anonymousProfileVisitsEnabled === true && !hasAnonymousProfileVisitsUnlocked(user)) {
-      throw forbidden("NavegaÃ§Ã£o anÃ´nima desbloqueia no nÃ­vel 3 com XP de missÃµes");
+      throw notFound("UsuÃƒÂ¡rio nÃƒÂ£o encontrado");
     }
 
     if (language !== undefined && !["pt-BR", "en", "es"].includes(String(language))) {
@@ -361,9 +356,9 @@ export function createAuthRouter() {
 
     // Build fact strings so parseFacts() injects them into the AI system prompt
     const onboardingFacts: string[] = [
-      `Objetivos principais do usuário: ${rawObjectives.join(", ")}`,
+      `Objetivos principais do usuÃ¡rio: ${rawObjectives.join(", ")}`,
       ...(workProfile ? [`Perfil profissional: ${workProfile}`] : []),
-      ...(activePeriod.length > 0 ? [`Período mais ativo do dia: ${activePeriod.join(", ")}`] : []),
+      ...(activePeriod.length > 0 ? [`PerÃ­odo mais ativo do dia: ${activePeriod.join(", ")}`] : []),
       `Rotina: ${routine}`,
     ];
 
@@ -379,7 +374,7 @@ export function createAuthRouter() {
             typeof f === "string" &&
             !f.startsWith("Objetivos principais") &&
             !f.startsWith("Perfil profissional") &&
-            !f.startsWith("Período mais ativo") &&
+            !f.startsWith("PerÃ­odo mais ativo") &&
             !f.startsWith("Rotina:"),
         );
       }

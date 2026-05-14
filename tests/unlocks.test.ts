@@ -6,8 +6,9 @@ import {
   hasAnonymousProfileVisitsUnlocked,
 } from "../shared/unlocks";
 
-test("anonymous profile visits unlock at level 3", () => {
-  assert.equal(hasAnonymousProfileVisitsUnlocked({ level: ANONYMOUS_PROFILE_VISITS_UNLOCK_LEVEL - 1 }), false);
-  assert.equal(hasAnonymousProfileVisitsUnlocked({ level: ANONYMOUS_PROFILE_VISITS_UNLOCK_LEVEL }), true);
-  assert.match(getAnonymousProfileVisitsUnlockMessage(), /nível 3|nivel 3/i);
+test("anonymous profile visits are always available", () => {
+  assert.equal(ANONYMOUS_PROFILE_VISITS_UNLOCK_LEVEL, 3);
+  assert.equal(hasAnonymousProfileVisitsUnlocked({ level: 0 }), true);
+  assert.equal(hasAnonymousProfileVisitsUnlocked(null), true);
+  assert.equal(getAnonymousProfileVisitsUnlockMessage(), "");
 });

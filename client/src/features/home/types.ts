@@ -203,3 +203,32 @@ export interface NetworkDigestMeta {
   feedPosts: ChatFeedSummaryPost[];
   suggestions: ConnectionSuggestion[];
 }
+
+export interface ResearchResult {
+  id: string;
+  type: "news" | "weather" | "local_place" | "product" | "finance" | "general";
+  title: string;
+  description: string;
+  source: string;
+  url?: string;
+  imageUrl?: string;
+  temperature?: number;
+  temperatureMin?: number;
+  temperatureMax?: number;
+  feelsLike?: number;
+  weatherIcon?: string;
+  precipitationChance?: number;
+  rating?: number;
+  distance?: string;
+  isOpen?: boolean;
+  price?: string;
+  publishedAt?: string;
+  category?: string;
+  address?: string;
+}
+
+export interface ResearchMeta {
+  type: "research";
+  intent: string;
+  results: ResearchResult[];
+}

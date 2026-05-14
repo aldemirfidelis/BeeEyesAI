@@ -21,7 +21,6 @@ import { router } from "expo-router";
 
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
 import { PRIVACY_POLICY, TERMS_OF_USE } from "@mobile/lib/legalTexts";
 import { api, getApiErrorMessage } from "@mobile/lib/api";
 import { applyAppLanguage } from "@mobile/lib/i18n";
@@ -76,7 +75,6 @@ export default function SettingsScreen() {
     setLanguage(me.language ?? "pt-BR");
   }, [me?.id, me?.displayName, me?.bio, me?.language]);
 
-  const anonymousUnlocked = hasAnonymousProfileVisitsUnlocked(me ?? authUser);
   const anonymousEnabled = Boolean(me?.anonymousProfileVisitsEnabled ?? authUser?.anonymousProfileVisitsEnabled);
 
   const updatePreferences = useMutation({
@@ -132,10 +130,6 @@ export default function SettingsScreen() {
   }
 
   function handleToggleAnonymous(value: boolean) {
-    if (value && !anonymousUnlocked) {
-      setFeedback(getAnonymousProfileVisitsUnlockMessage());
-      return;
-    }
     updatePreferences.mutate({ anonymousProfileVisitsEnabled: value });
   }
 
@@ -227,13 +221,12 @@ export default function SettingsScreen() {
               <Switch
                 value={anonymousEnabled}
                 onValueChange={handleToggleAnonymous}
-                disabled={!anonymousUnlocked || updatePreferences.isPending}
+                disabled={updatePreferences.isPending}
                 thumbColor={anonymousEnabled ? "#111827" : "#f4f4f5"}
                 trackColor={{ false: colors.border, true: colors.primary }}
               />
             )}
           </View>
-          <Text style={styles.smallText}>{anonymousUnlocked ? t("settings_anonymous_unlocked") : getAnonymousProfileVisitsUnlockMessage()}</Text>
 
           <View style={styles.separator} />
 

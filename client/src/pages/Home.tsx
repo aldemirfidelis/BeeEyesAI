@@ -27,8 +27,8 @@ import { fileToCompressedDataUrl, fileToDataUrl, FEED_IMAGE_ACCEPT, isAcceptedFe
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
 import { SponsoredChatCard } from "@/components/SponsoredChatCard";
-import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem } from "@/features/home/types";
-import { getAnonymousProfileVisitsUnlockMessage, hasAnonymousProfileVisitsUnlocked } from "@shared/unlocks";
+import { ResearchResultCard, ResearchLoadingState, ResearchSourceBadge } from "@/components/ResearchResultCard";
+import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ResearchResult, ResearchMeta } from "@/features/home/types";
 import {
   generateBeeAdIntroMessage,
   getEligibleAd,
@@ -82,6 +82,9 @@ export default function Home() {
   const [achievementData, setAchievementData] = useState({ title: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [researchIntent, setResearchIntent] = useState<string | null>(null);
+  const pendingResearchRef = useRef<{ intent: string; results: ResearchResult[] } | null>(null);
   const [mobileTab, setMobileTab] = useState<"chat" | "feed" | "colmeia" | "friends" | "inbox" | "communities">("chat");
   const [showSettingsScreen, setShowSettingsScreen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
@@ -443,11 +446,6 @@ export default function Home() {
 
   const handleAnonymousProfileVisitsToggle = useCallback(async (nextValue: boolean) => {
     if (!token || !user) return;
-    if (nextValue && !hasAnonymousProfileVisitsUnlocked(user)) {
-      setSettingsMessage(getAnonymousProfileVisitsUnlockMessage());
-      return;
-    }
-
     try {
       const updatedUser = await apiFetch<User>("/api/me/preferences", {
         method: "PATCH",
@@ -1209,6 +1207,9 @@ export default function Home() {
     pulseEyeEvent("thinking", 1800);
     setIsLoading(true);
     setStreamingText("");
+    setResearchLoading(false);
+    setResearchIntent(null);
+    pendingResearchRef.current = null;
 
     try {
       const res = await fetch("/api/chat", {
@@ -1256,25 +1257,33 @@ export default function Home() {
               setStreamingText(accumulated);
               setEyeExpression("attentive");
               if (isFirstChunk) pulseEyeEvent("message-received", 1400);
+            } else if (event.type === "research_start") {
+              setResearchLoading(true);
+              setResearchIntent(event.intent ?? null);
+            } else if (event.type === "research_results") {
+              setResearchLoading(false);
+              if (event.results?.length > 0) {
+                pendingResearchRef.current = { intent: event.intent, results: event.results };
+              }
             } else if (event.type === "done") {
+              const pending = pendingResearchRef.current;
+              const finalMetadata = event.metadata
+                ?? (pending ? JSON.stringify({ type: "research", intent: pending.intent, results: pending.results }) : null);
               setMessages((prev) => [...prev, {
                 id: event.id ?? assistantMsgId,
                 role: "assistant",
                 content: event.cleanText ?? accumulated,
                 timestamp: new Date(),
-                metadata: event.metadata ?? null,
+                metadata: finalMetadata,
               }]);
+              pendingResearchRef.current = null;
+              setResearchLoading(false);
+              setResearchIntent(null);
               setStreamingText("");
               setEyeExpression("happy");
               pulseEyeEvent("message-received", 1800);
               fetch("/api/me", { headers: authHeaders() })
                 .then((r) => r.json()).then(setUser).catch(() => {});
-            } else if (event.type === "achievement_unlocked") {
-              setAchievementData({ title: event.achievement.title, description: event.achievement.description });
-              setShowAchievement(true);
-              setEyeExpression("excited");
-              pulseEyeEvent("message-received", 2200);
-              setTimeout(() => { setShowAchievement(false); setEyeExpression("happy"); }, 4000);
             } else if (event.type === "event_created") {
               setColmeiaRefreshKey((value) => value + 1);
               setAchievementData({ title: "Evento criado! 📅", description: event.event?.title ?? "Evento adicionado ao calendário." });
@@ -1885,6 +1894,7 @@ export default function Home() {
         msgSearchQuery={msgSearchQuery}
         messages={messages}
         streamingText={streamingText}
+        researchLoadingSlot={researchLoading && researchIntent ? <ResearchLoadingState intent={researchIntent} /> : null}
         processingConnectionRequestId={processingConnectionRequestId}
         chatScrollRef={chatScrollRef}
         chatEndRef={chatEndRef}
@@ -1974,6 +1984,36 @@ export default function Home() {
             );
           }
 
+          if (meta.type === "research" && Array.isArray((meta as ResearchMeta).results)) {
+            const research = meta as ResearchMeta;
+            return (
+              <div className="space-y-2">
+                {baseActions}
+                <ResearchSourceBadge count={research.results.length} intent={research.intent} />
+                {research.results.map((result) => (
+                  <ResearchResultCard
+                    key={result.id}
+                    result={result}
+                    authHeaders={authHeaders}
+                    onSaveToWishlist={async (r) => {
+                      try {
+                        const resp = await fetch("/api/wishlist/items", {
+                          method: "POST",
+                          headers: { ...authHeaders(), "Content-Type": "application/json" },
+                          body: JSON.stringify({ title: r.title, description: r.description, originalUrl: r.url, category: r.category, sourceType: "research" }),
+                        });
+                        const data = await resp.json().catch(() => null);
+                        setAchievementData({ title: "Salvo! 🐝", description: data?.message ?? "Adicionado à Lista de Desejos." });
+                        setShowAchievement(true);
+                        setTimeout(() => setShowAchievement(false), 3000);
+                      } catch { /* ignore */ }
+                    }}
+                  />
+                ))}
+              </div>
+            );
+          }
+
           return baseActions;
         }}
         messageRenderer={(message) => {
@@ -2005,6 +2045,7 @@ export default function Home() {
         onInputFocusChange={handleEyeInputFocusChange}
         onSendMessage={handleSendMessage}
         onSendVoiceMessage={(text) => handleSendMessage(text)}
+        onOpenUserProfile={openFriendProfile}
       />
 
       {/* ── Sidebar — sempre visível no desktop (384px), full-screen em outras tabs no mobile ── */}
@@ -2082,8 +2123,6 @@ export default function Home() {
         themeMode={themeMode}
         settingsMessage={settingsMessage}
         anonymousProfileVisitsEnabled={Boolean(user?.anonymousProfileVisitsEnabled)}
-        anonymousProfileVisitsUnlocked={hasAnonymousProfileVisitsUnlocked(user)}
-        anonymousProfileVisitsUnlockHint={getAnonymousProfileVisitsUnlockMessage()}
         authHeaders={authHeaders}
         onClose={() => setShowSettingsScreen(false)}
         onUserUpdate={setUser}

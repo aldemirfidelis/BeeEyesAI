@@ -12,55 +12,55 @@ interface OnboardingScreenProps {
 }
 
 const OBJECTIVES = [
-  { emoji: "💰", label: "Dinheiro" },
-  { emoji: "🏋️", label: "Treino" },
-  { emoji: "📚", label: "Estudos" },
-  { emoji: "💼", label: "Carreira" },
-  { emoji: "❤️", label: "Relacionamentos" },
-  { emoji: "🧘", label: "Bem-estar" },
-  { emoji: "🚀", label: "Negócios" },
-  { emoji: "🍎", label: "Saúde" },
-  { emoji: "🎨", label: "Criatividade" },
-  { emoji: "🏠", label: "Família" },
-  { emoji: "✈️", label: "Viagens" },
-  { emoji: "🎯", label: "Produtividade" },
+  { emoji: "ðŸ’°", label: "Dinheiro" },
+  { emoji: "ðŸ‹ï¸", label: "Treino" },
+  { emoji: "ðŸ“š", label: "Estudos" },
+  { emoji: "ðŸ’¼", label: "Carreira" },
+  { emoji: "â¤ï¸", label: "Relacionamentos" },
+  { emoji: "ðŸ§˜", label: "Bem-estar" },
+  { emoji: "ðŸš€", label: "NegÃ³cios" },
+  { emoji: "ðŸŽ", label: "SaÃºde" },
+  { emoji: "ðŸŽ¨", label: "Criatividade" },
+  { emoji: "ðŸ ", label: "FamÃ­lia" },
+  { emoji: "âœˆï¸", label: "Viagens" },
+  { emoji: "ðŸŽ¯", label: "Produtividade" },
 ];
 
 const WORK_PROFILES = [
-  { emoji: "👔", label: "Empregado" },
-  { emoji: "🧑‍💻", label: "Autônomo" },
-  { emoji: "🎓", label: "Estudante" },
-  { emoji: "🏠", label: "Do lar" },
-  { emoji: "🔍", label: "Em transição" },
+  { emoji: "ðŸ‘”", label: "Empregado" },
+  { emoji: "ðŸ§‘â€ðŸ’»", label: "AutÃ´nomo" },
+  { emoji: "ðŸŽ“", label: "Estudante" },
+  { emoji: "ðŸ ", label: "Do lar" },
+  { emoji: "ðŸ”", label: "Em transiÃ§Ã£o" },
 ];
 
 const ACTIVE_PERIODS = [
-  { emoji: "🌅", label: "Manhã" },
-  { emoji: "☀️", label: "Tarde" },
-  { emoji: "🌙", label: "Noite" },
+  { emoji: "ðŸŒ…", label: "ManhÃ£" },
+  { emoji: "â˜€ï¸", label: "Tarde" },
+  { emoji: "ðŸŒ™", label: "Noite" },
 ];
 
 const INTERESTS = [
-  { emoji: "🤖", label: "IA" },
-  { emoji: "💹", label: "Finanças" },
-  { emoji: "🏃", label: "Fitness" },
-  { emoji: "📰", label: "Notícias" },
-  { emoji: "⚡", label: "Produtividade" },
-  { emoji: "🧠", label: "Autoconhecimento" },
-  { emoji: "💻", label: "Tecnologia" },
-  { emoji: "📖", label: "Leitura" },
-  { emoji: "🎵", label: "Música" },
-  { emoji: "🎮", label: "Games" },
-  { emoji: "🍕", label: "Gastronomia" },
-  { emoji: "🌿", label: "Sustentabilidade" },
-  { emoji: "🎭", label: "Cultura" },
-  { emoji: "📱", label: "Redes Sociais" },
-  { emoji: "🔬", label: "Ciência" },
-  { emoji: "🏘️", label: "Comunidades" },
-  { emoji: "✍️", label: "Escrita" },
-  { emoji: "📊", label: "Business" },
-  { emoji: "🧘", label: "Meditação" },
-  { emoji: "🎬", label: "Cinema" },
+  { emoji: "ðŸ¤–", label: "IA" },
+  { emoji: "ðŸ’¹", label: "FinanÃ§as" },
+  { emoji: "ðŸƒ", label: "Fitness" },
+  { emoji: "ðŸ“°", label: "NotÃ­cias" },
+  { emoji: "âš¡", label: "Produtividade" },
+  { emoji: "ðŸ§ ", label: "Autoconhecimento" },
+  { emoji: "ðŸ’»", label: "Tecnologia" },
+  { emoji: "ðŸ“–", label: "Leitura" },
+  { emoji: "ðŸŽµ", label: "MÃºsica" },
+  { emoji: "ðŸŽ®", label: "Games" },
+  { emoji: "ðŸ•", label: "Gastronomia" },
+  { emoji: "ðŸŒ¿", label: "Sustentabilidade" },
+  { emoji: "ðŸŽ­", label: "Cultura" },
+  { emoji: "ðŸ“±", label: "Redes Sociais" },
+  { emoji: "ðŸ”¬", label: "CiÃªncia" },
+  { emoji: "ðŸ˜ï¸", label: "Comunidades" },
+  { emoji: "âœï¸", label: "Escrita" },
+  { emoji: "ðŸ“Š", label: "Business" },
+  { emoji: "ðŸ§˜", label: "MeditaÃ§Ã£o" },
+  { emoji: "ðŸŽ¬", label: "Cinema" },
 ];
 
 const BEE_EXPR = ["happy", "excited", "curious", "celebrating"] as const;
@@ -133,7 +133,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
       });
       onComplete(updated);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Não foi possível salvar suas informações."));
+      setError(getApiErrorMessage(err, "NÃ£o foi possÃ­vel salvar suas informaÃ§Ãµes."));
     } finally {
       setLoading(false);
     }
@@ -160,17 +160,17 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
           <BeeEyes expression={BEE_EXPR[step]} />
         </div>
 
-        {/* Step 0 — Welcome */}
+        {/* Step 0 â€” Welcome */}
         {step === 0 && (
           <div className="space-y-3">
-            <h1 className="text-2xl font-black">Olá! 🐝</h1>
-            <p className="text-base font-bold text-foreground">Vamos ajustar a Bee para você</p>
-            <p className="text-sm text-muted-foreground">Em 3 passos rápidos eu aprendo o que importa para você — seus objetivos, sua rotina e seus interesses.</p>
+            <h1 className="text-2xl font-black">OlÃ¡! ðŸ</h1>
+            <p className="text-base font-bold text-foreground">Vamos ajustar a Bee para vocÃª</p>
+            <p className="text-sm text-muted-foreground">Em 3 passos rÃ¡pidos eu aprendo o que importa para vocÃª â€” seus objetivos, sua rotina e seus interesses.</p>
             <div className="space-y-2 pt-1">
               {[
-                { emoji: "🎯", text: "Missões personalizadas para seus objetivos" },
-                { emoji: "💬", text: "Conversas que fazem sentido para você" },
-                { emoji: "⚡", text: "Alertas e dicas alinhados à sua rotina" },
+                { emoji: "ðŸŽ¯", text: "MissÃµes personalizadas para seus objetivos" },
+                { emoji: "ðŸ’¬", text: "Conversas que fazem sentido para vocÃª" },
+                { emoji: "âš¡", text: "Alertas e dicas alinhados Ã  sua rotina" },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3">
                   <span className="text-xl">{item.emoji}</span>
@@ -181,12 +181,12 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
           </div>
         )}
 
-        {/* Step 1 — Objectives */}
+        {/* Step 1 â€” Objectives */}
         {step === 1 && (
           <div className="space-y-3">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Passo 1 de 3</p>
             <h2 className="text-xl font-black">Quais seus principais objetivos?</h2>
-            <p className="text-sm text-muted-foreground">Escolha até 3 que mais representam o que você quer conquistar agora.</p>
+            <p className="text-sm text-muted-foreground">Escolha atÃ© 3 que mais representam o que vocÃª quer conquistar agora.</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {OBJECTIVES.map((item) => {
                 const active = selectedObjectives.includes(item.label);
@@ -202,7 +202,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
                   >
                     <span>{item.emoji}</span>
                     <span>{item.label}</span>
-                    {active && <span className="text-amber-600">✓</span>}
+                    {active && <span className="text-amber-600">âœ“</span>}
                   </button>
                 );
               })}
@@ -213,11 +213,11 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
           </div>
         )}
 
-        {/* Step 2 — Routine */}
+        {/* Step 2 â€” Routine */}
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Passo 2 de 3</p>
-            <h2 className="text-xl font-black">Como é a sua rotina?</h2>
+            <h2 className="text-xl font-black">Como Ã© a sua rotina?</h2>
 
             <div className="space-y-2">
               <p className="text-sm font-bold text-foreground">Seu perfil</p>
@@ -240,7 +240,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-bold text-foreground">Quando você é mais ativo(a)?</p>
+              <p className="text-sm font-bold text-foreground">Quando vocÃª Ã© mais ativo(a)?</p>
               <div className="flex flex-wrap gap-2">
                 {ACTIVE_PERIODS.map((item) => {
                   const active = activePeriods.includes(item.label);
@@ -264,7 +264,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
               <Textarea
                 value={routine}
                 onChange={(e) => setRoutine(e.target.value)}
-                placeholder="Ex.: trabalho de manhã em home office, estudo à noite, treino 3x por semana..."
+                placeholder="Ex.: trabalho de manhÃ£ em home office, estudo Ã  noite, treino 3x por semana..."
                 className="min-h-[90px]"
                 maxLength={300}
               />
@@ -273,12 +273,12 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
           </div>
         )}
 
-        {/* Step 3 — Interests */}
+        {/* Step 3 â€” Interests */}
         {step === 3 && (
           <div className="space-y-3">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Passo 3 de 3</p>
             <h2 className="text-xl font-black">O que te interessa?</h2>
-            <p className="text-sm text-muted-foreground">Escolha até 8 temas.</p>
+            <p className="text-sm text-muted-foreground">Escolha atÃ© 8 temas.</p>
             <div className="flex flex-wrap gap-2 pt-1">
               {INTERESTS.map((item) => {
                 const active = selectedInterests.includes(item.label);
@@ -311,7 +311,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
         <div className="flex gap-3 pt-1">
           {step > 0 && (
             <Button variant="outline" onClick={() => { setError(""); setStep(step - 1); }} className="px-5">
-              ← Voltar
+              â† Voltar
             </Button>
           )}
           <Button
@@ -319,7 +319,7 @@ export function OnboardingScreen({ authHeaders, onComplete }: OnboardingScreenPr
             onClick={handleNext}
             disabled={loading}
           >
-            {loading ? "Salvando..." : step === 0 ? "Vamos começar! 🐝" : step === TOTAL_STEPS ? "Entrar no BeeEyes 🚀" : "Próximo →"}
+            {loading ? "Salvando..." : step === 0 ? "Vamos comeÃ§ar! ðŸ" : step === TOTAL_STEPS ? "Entrar no BeeEyes ðŸš€" : "PrÃ³ximo â†’"}
           </Button>
         </div>
       </Card>

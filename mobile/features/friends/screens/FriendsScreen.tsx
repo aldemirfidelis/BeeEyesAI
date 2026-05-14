@@ -3,8 +3,8 @@ import {
   TouchableOpacity, RefreshControl, Modal, ActivityIndicator, Alert,
   TextInput, KeyboardAvoidingView, Platform,
 } from "react-native";
-import { useState, useCallback, useRef } from "react";
-import { router } from "expo-router";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -77,6 +77,7 @@ function timeAgo(dateStr: string): string {
 
 export default function FriendsScreen() {
   const { t } = useTranslation();
+  const params = useLocalSearchParams<{ openProfile?: string }>();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const setPendingDMUser = useUIStore((s) => s.setPendingDMUser);
@@ -239,6 +240,12 @@ export default function FriendsScreen() {
     } catch { /* ignore */ }
     finally { setProfileLoading(false); }
   };
+
+  useEffect(() => {
+    if (typeof params.openProfile === "string" && params.openProfile) {
+      openProfile(params.openProfile);
+    }
+  }, [params.openProfile]);
 
   const closeProfile = () => {
     setSelectedFriendId(null);
@@ -627,7 +634,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headerTitle: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: COLORS.foreground },
-  content: { padding: 16, gap: 10, paddingBottom: 32 },
+  content: { padding: 16, gap: 10, paddingBottom: 120 },
 
   // Search
   searchWrapper: {

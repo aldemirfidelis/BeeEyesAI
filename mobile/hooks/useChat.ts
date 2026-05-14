@@ -4,6 +4,7 @@ import { useUIStore } from "../stores/uiStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_URL_RAW, getApiErrorMessage } from "../lib/api";
 import { NewsDigestMeta } from "../lib/social";
+import type { ResearchResult } from "../components/ResearchResultCard";
 
 function cleanAIText(text: string): string {
   return text
@@ -72,6 +73,7 @@ export function useChat() {
       const raw = await response.text();
       let fullText = "";
       let newsFetched: { query: string; items: any[] } | null = null;
+      let pendingResearch: { intent: string; results: ResearchResult[] } | null = null;
       let reactedToResponse = false;
       let doneMetadata: string | null = null;
       let doneId: string | undefined;
@@ -90,10 +92,13 @@ export function useChat() {
               reactedToResponse = true;
               setEyeExpression("excited");
             }
-          } else if (event.type === "achievement_unlocked") {
-            showAchievement(event.achievement);
-            setEyeExpression("celebrating");
-            setTimeout(() => setEyeExpression("happy"), 3000);
+          } else if (event.type === "research_start") {
+            setEyeExpression("curious");
+          } else if (event.type === "research_results") {
+            if (event.results?.length > 0) {
+              pendingResearch = { intent: event.intent, results: event.results };
+            }
+            setEyeExpression("excited");
           } else if (event.type === "news_fetched") {
             newsFetched = { query: event.query, items: event.items };
             setEyeExpression("excited");
@@ -113,9 +118,13 @@ export function useChat() {
             queryClient.invalidateQueries({ queryKey: ["colmeia-alarms"] });
             showAchievement({ id: "alarm_created", type: "alarm_created", title: "Despertador criado!", description: event.alarm?.title || "Adicionado ao Relogio" });
           } else if (event.type === "done") {
-            doneMetadata = event.metadata ?? null;
             doneId = event.id;
             if (event.cleanText) fullText = event.cleanText;
+            // Prefer metadata from server (already includes research); fall back to pending research
+            doneMetadata = event.metadata
+              ?? (pendingResearch
+                ? JSON.stringify({ type: "research", intent: pendingResearch.intent, results: pendingResearch.results })
+                : null);
           }
         } catch { /* skip malformed */ }
       }

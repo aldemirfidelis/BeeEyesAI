@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { WishlistSection } from "./WishlistSection";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ function fmtCents(cents: number) {
 // To add a new tool: (1) add ToolId to the union, (2) push to COLMEIA_TOOLS,
 // (3) place it in TOOL_POSITIONS.
 
-type ToolId = "calendar" | "finance" | "clock" | "notes" | "health";
+type ToolId = "calendar" | "finance" | "clock" | "notes" | "health" | "wishlist";
 
 interface ColmeiaTool { id: ToolId; label: string; src?: string; icon?: ReactNode; color: string }
 
@@ -108,6 +109,7 @@ const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "notes",    label: "Notas",      src: "/icons-colmeia/notas.png",       color: "#8B5CF6" },
   { id: "clock",    label: "Alarmes",    src: "/icons-colmeia/alarmes.png",     color: "#F97316" },
   { id: "health",   label: "Saúde",      src: "/icons-colmeia/saude.png",      color: "#EF4444" },
+  { id: "wishlist", label: "Lista de Desejos", src: "/icons-colmeia/lista-desejos.png", color: "#EC4899" },
 ];
 
 // 6 slots around center — null = "em breve"
@@ -196,12 +198,46 @@ function ColmeiaHub({ onSelect }: { onSelect: (id: ToolId) => void }) {
 
 // ── Calendar Section ──────────────────────────────────────────────────────────
 
+interface PublicCalendarEntry {
+  id: string;
+  title: string;
+  description: string;
+  date: string; // "YYYY-MM-DD"
+  type: "national_holiday" | "state_holiday" | "special_date";
+  emoji: string;
+  state?: string;
+  category?: string;
+}
+
+const PUBLIC_ENTRY_COLORS: Record<PublicCalendarEntry["type"], string> = {
+  national_holiday: "#EF4444",
+  state_holiday: "#F97316",
+  special_date: "#10B981",
+};
+
+const PUBLIC_ENTRY_LABELS: Record<PublicCalendarEntry["type"], string> = {
+  national_holiday: "Feriado Nacional",
+  state_holiday: "Feriado Estadual",
+  special_date: "Data Especial",
+};
+
+const BRAZIL_STATES: Record<string, string> = {
+  AC:"Acre",AL:"Alagoas",AM:"Amazonas",AP:"Amapá",BA:"Bahia",CE:"Ceará",DF:"Distrito Federal",
+  ES:"Espírito Santo",GO:"Goiás",MA:"Maranhão",MG:"Minas Gerais",MS:"Mato Grosso do Sul",
+  MT:"Mato Grosso",PA:"Pará",PB:"Paraíba",PE:"Pernambuco",PI:"Piauí",PR:"Paraná",
+  RJ:"Rio de Janeiro",RN:"Rio Grande do Norte",RO:"Rondônia",RR:"Roraima",RS:"Rio Grande do Sul",
+  SC:"Santa Catarina",SE:"Sergipe",SP:"São Paulo",TO:"Tocantins",
+};
+
 function CalendarSection({ authHeaders }: { authHeaders: () => Record<string, string> }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [publicEntries, setPublicEntries] = useState<PublicCalendarEntry[]>([]);
+  const [userState, setUserState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showStateSelector, setShowStateSelector] = useState(false);
   const [googleStatus, setGoogleStatus] = useState<{ connected: boolean } | null>(null);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", startAt: "", endAt: "", location: "", allDay: false });
@@ -219,7 +255,33 @@ function CalendarSection({ authHeaders }: { authHeaders: () => Record<string, st
     }
   }, [currentMonth, authHeaders]);
 
+  const fetchPublicEntries = useCallback(async (state?: string | null) => {
+    try {
+      const from = startOfMonth(currentMonth).toISOString();
+      const to = endOfMonth(currentMonth).toISOString();
+      const stateParam = (state ?? userState) ? `&state=${(state ?? userState)!.toUpperCase()}` : "";
+      const res = await fetch(`/api/calendar/public?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${stateParam}`, { headers: authHeaders() });
+      if (res.ok) setPublicEntries(await res.json());
+    } catch { /* ignore */ }
+  }, [currentMonth, authHeaders, userState]);
+
+  const loadCalendarPreferences = useCallback(async () => {
+    try {
+      const res = await fetch("/api/calendar/preferences", { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setUserState(data.state ?? null);
+        return data.state ?? null;
+      }
+    } catch { /* ignore */ }
+    return null;
+  }, [authHeaders]);
+
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  useEffect(() => {
+    loadCalendarPreferences().then((st) => fetchPublicEntries(st));
+  }, [currentMonth]);
 
   useEffect(() => {
     fetch("/api/colmeia/google/status", { headers: authHeaders() })
@@ -335,60 +397,159 @@ function CalendarSection({ authHeaders }: { authHeaders: () => Record<string, st
         <div className="grid grid-cols-7">
           {calDays.map(day => {
             const hasEvent = events.some(e => isSameDay(parseISO(e.startAt), day));
+            const inMonth = isSameMonth(day, currentMonth);
+            const dayPublic = inMonth ? publicEntries.filter(e => {
+              const [y, m, d] = e.date.split("-").map(Number);
+              return isSameDay(new Date(y, m - 1, d), day);
+            }) : [];
             const isSelected = selectedDay && isSameDay(day, selectedDay);
             const isToday = isSameDay(day, new Date());
-            const inMonth = isSameMonth(day, currentMonth);
             return (
               <button
                 key={day.toISOString()}
                 onClick={() => setSelectedDay(isSameDay(day, selectedDay ?? new Date(-1)) ? null : day)}
-                className={`relative aspect-square flex flex-col items-center justify-center text-xs transition-colors
+                className={`relative pb-1 pt-1 flex flex-col items-center justify-start gap-0.5 text-xs transition-colors min-h-[36px]
                   ${!inMonth ? "text-muted-foreground/30" : ""}
                   ${isSelected ? "bg-primary text-primary-foreground" : isToday ? "bg-primary/10 font-bold" : "hover:bg-muted/50"}
                 `}
               >
-                {format(day, "d")}
-                {hasEvent && <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-primary"}`} />}
+                <span className="leading-none mt-1">{format(day, "d")}</span>
+                {(hasEvent || dayPublic.length > 0) && (
+                  <span className="flex items-center gap-0.5">
+                    {hasEvent && <span className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-primary"}`} />}
+                    {dayPublic.slice(0, 2).map((entry, i) => (
+                      <span
+                        key={i}
+                        className="w-1 h-1 rounded-full"
+                        style={{ backgroundColor: isSelected ? "white" : PUBLIC_ENTRY_COLORS[entry.type] }}
+                      />
+                    ))}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Selected day events */}
-      {selectedDay && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">{format(selectedDay, "dd 'de' MMMM", { locale: ptBR })}</h3>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
-              setForm(f => ({ ...f, startAt: format(selectedDay, "yyyy-MM-dd") + "T09:00" }));
-              setShowForm(true);
-            }}>
-              Evento
-            </Button>
-          </div>
-          {dayEvents.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3">Nenhum evento neste dia</p>
-          ) : dayEvents.map(ev => (
-            <div key={ev.id} className="flex items-start gap-2 p-3 rounded-xl border border-border bg-card">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold truncate">{ev.title}</p>
-                  {ev.googleEventId && <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />}
-                </div>
-                {ev.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ev.description}</p>}
-                {ev.location && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" />{ev.location}</p>}
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {ev.allDay ? "Dia inteiro" : format(parseISO(ev.startAt), "HH:mm") + (ev.endAt ? " – " + format(parseISO(ev.endAt), "HH:mm") : "")}
-                </p>
-              </div>
-              <button onClick={() => handleDeleteEvent(ev.id)} className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
+      {/* Legend + state selector */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {[
+            { color: "hsl(var(--primary))", label: "Compromisso" },
+            { color: "#EF4444", label: "Feriado Nacional" },
+            { color: "#F97316", label: "Feriado Estadual" },
+            { color: "#10B981", label: "Data Especial" },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              {label}
+            </span>
           ))}
         </div>
-      )}
+        <div className="relative">
+          <button
+            className="flex items-center gap-1 border border-border rounded-lg px-2.5 py-1.5 text-[10px] font-semibold hover:bg-muted/50 transition-colors"
+            style={{ color: userState ? "hsl(var(--primary))" : undefined }}
+            onClick={() => setShowStateSelector(v => !v)}
+          >
+            🏠 {userState ? `${userState}` : "Estado"}
+          </button>
+          {showStateSelector && (
+            <div className="absolute right-0 top-full mt-1 z-50 w-56 max-h-64 overflow-y-auto rounded-xl border border-border bg-card shadow-lg">
+              <div className="p-2 text-xs font-semibold text-muted-foreground border-b border-border">Selecionar estado</div>
+              <button
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/50 ${!userState ? "font-bold text-primary" : ""}`}
+                onClick={async () => {
+                  setUserState(null);
+                  setShowStateSelector(false);
+                  await fetch("/api/calendar/preferences", { method: "PATCH", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ state: null }) });
+                  fetchPublicEntries(null);
+                }}
+              >
+                Não informar
+              </button>
+              {Object.entries(BRAZIL_STATES).map(([uf, name]) => (
+                <button
+                  key={uf}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/50 flex items-center justify-between ${userState === uf ? "font-bold text-primary" : ""}`}
+                  onClick={async () => {
+                    setUserState(uf);
+                    setShowStateSelector(false);
+                    await fetch("/api/calendar/preferences", { method: "PATCH", headers: { ...authHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ state: uf }) });
+                    fetchPublicEntries(uf);
+                  }}
+                >
+                  <span>{uf} — {name}</span>
+                  {userState === uf && <span className="text-primary">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Selected day events + public entries */}
+      {selectedDay && (() => {
+        const [yr, mo] = [selectedDay.getFullYear(), selectedDay.getMonth() + 1];
+        const dy = selectedDay.getDate();
+        const selectedDayPublic = publicEntries.filter(e => {
+          const [y, m, d] = e.date.split("-").map(Number);
+          return y === yr && m === mo && d === dy;
+        });
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">{format(selectedDay, "dd 'de' MMMM", { locale: ptBR })}</h3>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                setForm(f => ({ ...f, startAt: format(selectedDay, "yyyy-MM-dd") + "T09:00" }));
+                setShowForm(true);
+              }}>
+                Evento
+              </Button>
+            </div>
+
+            {/* Public entries */}
+            {selectedDayPublic.map(entry => (
+              <div key={entry.id} className="flex items-start gap-2 p-3 rounded-xl border bg-card overflow-hidden" style={{ borderLeftWidth: 3, borderLeftColor: PUBLIC_ENTRY_COLORS[entry.type], borderColor: "hsl(var(--border))" }}>
+                <span className="text-xl leading-none mt-0.5">{entry.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold">{entry.title}</p>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: PUBLIC_ENTRY_COLORS[entry.type] + "20", color: PUBLIC_ENTRY_COLORS[entry.type] }}>
+                      {PUBLIC_ENTRY_LABELS[entry.type]}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{entry.description}</p>
+                </div>
+              </div>
+            ))}
+
+            {/* User events */}
+            {dayEvents.length === 0 && selectedDayPublic.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-3">Nenhum evento ou data especial neste dia</p>
+            )}
+            {dayEvents.map(ev => (
+              <div key={ev.id} className="flex items-start gap-2 p-3 rounded-xl border border-border bg-card">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold truncate">{ev.title}</p>
+                    {ev.googleEventId && <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />}
+                  </div>
+                  {ev.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{ev.description}</p>}
+                  {ev.location && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" />{ev.location}</p>}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {ev.allDay ? "Dia inteiro" : format(parseISO(ev.startAt), "HH:mm") + (ev.endAt ? " – " + format(parseISO(ev.endAt), "HH:mm") : "")}
+                  </p>
+                </div>
+                <button onClick={() => handleDeleteEvent(ev.id)} className="text-muted-foreground hover:text-destructive shrink-0 mt-0.5">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Upcoming events */}
       {!selectedDay && upcomingEvents.length > 0 && (
@@ -913,19 +1074,23 @@ function playWebAlarmFeedback(alarm: AlarmReminder) {
   }
 }
 
+type WebRepeatMode = "once" | "daily" | "custom";
+
 function ClockSection({ authHeaders }: { authHeaders: () => Record<string, string> }) {
   const [alarms, setAlarms] = useState<AlarmReminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
   const [notificationPermission, setNotificationPermission] = useState(
-    typeof Notification === "undefined" ? "unsupported" : Notification.permission
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission,
   );
   const [form, setForm] = useState({
     title: "",
     message: "",
     kind: "alarm" as AlarmReminder["kind"],
     scheduledAt: "",
+    repeatMode: "once" as WebRepeatMode,
     repeatDays: [] as number[],
   });
 
@@ -941,18 +1106,37 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
 
   useEffect(() => { loadAlarms(); }, [loadAlarms]);
 
+  // Schedule web timers for upcoming alarms (up to 7 days ahead).
+  // Also immediately fires the feedback if an alarm is overdue by < 60s
+  // (handles the "page was refreshed just before alarm time" case).
   useEffect(() => {
+    const MAX_DELAY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const OVERDUE_GRACE_MS = 60 * 1000; // fire if missed by < 60s
+
     const timers = alarms.flatMap((alarm) => {
       if (!alarm.active) return [];
       const delay = new Date(alarm.nextTriggerAt).getTime() - Date.now();
-      if (delay < 0 || delay > 24 * 60 * 60 * 1000) return [];
-      return [window.setTimeout(() => {
+
+      // Fire immediately if alarm was just missed (within grace window)
+      if (delay < 0 && delay > -OVERDUE_GRACE_MS) {
         playWebAlarmFeedback(alarm);
         fetch("/api/colmeia/alarms/due", { method: "POST", headers: authHeaders() })
-          .then(() => loadAlarms())
-          .catch(() => {});
-      }, delay)];
+          .then(() => loadAlarms()).catch(() => {});
+        return [];
+      }
+
+      // Schedule future alarm (within 7-day window)
+      if (delay > 0 && delay <= MAX_DELAY_MS) {
+        return [window.setTimeout(() => {
+          playWebAlarmFeedback(alarm);
+          fetch("/api/colmeia/alarms/due", { method: "POST", headers: authHeaders() })
+            .then(() => loadAlarms()).catch(() => {});
+        }, delay)];
+      }
+
+      return [];
     });
+
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [alarms, authHeaders, loadAlarms]);
 
@@ -966,6 +1150,17 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
     if (!form.title.trim() || !form.scheduledAt || saving) return;
     setSaving(true);
     try {
+      // Determine repeatType from form state
+      let repeatType: string = "once";
+      let repeatDays: number[] = [];
+
+      if (form.repeatMode === "daily") {
+        repeatType = "daily";
+      } else if (form.repeatMode === "custom" && form.repeatDays.length > 0) {
+        repeatType = form.repeatDays.length === 7 ? "daily" : "weekly";
+        repeatDays = form.repeatDays;
+      }
+
       const res = await fetch("/api/colmeia/alarms", {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -974,15 +1169,19 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
           message: form.message.trim() || null,
           kind: form.kind,
           scheduledAt: new Date(form.scheduledAt).toISOString(),
-          repeatType: form.repeatDays.length > 0 ? "weekly" : "once",
-          repeatDays: form.repeatDays,
+          repeatType,
+          repeatDays,
           intervalMinutes: null,
         }),
       });
       if (res.ok) {
         setShowForm(false);
-        setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatDays: [] });
+        setForm({ title: "", message: "", kind: "alarm", scheduledAt: "", repeatMode: "once", repeatDays: [] });
         await loadAlarms();
+        const d = new Date(form.scheduledAt);
+        const timeStr = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        setSuccessMsg(`Seu alarme está prontinho! 🐝 Eu te aviso às ${timeStr}.`);
+        setTimeout(() => setSuccessMsg(""), 4000);
       }
     } finally {
       setSaving(false);
@@ -1018,10 +1217,16 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
             <Button size="sm" variant="outline" className="text-xs flex-1" onClick={requestNotifications}>Ativar avisos</Button>
           )}
           <Button size="sm" className="text-xs flex-1" onClick={() => setShowForm((value) => !value)}>
-            Novo alarme
+            {showForm ? "Cancelar" : "Novo alarme"}
           </Button>
         </div>
       </div>
+
+      {successMsg && (
+        <div className="rounded-xl border border-primary/30 bg-primary/8 px-3 py-2.5 text-sm font-semibold text-primary text-center">
+          {successMsg}
+        </div>
+      )}
 
       {showForm && (
         <div className="rounded-xl border border-border bg-card p-3 space-y-3">
@@ -1038,14 +1243,30 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
               </button>
             ))}
           </div>
-          <Input placeholder="Nome do aviso" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
-          <Textarea placeholder="Mensagem opcional" value={form.message} onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))} className="min-h-[64px] resize-none text-sm" />
+          <Input placeholder="Nome do aviso *" value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} />
+          <Textarea placeholder="Mensagem da Bee (opcional)" value={form.message} onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))} className="min-h-[64px] resize-none text-sm" />
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Data e hora</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Data e hora *</label>
             <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm((prev) => ({ ...prev, scheduledAt: e.target.value }))} />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Repeticao</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Repetição</label>
+            <div className="grid grid-cols-3 gap-1 mb-2">
+              {(["once", "daily", "custom"] as WebRepeatMode[]).map((mode) => {
+                const labels: Record<WebRepeatMode, string> = { once: "Uma vez", daily: "Todo dia", custom: "Personalizar" };
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, repeatMode: mode, repeatDays: mode === "custom" ? prev.repeatDays : [] }))}
+                    className={`rounded-lg border px-2 py-2 text-xs font-semibold transition-colors ${form.repeatMode === mode ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"}`}
+                  >
+                    {labels[mode]}
+                  </button>
+                );
+              })}
+            </div>
+            {form.repeatMode === "custom" && (
             <div className="grid grid-cols-7 gap-1">
               {WEEK_DAYS.map((day) => {
                 const selected = form.repeatDays.includes(day.value);
@@ -1067,14 +1288,12 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
                 );
               })}
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Sem dias marcados, o alarme toca apenas uma vez.
-            </p>
+            )}
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button className="flex-1" disabled={!form.title.trim() || !form.scheduledAt || saving} onClick={createAlarm}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar alarme"}
             </Button>
           </div>
         </div>
@@ -1085,8 +1304,8 @@ function ClockSection({ authHeaders }: { authHeaders: () => Record<string, strin
       ) : alarms.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           <BellRing className="w-9 h-9 mx-auto mb-2 opacity-40" />
-          <p className="text-sm font-semibold">Nenhum alarme criado</p>
-          <p className="text-xs mt-1">Crie avisos para remedios, horarios e compromissos.</p>
+          <p className="text-sm font-semibold">Nenhum alarme ainda</p>
+          <p className="text-xs mt-1">Crie alarmes para remédios, horários e compromissos. A Bee te avisa na hora certa. 🐝</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1641,6 +1860,7 @@ export function ColmeiaPanel({ authHeaders }: ColmeiaPanelProps) {
             {activeSection === "clock" && <ClockSection authHeaders={authHeaders} />}
             {activeSection === "notes" && <NotesSection authHeaders={authHeaders} />}
             {activeSection === "health" && <HealthCoachSection />}
+            {activeSection === "wishlist" && <WishlistSection authHeaders={authHeaders} />}
           </>
         )}
       </div>

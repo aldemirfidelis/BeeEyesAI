@@ -17,10 +17,10 @@ Notifications.setNotificationHandler({
 
 // ── Canal IDs ─────────────────────────────────────────────────────────────────
 export const CHANNEL = {
-  SOCIAL:    "bee-social",
-  ALERTS:    "bee-alerts",
-  ALARMS:    "bee-alarms",
-  TIPS:      "bee-tips",
+  SOCIAL:  "bee-social",
+  ALERTS:  "bee-alerts",
+  ALARMS:  "bee-alarms",
+  TIPS:    "bee-tips",
 } as const;
 
 // ── Canais Android ────────────────────────────────────────────────────────────
@@ -47,13 +47,14 @@ export async function setupNotificationChannels(): Promise<void> {
       enableVibrate: true,
     }),
     Notifications.setNotificationChannelAsync(CHANNEL.ALARMS, {
-      name: "Despertadores",
+      name: "🔔 Despertadores",
       description: "Alarmes, remédios e compromissos com vibração",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 900, 250, 900, 250, 900],
       lightColor: "#FFD940",
       sound: "default",
       enableVibrate: true,
+      bypassDnd: false,
     }),
     Notifications.setNotificationChannelAsync(CHANNEL.TIPS, {
       name: "💡 Dicas da Bee",
@@ -104,8 +105,31 @@ export async function registerPushToken(): Promise<void> {
   }
 }
 
+// ── Alarm notification category (botões snooze + dispensar) ──────────────────
+// Registra categorias de ação para os alarmes da Bee.
+// Deve ser chamado uma vez na inicialização do app.
+export async function setupAlarmNotificationCategory(): Promise<void> {
+  try {
+    await Notifications.setNotificationCategoryAsync("bee-alarm-actions", [
+      {
+        identifier: "snooze",
+        buttonTitle: "Adiar 5 min ⏰",
+        options: { opensAppToForeground: true },
+      },
+      {
+        identifier: "dismiss",
+        buttonTitle: "Dispensar",
+        options: { opensAppToForeground: false, isDestructive: true },
+      },
+    ]);
+  } catch {
+    // Non-fatal — ação é opcional
+  }
+}
+
 // ── Tap listener ──────────────────────────────────────────────────────────────
-// Registra uma vez no _layout para navegar ao tocar na notificação
+// Registra uma vez no _layout para navegar ao tocar na notificação.
+// Também processa ações de snooze/dismiss diretamente.
 let tapListenerRef: Notifications.EventSubscription | null = null;
 
 export function setupNotificationTapListener(): () => void {
@@ -115,20 +139,51 @@ export function setupNotificationTapListener(): () => void {
     tapListenerRef = null;
   }
 
-  tapListenerRef = Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = response.notification.request.content.data as Record<string, string> | undefined;
-    const screen = data?.screen;
+  tapListenerRef = Notifications.addNotificationResponseReceivedListener(async (response) => {
+    const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+    const actionId = response.actionIdentifier;
+    const screen = data?.screen as string | undefined;
+    const alarmId = data?.alarmId as string | undefined;
+    const alarmTitle = data?.alarmTitle as string | undefined;
+    const alarmBodyText = data?.alarmBody as string | undefined;
+    const source = data?.source as string | undefined;
 
-    if (!screen) return;
+    // ── Ação: Snooze ──────────────────────────────────────────────────────────
+    if (actionId === "snooze" && alarmId) {
+      try {
+        const { snoozeAlarm } = await import("../services/alarmService");
+        await snoozeAlarm({ id: alarmId, title: alarmTitle ?? "Alarme", message: alarmBodyText ?? null, kind: "alarm" });
+        if (__DEV__) console.log("[Notifications] Alarm snoozed", alarmId);
+      } catch { /* ignore */ }
+      return;
+    }
+
+    // ── Ação: Dispensar ───────────────────────────────────────────────────────
+    if (actionId === "dismiss") {
+      return;
+    }
+
+    // ── Toque padrão: abrir tela da Bee ──────────────────────────────────────
+    let targetScreen = screen;
+    if (source === "bee-alarm" && alarmId) {
+      const params = new URLSearchParams({
+        alarmId,
+        ...(alarmTitle ? { alarmTitle } : {}),
+        ...(alarmBodyText ? { alarmBody: alarmBodyText } : {}),
+      });
+      targetScreen = `/bee-alarm?${params.toString()}`;
+    }
+
+    if (!targetScreen) return;
 
     // Aguarda o app terminar de montar antes de navegar
     setTimeout(() => {
       try {
-        router.push(screen as any);
+        router.push(targetScreen as any);
       } catch {
-        router.replace(screen as any);
+        try { router.replace(targetScreen as any); } catch { /* give up */ }
       }
-    }, 300);
+    }, 350);
   });
 
   return () => {
@@ -137,8 +192,7 @@ export function setupNotificationTapListener(): () => void {
   };
 }
 
-
-// ── Helpers de notificação imediata ───────────────────────────────────────────
+// ── Helpers de notificação imediata ──────────────────────────────────────────
 
 export async function notifyStreakRisk(): Promise<void> {
   try {
@@ -186,7 +240,7 @@ export async function notifyLevelUp(newLevel: number): Promise<void> {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: `BeeEyes · Você chegou ao Nível ${newLevel}! 🏆`,
-        body: "Novos recursos desbloqueados. Confira o que ganhou!",
+        body: "Seu progresso foi atualizado. Confira as novidades no app!",
         data: { source: "bee-levelup", screen: "/(tabs)" },
         sound: true,
         ...(Platform.OS === "android" && { channelId: CHANNEL.ALERTS }),

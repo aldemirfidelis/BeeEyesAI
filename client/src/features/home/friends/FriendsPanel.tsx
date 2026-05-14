@@ -51,7 +51,7 @@ export function FriendsPanel(props: FriendsPanelProps) {
   } = props;
 
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-3 p-4 pb-28 md:pb-4">
       <div>
         <h2 className="font-display text-lg font-semibold">Amigos</h2>
         <p className="text-xs text-muted-foreground mt-1">Descoberta, conexão e acesso rápido a conversas e perfis.</p>
