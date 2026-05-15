@@ -20,6 +20,10 @@ export async function ensureDatabaseCompatibility() {
   `);
   await pool.query(`
     ALTER TABLE "users"
+    ADD COLUMN IF NOT EXISTS "allow_messages_from_strangers" boolean NOT NULL DEFAULT true;
+  `);
+  await pool.query(`
+    ALTER TABLE "users"
     ADD COLUMN IF NOT EXISTS "expo_push_token" text;
   `);
   await pool.query(`
