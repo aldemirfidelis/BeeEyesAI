@@ -83,8 +83,8 @@ export interface IStorage {
   updatePostAIComment(postId: string, aiComment: string, sentiment: string, sentimentLabel: string): Promise<void>;
   updatePost(postId: string, userId: string, content: string): Promise<Post | null>;
   deletePost(postId: string, userId: string): Promise<boolean>;
-  getFeedForUser(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
-  getForYouFeed(userId: string, limit?: number): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
+  getFeedForUser(userId: string, limit?: number, before?: Date): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
+  getForYouFeed(userId: string, limit?: number, before?: Date): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]>;
   likePost(postId: string, userId: string): Promise<void>;
   unlikePost(postId: string, userId: string): Promise<void>;
   hasLikedPost(postId: string, userId: string): Promise<boolean>;
@@ -594,9 +594,13 @@ export class DrizzleStorage implements IStorage {
     return !!deleted;
   }
 
-  async getFeedForUser(userId: string, limit = 30): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]> {
+  async getFeedForUser(userId: string, limit = 30, before?: Date): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]> {
     const connectedIds = await this.getAcceptedConnectionIds(userId);
     const feedUserIds = [userId, ...connectedIds];
+
+    const whereClause = before
+      ? and(inArray(posts.userId, feedUserIds), sql`${posts.createdAt} < ${before}`)
+      : inArray(posts.userId, feedUserIds);
 
     const rows = await db
       .select({
@@ -616,7 +620,7 @@ export class DrizzleStorage implements IStorage {
       })
       .from(posts)
       .innerJoin(users, eq(posts.userId, users.id))
-      .where(inArray(posts.userId, feedUserIds))
+      .where(whereClause)
       .orderBy(desc(posts.createdAt))
       .limit(limit);
 
@@ -639,8 +643,8 @@ export class DrizzleStorage implements IStorage {
     }));
   }
 
-  async getForYouFeed(userId: string, limit = 60): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]> {
-    const rows = await db
+  async getForYouFeed(userId: string, limit = 30, before?: Date): Promise<(Post & { author: Pick<User, "id" | "username" | "displayName" | "level" | "avatarUrl"> })[]> {
+    const query = db
       .select({
         id: posts.id,
         userId: posts.userId,
@@ -657,7 +661,12 @@ export class DrizzleStorage implements IStorage {
         authorAvatarUrl: users.avatarUrl,
       })
       .from(posts)
-      .innerJoin(users, eq(posts.userId, users.id))
+      .innerJoin(users, eq(posts.userId, users.id));
+
+    const rows = await (before
+      ? query.where(sql`${posts.createdAt} < ${before}`)
+      : query
+    )
       .orderBy(desc(posts.createdAt))
       .limit(limit);
 
@@ -817,15 +826,15 @@ export class DrizzleStorage implements IStorage {
 
   async getAcceptedConnectionIds(userId: string): Promise<string[]> {
     const rows = await db
-      .select()
+      .select({ userId: userConnections.userId, targetUserId: userConnections.targetUserId })
       .from(userConnections)
       .where(
-        and(eq(userConnections.status, "accepted"))
+        and(
+          eq(userConnections.status, "accepted"),
+          or(eq(userConnections.userId, userId), eq(userConnections.targetUserId, userId)),
+        )
       );
-
-    return rows
-      .filter((r) => r.userId === userId || r.targetUserId === userId)
-      .map((r) => (r.userId === userId ? r.targetUserId : r.userId));
+    return rows.map((r) => (r.userId === userId ? r.targetUserId : r.userId));
   }
 
   async getSuggestedConnections(userId: string, limit = 5): Promise<(User & { personality?: UserPersonality | null; commonInterests: string[] })[]> {
@@ -1403,18 +1412,25 @@ export class DrizzleStorage implements IStorage {
 
   async getPostEnrichmentBatch(postIds: string[], userId: string): Promise<{ likeCounts: Map<string, number>; likedSet: Set<string>; commentCounts: Map<string, number> }> {
     if (postIds.length === 0) return { likeCounts: new Map(), likedSet: new Set(), commentCounts: new Map() };
-    const [allLikes, allComments] = await Promise.all([
-      db.select({ postId: postLikes.postId, userId: postLikes.userId }).from(postLikes).where(inArray(postLikes.postId, postIds)),
-      db.select({ postId: postComments.postId }).from(postComments).where(inArray(postComments.postId, postIds)),
+    const [likeCountRows, commentCountRows, userLikedRows] = await Promise.all([
+      db
+        .select({ postId: postLikes.postId, count: sql<number>`count(*)::int` })
+        .from(postLikes)
+        .where(inArray(postLikes.postId, postIds))
+        .groupBy(postLikes.postId),
+      db
+        .select({ postId: postComments.postId, count: sql<number>`count(*)::int` })
+        .from(postComments)
+        .where(inArray(postComments.postId, postIds))
+        .groupBy(postComments.postId),
+      db
+        .select({ postId: postLikes.postId })
+        .from(postLikes)
+        .where(and(inArray(postLikes.postId, postIds), eq(postLikes.userId, userId))),
     ]);
-    const likeCounts = new Map<string, number>();
-    const likedSet = new Set<string>();
-    for (const l of allLikes) {
-      likeCounts.set(l.postId, (likeCounts.get(l.postId) ?? 0) + 1);
-      if (l.userId === userId) likedSet.add(l.postId);
-    }
-    const commentCounts = new Map<string, number>();
-    for (const c of allComments) commentCounts.set(c.postId, (commentCounts.get(c.postId) ?? 0) + 1);
+    const likeCounts = new Map<string, number>(likeCountRows.map((r) => [r.postId, Number(r.count)]));
+    const commentCounts = new Map<string, number>(commentCountRows.map((r) => [r.postId, Number(r.count)]));
+    const likedSet = new Set<string>(userLikedRows.map((r) => r.postId));
     return { likeCounts, likedSet, commentCounts };
   }
 

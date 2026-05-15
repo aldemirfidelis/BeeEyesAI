@@ -817,8 +817,7 @@ Tipos: push token, centro de notificações, conexão, comunidade, visitas, proa
 | `drizzle.config.ts` | Config Drizzle; exige `DATABASE_URL`. | Exporta config. |
 | `playwright.config.ts` | Config E2E. | Exporta config Playwright. |
 | `Dockerfile` | Build multi-stage Node 20. | Usa `npm run build`, expõe 5000. |
-| `docker-compose.yml` | Serviço app com porta 5000 e `.env`. | Build local produção. |
-| `fly.toml` | Deploy Fly.io, app `beeeyes-app`, região `gru`. | Porta interna 5000. |
+| `docker-compose.yml` | Serviço app com porta 5000 e `.env`. | Build local e produção (DigitalOcean Droplet). |
 | `.dockerignore` | Exclui arquivos do contexto Docker. | N/A. |
 | `.gitignore` | Ignorados Git. | N/A. |
 | `.replit` | Config Replit. | N/A. |
@@ -1073,7 +1072,7 @@ BeeEyesAI
 │  ├─ Storage Drizzle
 │  ├─ Neon/PostgreSQL
 │  ├─ Observabilidade local
-│  └─ Deploy Docker/Fly/DigitalOcean/HostGator legado
+│  └─ Deploy Docker em DigitalOcean Droplet (HostGator legado)
 └─ Dados
    ├─ shared/schema.ts
    ├─ migrations

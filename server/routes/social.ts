@@ -11,7 +11,7 @@ import {
   generateVisitNotification,
   summarizeInterestsForProfile,
 } from "../ai";
-import { parseBoundedInt } from "../http";
+import { parseBoundedInt, parseIsoDateCursor } from "../http";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { sendPushToUser } from "../push";
@@ -25,14 +25,15 @@ export function createSocialRouter() {
   }));
 
   router.get("/api/feed", requireAuth, asyncHandler(async (req, res) => {
-    const limit = parseBoundedInt(req.query.limit, { fallback: 30, min: 1, max: 100 });
+    const limit = parseBoundedInt(req.query.limit, { fallback: 20, min: 1, max: 50 });
+    const cursor = parseIsoDateCursor(req.query.cursor);
     const mode = String(req.query.mode || "for-you") === "friends" ? "friends" : "for-you";
     const [viewer, viewerPersonality, feed] = await Promise.all([
       storage.getUser(req.userId!),
       storage.getPersonality(req.userId!),
       mode === "friends"
-        ? storage.getFeedForUser(req.userId!, limit)
-        : storage.getForYouFeed(req.userId!, Math.max(limit * 3, 60)),
+        ? storage.getFeedForUser(req.userId!, limit, cursor)
+        : storage.getForYouFeed(req.userId!, limit, cursor),
     ]);
 
     if (!viewer) {
@@ -62,17 +63,19 @@ export function createSocialRouter() {
       };
     });
 
-    const ranked = enriched.sort((a, b) => {
-      if (mode === "friends") {
+    if (mode === "for-you") {
+      enriched.sort((a, b) => {
+        const aScore = a.personalizedInsight?.relevanceScore ?? 0;
+        const bScore = b.personalizedInsight?.relevanceScore ?? 0;
+        if (bScore !== aScore) return bScore - aScore;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-      const aScore = a.personalizedInsight?.relevanceScore ?? 0;
-      const bScore = b.personalizedInsight?.relevanceScore ?? 0;
-      if (bScore !== aScore) return bScore - aScore;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }).slice(0, limit);
+      });
+    }
 
-    return sendOk(res, ranked);
+    const last = feed[feed.length - 1];
+    const nextCursor = feed.length === limit && last ? new Date(last.createdAt).toISOString() : null;
+    if (nextCursor) res.setHeader("X-Feed-Next-Cursor", nextCursor);
+    return sendOk(res, enriched);
   }));
 
   router.get("/api/posts", requireAuth, asyncHandler(async (req, res) => {
@@ -103,7 +106,12 @@ export function createSocialRouter() {
 
     const [user, imageUrl] = await Promise.all([
       storage.getUser(req.userId!),
-      rawImageUrl ? saveBase64Image(rawImageUrl).catch(() => rawImageUrl) : Promise.resolve(null),
+      rawImageUrl
+        ? saveBase64Image(rawImageUrl).catch((err) => {
+            console.error("[posts] failed to persist post image, dropping image to avoid base64 in DB:", err);
+            return null;
+          })
+        : Promise.resolve(null),
     ]);
     if (!user) {
       throw notFound("Usuário não encontrado");

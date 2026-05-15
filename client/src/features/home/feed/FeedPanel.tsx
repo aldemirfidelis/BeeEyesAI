@@ -1,5 +1,5 @@
-import { Camera, Heart, Image, MessageCircle, MoreHorizontal, Plus, RefreshCw, UserPlus, X } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { Camera, Image, Plus, RefreshCw, UserPlus, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -19,6 +19,9 @@ export const SENTIMENT_EMOJI: Record<string, string> = {
 interface FeedPanelProps {
   feed: FeedPost[];
   feedLoading: boolean;
+  feedLoadingMore: boolean;
+  feedHasMore: boolean;
+  feedError: string | null;
   feedMode: "for-you" | "friends";
   postText: string;
   postImagePreviewUrl: string;
@@ -30,6 +33,7 @@ interface FeedPanelProps {
   connectingIds: Set<string>;
   currentUser: User | null;
   onLoadFeed: () => void;
+  onLoadMore: () => void;
   onFeedModeChange: (mode: "for-you" | "friends") => void;
   onTogglePostInput: () => void;
   onPostTextChange: (value: string) => void;
@@ -46,10 +50,37 @@ interface FeedPanelProps {
   authHeaders: () => Record<string, string>;
 }
 
+function FeedPostSkeleton() {
+  return (
+    <div className="bee-surface rounded-2xl p-4 space-y-3 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-full bg-muted/60" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 w-32 rounded bg-muted/60" />
+          <div className="h-2.5 w-20 rounded bg-muted/40" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-[90%] rounded bg-muted/50" />
+        <div className="h-3 w-[70%] rounded bg-muted/50" />
+      </div>
+      <div className="h-40 rounded-lg bg-muted/40" />
+      <div className="flex gap-3 pt-2">
+        <div className="h-6 w-16 rounded bg-muted/50" />
+        <div className="h-6 w-16 rounded bg-muted/50" />
+        <div className="h-6 w-16 rounded bg-muted/50" />
+      </div>
+    </div>
+  );
+}
+
 export function FeedPanel(props: FeedPanelProps) {
   const {
     feed,
     feedLoading,
+    feedLoadingMore,
+    feedHasMore,
+    feedError,
     feedMode,
     postText,
     postImagePreviewUrl,
@@ -61,6 +92,7 @@ export function FeedPanel(props: FeedPanelProps) {
     connectingIds,
     currentUser,
     onLoadFeed,
+    onLoadMore,
     onFeedModeChange,
     onTogglePostInput,
     onPostTextChange,
@@ -75,6 +107,21 @@ export function FeedPanel(props: FeedPanelProps) {
     onOpenFriendProfile,
     timeAgo,
   } = props;
+
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = loadMoreSentinelRef.current;
+    if (!node || !feedHasMore || feedLoadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onLoadMore();
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [feedHasMore, feedLoadingMore, onLoadMore]);
 
   return (
     <>
@@ -198,14 +245,33 @@ export function FeedPanel(props: FeedPanelProps) {
       )}
 
       <div className="p-4 space-y-3">
-        {feedLoading && <p className="text-sm text-muted-foreground text-center py-8">Carregando feed...</p>}
-        {!feedLoading && feed.length === 0 && (
+        {feedLoading && feed.length === 0 && (
+          <>
+            <FeedPostSkeleton />
+            <FeedPostSkeleton />
+            <FeedPostSkeleton />
+          </>
+        )}
+
+        {!feedLoading && feed.length === 0 && feedError && (
+          <div className="bee-surface mx-auto max-w-sm rounded-2xl px-5 py-10 text-center space-y-3">
+            <p className="text-3xl">📡</p>
+            <p className="text-sm font-semibold">Não consegui carregar o feed</p>
+            <p className="text-xs text-muted-foreground">{feedError}</p>
+            <Button size="sm" variant="outline" onClick={onLoadFeed}>
+              Tentar de novo
+            </Button>
+          </div>
+        )}
+
+        {!feedLoading && feed.length === 0 && !feedError && (
           <div className="bee-surface mx-auto max-w-sm rounded-2xl px-5 py-10 text-center space-y-2">
             <p className="text-3xl">📰</p>
             <p className="text-sm font-semibold">Seu feed ainda está silencioso</p>
             <p className="text-xs text-muted-foreground">Conecte-se com pessoas ou publique algo para começar o movimento.</p>
           </div>
         )}
+
         {feed.map((post) => {
           const isOwner = currentUser?.id === post.author.id;
           return (
@@ -221,6 +287,12 @@ export function FeedPanel(props: FeedPanelProps) {
             />
           );
         })}
+
+        {feed.length > 0 && feedHasMore && (
+          <div ref={loadMoreSentinelRef} className="py-2">
+            {feedLoadingMore && <FeedPostSkeleton />}
+          </div>
+        )}
       </div>
     </>
   );

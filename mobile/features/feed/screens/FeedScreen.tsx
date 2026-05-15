@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useState, useCallback, useMemo, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@mobile/lib/api";
 import { useAuthStore } from "@mobile/stores/authStore";
@@ -52,6 +52,9 @@ const SENTIMENT_EMOJI: Record<string, string> = {
 };
 
 const MAX_SIDE = 1080;
+const FEED_PAGE_SIZE = 20;
+
+type FeedPage = { items: FeedPost[]; nextCursor: string | null };
 
 interface ProcessedImage {
   previewUri: string;  // caminho local — Image component do RN renderiza com dimensões automáticas
@@ -147,11 +150,36 @@ export default function FeedScreen() {
     clearImage();
   }
 
-  const { data: feed = [], isLoading } = useQuery<FeedPost[]>({
+  const {
+    data: feedPages,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<FeedPage>({
     queryKey: ["feed", feedMode],
-    queryFn: () => api.get(`/api/feed?mode=${feedMode}`).then((r) => r.data),
+    queryFn: async ({ pageParam }) => {
+      const params: Record<string, string | number> = { mode: feedMode, limit: FEED_PAGE_SIZE };
+      if (typeof pageParam === "string" && pageParam) params.cursor = pageParam;
+      const res = await api.get("/api/feed", { params });
+      const nextCursor = (res.headers["x-feed-next-cursor"] as string | undefined) ?? null;
+      return { items: res.data as FeedPost[], nextCursor };
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
     staleTime: 60 * 1000,
   });
+
+  const feed = useMemo<FeedPost[]>(
+    () => feedPages?.pages.flatMap((page) => page.items) ?? [],
+    [feedPages],
+  );
+
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const { data: suggestions = [] } = useQuery<ConnectionSuggestion[]>({
     queryKey: ["connection-suggestions"],
@@ -162,23 +190,33 @@ export default function FeedScreen() {
   const createPost = useMutation({
     mutationFn: ({ content, imageUrl }: { content: string; imageUrl?: string }) => api.post("/api/posts", { content, imageUrl: imageUrl || null }).then((r) => r.data),
     onSuccess: (newPost) => {
-      queryClient.setQueryData<FeedPost[]>(["feed", feedMode], (prev = []) => [
-        {
-          ...newPost,
-          author: { id: user!.id, username: user!.username, displayName: user!.displayName || null, level: user!.level, avatarUrl: user!.avatarUrl || profileImageUri },
-          likesCount: 0,
-          liked: false,
-          commentsCount: 0,
+      const optimistic: FeedPost = {
+        ...newPost,
+        author: {
+          id: user!.id,
+          username: user!.username,
+          displayName: user!.displayName || null,
+          level: user!.level,
+          avatarUrl: user!.avatarUrl || profileImageUri,
         },
-        ...prev,
-      ]);
+        likesCount: 0,
+        liked: false,
+        commentsCount: 0,
+      };
+      queryClient.setQueryData<InfiniteData<FeedPage>>(["feed", feedMode], (prev) => {
+        if (!prev || prev.pages.length === 0) {
+          return { pages: [{ items: [optimistic], nextCursor: null }], pageParams: [null] };
+        }
+        const [first, ...rest] = prev.pages;
+        return {
+          ...prev,
+          pages: [{ ...first, items: [optimistic, ...first.items] }, ...rest],
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
       setPostText("");
       clearImage();
       closeComposer();
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["feed"] });
-        queryClient.invalidateQueries({ queryKey: ["me"] });
-      }, 3000);
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Não foi possível publicar. Tente novamente.";
@@ -188,7 +226,7 @@ export default function FeedScreen() {
 
   const likePost = useMutation({
     mutationFn: (postId: string) => api.post(`/api/posts/${postId}/like`).then((r) => r.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["feed"] }),
+    // Optimistic update lives no PostCard local state; nada de invalidar o feed inteiro a cada toque.
   });
 
   const sendConnection = useMutation({
@@ -200,9 +238,9 @@ export default function FeedScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["feed"] });
+    await refetch();
     setRefreshing(false);
-  }, [queryClient]);
+  }, [refetch]);
 
   function handlePost() {
     if (!postText.trim() && !postImageUrl) return;
@@ -411,6 +449,15 @@ export default function FeedScreen() {
           removeClippedSubviews
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.feedFooterLoading}>
+                <FeedPostSkeleton styles={styles} />
+              </View>
+            ) : null
+          }
           ListHeaderComponent={
             <View>
               <TouchableOpacity style={[styles.composerTrigger, { display: "none" }]} onPress={openComposer} activeOpacity={0.75}>
@@ -468,15 +515,28 @@ export default function FeedScreen() {
             </View>
           }
           ListEmptyComponent={
-            isLoading
-              ? <Text style={styles.loadingText}>Carregando feed...</Text>
-              : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyEmoji}>🌐</Text>
-                  <Text style={styles.emptyTitle}>Seu feed está vazio</Text>
-                  <Text style={styles.emptyDesc}>Publique algo ou conecte-se com outros usuários para ver conteúdos aqui.</Text>
-                </View>
-              )
+            isLoading ? (
+              <View>
+                <FeedPostSkeleton styles={styles} />
+                <FeedPostSkeleton styles={styles} />
+                <FeedPostSkeleton styles={styles} />
+              </View>
+            ) : isError ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyEmoji}>📡</Text>
+                <Text style={styles.emptyTitle}>Não conseguimos carregar seu feed</Text>
+                <Text style={styles.emptyDesc}>Verifique sua conexão e tente de novo.</Text>
+                <TouchableOpacity style={styles.feedRetryBtn} onPress={() => refetch()}>
+                  <Text style={styles.feedRetryBtnText}>Tentar de novo</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyEmoji}>🌐</Text>
+                <Text style={styles.emptyTitle}>Seu feed está vazio</Text>
+                <Text style={styles.emptyDesc}>Publique algo ou conecte-se com outros usuários para ver conteúdos aqui.</Text>
+              </View>
+            )
           }
           renderItem={({ item: post }) => (
             <PostCard
@@ -1170,5 +1230,32 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     emptyEmoji: { fontSize: 48 },
     emptyTitle: { fontFamily: FONTS.display, fontSize: 18, fontWeight: "700", color: colors.foreground },
     emptyDesc: { fontFamily: FONTS.sans, fontSize: 14, color: colors.muted, textAlign: "center", paddingHorizontal: 24 },
+    feedRetryBtn: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999, backgroundColor: colors.primary },
+    feedRetryBtnText: { fontFamily: FONTS.sans, fontWeight: "700", color: "#1A1A1A" },
+    feedFooterLoading: { paddingTop: 4 },
+    skeletonCard: { backgroundColor: colors.card, borderRadius: 16, padding: 16, marginBottom: 12, gap: 12, borderWidth: 1, borderColor: colors.border },
+    skeletonRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    skeletonAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.muted, opacity: 0.18 },
+    skeletonLineSm: { height: 10, borderRadius: 4, backgroundColor: colors.muted, opacity: 0.18, width: "40%" },
+    skeletonLine: { height: 12, borderRadius: 4, backgroundColor: colors.muted, opacity: 0.18, width: "85%" },
+    skeletonLineShort: { height: 12, borderRadius: 4, backgroundColor: colors.muted, opacity: 0.18, width: "60%" },
+    skeletonImage: { height: 160, borderRadius: 12, backgroundColor: colors.muted, opacity: 0.12 },
   });
+}
+
+function FeedPostSkeleton({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonRow}>
+        <View style={styles.skeletonAvatar} />
+        <View style={{ gap: 6, flex: 1 }}>
+          <View style={styles.skeletonLineSm} />
+          <View style={[styles.skeletonLineSm, { width: "25%" }]} />
+        </View>
+      </View>
+      <View style={styles.skeletonLine} />
+      <View style={styles.skeletonLineShort} />
+      <View style={styles.skeletonImage} />
+    </View>
+  );
 }

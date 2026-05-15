@@ -17,3 +17,11 @@ export function parseBoundedInt(
 
   return Math.min(max, Math.max(min, parsed));
 }
+
+export function parseIsoDateCursor(value: unknown): Date | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}

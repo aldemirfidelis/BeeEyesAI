@@ -263,6 +263,7 @@ export const posts = pgTable("posts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("posts_user_created_idx").on(table.userId, table.createdAt),
+  index("posts_created_at_idx").on(table.createdAt),
 ]);
 
 export const postLikes = pgTable("post_likes", {

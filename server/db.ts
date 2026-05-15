@@ -424,4 +424,7 @@ export async function ensureDatabaseCompatibility() {
     );
     CREATE INDEX IF NOT EXISTS "ad_group_items_group_order_idx" ON "ad_group_items" ("ad_group_id", "order");
   `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS "posts_created_at_idx" ON "posts" ("created_at");
+  `);
 }

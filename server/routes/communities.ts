@@ -177,7 +177,12 @@ export function createCommunitiesRouter() {
 
     const [community, imageUrl] = await Promise.all([
       storage.getCommunityById(req.params.id, req.userId!),
-      rawImageUrl ? saveBase64Image(rawImageUrl).catch(() => rawImageUrl) : Promise.resolve(null),
+      rawImageUrl
+        ? saveBase64Image(rawImageUrl).catch((err) => {
+            console.error("[community-posts] failed to persist image, dropping to avoid base64 in DB:", err);
+            return null;
+          })
+        : Promise.resolve(null),
     ]);
     if (!community?.isMember) {
       throw forbidden("Entre na comunidade para publicar");

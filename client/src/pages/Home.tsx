@@ -106,6 +106,13 @@ export default function Home() {
   // Feed state
   const [feed, setFeed] = useState<FeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [feedCursor, setFeedCursor] = useState<string | null>(null);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const feedLoadedAtRef = useRef<number>(0);
+  const FEED_PAGE_LIMIT = 20;
+  const FEED_STALE_MS = 60_000;
   const [feedMode, setFeedMode] = useState<"for-you" | "friends">("for-you");
   const [postText, setPostText] = useState("");
   const [postImagePreviewUrl, setPostImagePreviewUrl] = useState("");
@@ -781,20 +788,63 @@ export default function Home() {
     }
   };
 
-  // Load feed when user switches to feed tab
-  const loadFeed = useCallback(async () => {
+  // Load feed when user switches to feed tab. Cache de 60s entre visitas para evitar
+  // refetch a cada toque na tab; force=true ignora o cache (pull-to-refresh, novo post).
+  const loadFeed = useCallback(async (force = false) => {
     if (!token) return;
+    if (!force && feed.length > 0 && Date.now() - feedLoadedAtRef.current < FEED_STALE_MS) {
+      return;
+    }
     setFeedLoading(true);
+    setFeedError(null);
     try {
       const [feedRes, suggestionsRes] = await Promise.all([
-        fetch(`/api/feed?mode=${feedMode}`, { headers: authHeaders() }),
+        fetch(`/api/feed?mode=${feedMode}&limit=${FEED_PAGE_LIMIT}`, { headers: authHeaders() }),
         fetch("/api/connections/suggestions?limit=3", { headers: authHeaders() }),
       ]);
-      if (feedRes.ok) setFeed(await feedRes.json());
+      if (feedRes.ok) {
+        const items = (await feedRes.json()) as FeedPost[];
+        setFeed(items);
+        const nextCursor = feedRes.headers.get("x-feed-next-cursor");
+        setFeedCursor(nextCursor);
+        setFeedHasMore(!!nextCursor);
+        feedLoadedAtRef.current = Date.now();
+      } else {
+        setFeedError("Não foi possível carregar o feed.");
+      }
       if (suggestionsRes.ok) setSuggestions(await suggestionsRes.json());
-    } catch { /* ignore */ }
+    } catch {
+      setFeedError("Sem conexão. Verifique a rede e tente de novo.");
+    }
     finally { setFeedLoading(false); }
-  }, [token, feedMode]);
+  }, [token, feedMode, feed.length]);
+
+  // Trocar entre "Amigos" e "Para Você" invalida o cache atual.
+  useEffect(() => {
+    feedLoadedAtRef.current = 0;
+    setFeed([]);
+    setFeedCursor(null);
+    setFeedHasMore(false);
+  }, [feedMode]);
+
+  const loadMoreFeed = useCallback(async () => {
+    if (!token || feedLoadingMore || !feedHasMore || !feedCursor) return;
+    setFeedLoadingMore(true);
+    try {
+      const res = await fetch(`/api/feed?mode=${feedMode}&limit=${FEED_PAGE_LIMIT}&cursor=${encodeURIComponent(feedCursor)}`, { headers: authHeaders() });
+      if (res.ok) {
+        const items = (await res.json()) as FeedPost[];
+        setFeed((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...items.filter((it) => !seen.has(it.id))];
+        });
+        const nextCursor = res.headers.get("x-feed-next-cursor");
+        setFeedCursor(nextCursor);
+        setFeedHasMore(!!nextCursor);
+      }
+    } catch { /* ignore */ }
+    finally { setFeedLoadingMore(false); }
+  }, [token, feedMode, feedCursor, feedHasMore, feedLoadingMore]);
 
   const loadCommunities = useCallback(async (search = "") => {
     if (!token) return;
@@ -1597,8 +1647,7 @@ export default function Home() {
       setPostText("");
       clearPostImage();
       setShowPostInput(false);
-      // Reload in background to get AI comment
-      setTimeout(loadFeed, 3000);
+      // AI comment chega no próximo carregamento natural — sem refetch agressivo.
     } catch (err) {
       setSettingsMessage(err instanceof Error ? err.message : "Erro ao publicar. Tente novamente.");
     }
@@ -1780,7 +1829,7 @@ export default function Home() {
         });
         if (!pubRes.ok) throw new Error("publish failed");
         pushFeedbackToast("success", "Publicado no Feed 🐝");
-        loadFeed();
+        loadFeed(true);
       } else {
         pushFeedbackToast("success", "Rascunho salvo.");
       }
@@ -1911,6 +1960,9 @@ export default function Home() {
           <FeedPanel
             feed={feed}
             feedLoading={feedLoading}
+            feedLoadingMore={feedLoadingMore}
+            feedHasMore={feedHasMore}
+            feedError={feedError}
             feedMode={feedMode}
             postText={postText}
             postImagePreviewUrl={postImagePreviewUrl}
@@ -1920,7 +1972,8 @@ export default function Home() {
             showPostInput={showPostInput}
             suggestions={suggestions}
             connectingIds={connectingIds}
-            onLoadFeed={loadFeed}
+            onLoadFeed={() => loadFeed(true)}
+            onLoadMore={loadMoreFeed}
             onFeedModeChange={setFeedMode}
             onTogglePostInput={() => setShowPostInput((value) => !value)}
             onPostTextChange={setPostText}
