@@ -272,4 +272,156 @@ export async function ensureDatabaseCompatibility() {
     CREATE INDEX IF NOT EXISTS "password_reset_tokens_user_idx" ON "password_reset_tokens" ("user_id");
     CREATE INDEX IF NOT EXISTS "password_reset_tokens_hash_idx" ON "password_reset_tokens" ("token_hash");
   `);
+  await pool.query(`
+    ALTER TABLE "messages" ADD COLUMN IF NOT EXISTS "replied_to_message_id" varchar;
+    ALTER TABLE "messages" ADD COLUMN IF NOT EXISTS "replied_to_message_content" text;
+    ALTER TABLE "messages" ADD COLUMN IF NOT EXISTS "replied_to_message_role" text;
+    ALTER TABLE "messages" ADD COLUMN IF NOT EXISTS "replied_to_message_created_at" timestamp;
+    CREATE INDEX IF NOT EXISTS "messages_reply_idx" ON "messages" ("replied_to_message_id");
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "user_memories" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "memory_type" varchar(40) NOT NULL DEFAULT 'fact',
+      "title" text NOT NULL,
+      "content" text NOT NULL,
+      "source" varchar(40) NOT NULL DEFAULT 'chat',
+      "importance" integer NOT NULL DEFAULT 3,
+      "active" boolean NOT NULL DEFAULT true,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "user_memories_user_active_idx" ON "user_memories" ("user_id", "active", "importance");
+    CREATE UNIQUE INDEX IF NOT EXISTS "user_memories_user_content_uidx" ON "user_memories" ("user_id", "content");
+
+    CREATE TABLE IF NOT EXISTS "user_preferences" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "category" varchar(60) NOT NULL,
+      "preference" text NOT NULL,
+      "weight" integer NOT NULL DEFAULT 1,
+      "source" varchar(40) NOT NULL DEFAULT 'inferred',
+      "active" boolean NOT NULL DEFAULT true,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "user_preferences_user_active_idx" ON "user_preferences" ("user_id", "active", "category");
+    CREATE UNIQUE INDEX IF NOT EXISTS "user_preferences_user_category_preference_uidx" ON "user_preferences" ("user_id", "category", "preference");
+
+    CREATE TABLE IF NOT EXISTS "bee_conversation_contexts" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL UNIQUE REFERENCES "users"("id") ON DELETE cascade,
+      "context_summary" text NOT NULL DEFAULT '',
+      "recent_topics" jsonb NOT NULL DEFAULT '[]'::jsonb,
+      "emotional_tone" varchar(40) NOT NULL DEFAULT 'neutral',
+      "active_goals" jsonb NOT NULL DEFAULT '[]'::jsonb,
+      "personalization_enabled" boolean NOT NULL DEFAULT true,
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "bee_conversation_contexts_user_idx" ON "bee_conversation_contexts" ("user_id");
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "message_feedback" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "message_id" varchar NOT NULL REFERENCES "messages"("id") ON DELETE cascade,
+      "feedback_type" text NOT NULL,
+      "feedback_reason" text,
+      "message_category" text,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "message_feedback_user_idx" ON "message_feedback" ("user_id", "created_at");
+    CREATE UNIQUE INDEX IF NOT EXISTS "message_feedback_user_message_uidx" ON "message_feedback" ("user_id", "message_id");
+
+    CREATE TABLE IF NOT EXISTS "feed_drafts" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "source_message_id" varchar REFERENCES "messages"("id") ON DELETE set null,
+      "title" text,
+      "content" text NOT NULL,
+      "category" text,
+      "hashtags" text,
+      "privacy" text NOT NULL DEFAULT 'public',
+      "status" text NOT NULL DEFAULT 'draft',
+      "published_post_id" varchar REFERENCES "posts"("id") ON DELETE set null,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "feed_drafts_user_status_idx" ON "feed_drafts" ("user_id", "status", "created_at");
+  `);
+  await pool.query(`
+    ALTER TABLE "wishlist_items" ADD COLUMN IF NOT EXISTS "source_message_id" varchar;
+    ALTER TABLE "wishlist_items" ADD COLUMN IF NOT EXISTS "source_conversation_id" varchar;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "ad_groups" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "message_id" varchar REFERENCES "messages"("id") ON DELETE cascade,
+      "anchor_message_id" varchar,
+      "title" text NOT NULL DEFAULT 'Anúncios que podem te interessar',
+      "layout_type" varchar(30) NOT NULL DEFAULT 'carousel',
+      "max_items" integer NOT NULL DEFAULT 3,
+      "status" varchar(20) NOT NULL DEFAULT 'active',
+      "expires_at" timestamp NOT NULL,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "ad_groups_user_expires_idx" ON "ad_groups" ("user_id", "expires_at");
+    CREATE INDEX IF NOT EXISTS "ad_groups_message_idx" ON "ad_groups" ("message_id");
+
+    CREATE TABLE IF NOT EXISTS "ad_impressions" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+      "message_id" varchar REFERENCES "messages"("id") ON DELETE cascade,
+      "anchor_message_id" varchar,
+      "ad_group_id" varchar,
+      "ad_id" text NOT NULL,
+      "ad_mob_ad_unit_id" text,
+      "ad_format" varchar(40) NOT NULL DEFAULT 'native',
+      "ad_type" varchar(40) NOT NULL DEFAULT 'product_ad',
+      "title" text NOT NULL,
+      "description" text,
+      "image_url" text,
+      "video_url" text,
+      "media_content" jsonb NOT NULL DEFAULT '{}'::jsonb,
+      "product_url" text,
+      "advertiser_name" text,
+      "call_to_action" text,
+      "price" text,
+      "category" varchar(80),
+      "source" varchar(40) NOT NULL DEFAULT 'chat',
+      "status" varchar(20) NOT NULL DEFAULT 'active',
+      "added_to_wishlist" boolean NOT NULL DEFAULT false,
+      "viewed_at" timestamp NOT NULL DEFAULT now(),
+      "clicked_at" timestamp,
+      "expires_at" timestamp NOT NULL,
+      "ad_data" jsonb NOT NULL DEFAULT '{}'::jsonb,
+      "created_at" timestamp NOT NULL DEFAULT now(),
+      "updated_at" timestamp NOT NULL DEFAULT now()
+    );
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "ad_group_id" varchar;
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "ad_mob_ad_unit_id" text;
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "ad_format" varchar(40) NOT NULL DEFAULT 'native';
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "ad_type" varchar(40) NOT NULL DEFAULT 'product_ad';
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "video_url" text;
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "media_content" jsonb NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE "ad_impressions" ADD COLUMN IF NOT EXISTS "call_to_action" text;
+    CREATE INDEX IF NOT EXISTS "ad_impressions_user_expires_idx" ON "ad_impressions" ("user_id", "expires_at");
+    CREATE INDEX IF NOT EXISTS "ad_impressions_message_idx" ON "ad_impressions" ("message_id");
+    CREATE INDEX IF NOT EXISTS "ad_impressions_anchor_idx" ON "ad_impressions" ("user_id", "anchor_message_id");
+    CREATE INDEX IF NOT EXISTS "ad_impressions_group_idx" ON "ad_impressions" ("ad_group_id");
+    CREATE UNIQUE INDEX IF NOT EXISTS "ad_impressions_user_anchor_ad_uidx" ON "ad_impressions" ("user_id", "anchor_message_id", "ad_id");
+
+    CREATE TABLE IF NOT EXISTS "ad_group_items" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      "ad_group_id" varchar NOT NULL REFERENCES "ad_groups"("id") ON DELETE cascade,
+      "ad_impression_id" varchar NOT NULL REFERENCES "ad_impressions"("id") ON DELETE cascade,
+      "order" integer NOT NULL DEFAULT 0,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS "ad_group_items_group_order_idx" ON "ad_group_items" ("ad_group_id", "order");
+  `);
 }
