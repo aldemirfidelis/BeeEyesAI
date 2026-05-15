@@ -1,14 +1,19 @@
 import { eq, desc, and, gte, sql, ne, notInArray, inArray, ilike, or, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, userPersonality, messages, notificationReads, moodEntries, achievements, testimonials,
+  users, userPersonality, userMemories, userPreferences, beeConversationContexts, messages, messageFeedback, feedDrafts,
+  notificationReads, moodEntries, achievements, testimonials,
   posts, postLikes, userConnections, directMessages,
   communities, communityMembers, communityPosts,
   communityPostLikes, communityPostComments, communityPostCommentLikes,
   postComments, commentLikes,
   type User, type InsertUser,
   type UserPersonality, type InsertUserPersonality,
+  type UserMemory, type InsertUserMemory,
+  type UserPreference, type InsertUserPreference,
+  type BeeConversationContext,
   type Message, type InsertMessage,
+  type MessageFeedback, type FeedDraft,
   type NotificationRead, type InsertNotificationRead,
   type MoodEntry, type InsertMoodEntry,
   type Achievement, type InsertAchievement,
@@ -29,7 +34,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser & { googleId?: string; displayName?: string; gender?: string; avatarUrl?: string | null }): Promise<User>;
-  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean; city?: string | null }): Promise<User>;
+  updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; allowMessagesFromStrangers?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean; city?: string | null }): Promise<User>;
   updateLastDailyBriefingDate(userId: string, date: string): Promise<void>;
   updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void>;
   updateUserPassword(userId: string, passwordHash: string): Promise<void>;
@@ -43,6 +48,15 @@ export interface IStorage {
   // Personality
   getPersonality(userId: string): Promise<UserPersonality | undefined>;
   upsertPersonality(data: InsertUserPersonality): Promise<UserPersonality>;
+  getActiveUserMemories(userId: string, limit?: number): Promise<UserMemory[]>;
+  upsertUserMemory(data: InsertUserMemory): Promise<UserMemory>;
+  setUserMemoryActive(userId: string, memoryId: string, active: boolean): Promise<UserMemory | undefined>;
+  deleteUserMemory(userId: string, memoryId: string): Promise<boolean>;
+  getUserPreferences(userId: string, activeOnly?: boolean): Promise<UserPreference[]>;
+  upsertUserPreference(data: InsertUserPreference): Promise<UserPreference>;
+  deleteUserPreference(userId: string, preferenceId: string): Promise<boolean>;
+  getBeeConversationContext(userId: string): Promise<BeeConversationContext | undefined>;
+  upsertBeeConversationContext(data: BeeConversationContextInput): Promise<BeeConversationContext>;
 
   // Messages
   getMessagesByUser(userId: string, limit?: number): Promise<Message[]>;
@@ -143,9 +157,30 @@ export interface IStorage {
   getCommunityPostComments(postId: string, userId: string): Promise<(CommunityPostComment & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean })[]>;
   createCommunityPostComment(data: InsertCommunityPostComment): Promise<CommunityPostComment>;
   toggleCommunityCommentLike(commentId: string, userId: string): Promise<{ liked: boolean; likesCount: number }>;
+
+  // Message feedback (Curtir / Não curti em mensagens da Bee)
+  upsertMessageFeedback(data: { userId: string; messageId: string; feedbackType: "like" | "dislike"; feedbackReason?: string | null; messageCategory?: string | null }): Promise<MessageFeedback>;
+  deleteMessageFeedback(userId: string, messageId: string): Promise<boolean>;
+  getMessageFeedbackByIds(userId: string, messageIds: string[]): Promise<MessageFeedback[]>;
+  getMessageFeedbackSummary(userId: string): Promise<{ category: string; likes: number; dislikes: number }[]>;
+
+  // Feed drafts ("Enviar para o Feed")
+  createFeedDraft(data: { userId: string; sourceMessageId?: string | null; title?: string | null; content: string; category?: string | null; hashtags?: string | null; privacy?: string }): Promise<FeedDraft>;
+  getFeedDraft(id: string, userId: string): Promise<FeedDraft | undefined>;
+  markFeedDraftPublished(id: string, userId: string, publishedPostId: string): Promise<FeedDraft | undefined>;
+  cancelFeedDraft(id: string, userId: string): Promise<boolean>;
 }
 
 const lastActiveCache = new Map<string, number>();
+
+type BeeConversationContextInput = {
+  userId: string;
+  contextSummary?: string;
+  recentTopics?: string[];
+  emotionalTone?: string;
+  activeGoals?: string[];
+  personalizationEnabled?: boolean;
+};
 
 export class DrizzleStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -169,10 +204,13 @@ export class DrizzleStorage implements IStorage {
     return user;
   }
 
-  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean; city?: string | null }): Promise<User> {
+  async updateUserPreferences(userId: string, preferences: { anonymousProfileVisitsEnabled?: boolean; allowMessagesFromStrangers?: boolean; displayName?: string | null; bio?: string | null; language?: string; onboardingCompleted?: boolean; city?: string | null }): Promise<User> {
     const updates: Partial<typeof users.$inferInsert> = {};
     if (preferences.anonymousProfileVisitsEnabled !== undefined) {
       updates.anonymousProfileVisitsEnabled = preferences.anonymousProfileVisitsEnabled;
+    }
+    if (preferences.allowMessagesFromStrangers !== undefined) {
+      updates.allowMessagesFromStrangers = preferences.allowMessagesFromStrangers;
     }
     if (preferences.displayName !== undefined) updates.displayName = preferences.displayName;
     if (preferences.bio !== undefined) updates.bio = preferences.bio;
@@ -307,6 +345,114 @@ export class DrizzleStorage implements IStorage {
     }
     const [created] = await db.insert(userPersonality).values(data).returning();
     return created;
+  }
+
+  async getActiveUserMemories(userId: string, limit = 20): Promise<UserMemory[]> {
+    return db
+      .select()
+      .from(userMemories)
+      .where(and(eq(userMemories.userId, userId), eq(userMemories.active, true)))
+      .orderBy(desc(userMemories.importance), desc(userMemories.updatedAt))
+      .limit(limit);
+  }
+
+  async upsertUserMemory(data: InsertUserMemory): Promise<UserMemory> {
+    const [memory] = await db
+      .insert(userMemories)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [userMemories.userId, userMemories.content],
+        set: {
+          memoryType: data.memoryType,
+          title: data.title,
+          source: data.source,
+          importance: data.importance,
+          active: data.active ?? true,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return memory;
+  }
+
+  async setUserMemoryActive(userId: string, memoryId: string, active: boolean): Promise<UserMemory | undefined> {
+    const [updated] = await db
+      .update(userMemories)
+      .set({ active, updatedAt: new Date() })
+      .where(and(eq(userMemories.id, memoryId), eq(userMemories.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteUserMemory(userId: string, memoryId: string): Promise<boolean> {
+    const deleted = await db
+      .delete(userMemories)
+      .where(and(eq(userMemories.id, memoryId), eq(userMemories.userId, userId)))
+      .returning({ id: userMemories.id });
+    return deleted.length > 0;
+  }
+
+  async getUserPreferences(userId: string, activeOnly = true): Promise<UserPreference[]> {
+    const filters = activeOnly
+      ? and(eq(userPreferences.userId, userId), eq(userPreferences.active, true))
+      : eq(userPreferences.userId, userId);
+    return db
+      .select()
+      .from(userPreferences)
+      .where(filters)
+      .orderBy(desc(userPreferences.weight), desc(userPreferences.updatedAt));
+  }
+
+  async upsertUserPreference(data: InsertUserPreference): Promise<UserPreference> {
+    const [preference] = await db
+      .insert(userPreferences)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [userPreferences.userId, userPreferences.category, userPreferences.preference],
+        set: {
+          weight: data.weight,
+          source: data.source,
+          active: data.active ?? true,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return preference;
+  }
+
+  async deleteUserPreference(userId: string, preferenceId: string): Promise<boolean> {
+    const deleted = await db
+      .delete(userPreferences)
+      .where(and(eq(userPreferences.id, preferenceId), eq(userPreferences.userId, userId)))
+      .returning({ id: userPreferences.id });
+    return deleted.length > 0;
+  }
+
+  async getBeeConversationContext(userId: string): Promise<BeeConversationContext | undefined> {
+    const [context] = await db
+      .select()
+      .from(beeConversationContexts)
+      .where(eq(beeConversationContexts.userId, userId));
+    return context;
+  }
+
+  async upsertBeeConversationContext(data: BeeConversationContextInput): Promise<BeeConversationContext> {
+    const [context] = await db
+      .insert(beeConversationContexts)
+      .values(data)
+      .onConflictDoUpdate({
+        target: beeConversationContexts.userId,
+        set: {
+          contextSummary: data.contextSummary ?? "",
+          recentTopics: data.recentTopics ?? [],
+          emotionalTone: data.emotionalTone ?? "neutral",
+          activeGoals: data.activeGoals ?? [],
+          personalizationEnabled: data.personalizationEnabled ?? true,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return context;
   }
 
   async getMessagesByUser(userId: string, limit = 50): Promise<Message[]> {
@@ -1290,6 +1436,117 @@ export class DrizzleStorage implements IStorage {
       .where(eq(commentLikes.commentId, commentId));
 
     return { liked: !existing, likesCount: Number(result[0]?.count ?? 0) };
+  }
+
+  // ── Message feedback ──────────────────────────────────────────────────────
+
+  async upsertMessageFeedback(data: { userId: string; messageId: string; feedbackType: "like" | "dislike"; feedbackReason?: string | null; messageCategory?: string | null }): Promise<MessageFeedback> {
+    const [existing] = await db
+      .select()
+      .from(messageFeedback)
+      .where(and(eq(messageFeedback.userId, data.userId), eq(messageFeedback.messageId, data.messageId)));
+
+    if (existing) {
+      const [updated] = await db
+        .update(messageFeedback)
+        .set({
+          feedbackType: data.feedbackType,
+          feedbackReason: data.feedbackReason ?? null,
+          messageCategory: data.messageCategory ?? existing.messageCategory,
+          updatedAt: new Date(),
+        })
+        .where(eq(messageFeedback.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(messageFeedback)
+      .values({
+        userId: data.userId,
+        messageId: data.messageId,
+        feedbackType: data.feedbackType,
+        feedbackReason: data.feedbackReason ?? null,
+        messageCategory: data.messageCategory ?? null,
+      })
+      .returning();
+    return created;
+  }
+
+  async deleteMessageFeedback(userId: string, messageId: string): Promise<boolean> {
+    const deleted = await db
+      .delete(messageFeedback)
+      .where(and(eq(messageFeedback.userId, userId), eq(messageFeedback.messageId, messageId)))
+      .returning();
+    return deleted.length > 0;
+  }
+
+  async getMessageFeedbackByIds(userId: string, messageIds: string[]): Promise<MessageFeedback[]> {
+    if (messageIds.length === 0) return [];
+    return db
+      .select()
+      .from(messageFeedback)
+      .where(and(eq(messageFeedback.userId, userId), inArray(messageFeedback.messageId, messageIds)));
+  }
+
+  async getMessageFeedbackSummary(userId: string): Promise<{ category: string; likes: number; dislikes: number }[]> {
+    const rows = await db
+      .select({
+        category: messageFeedback.messageCategory,
+        likes: sql<number>`sum(case when ${messageFeedback.feedbackType} = 'like' then 1 else 0 end)`,
+        dislikes: sql<number>`sum(case when ${messageFeedback.feedbackType} = 'dislike' then 1 else 0 end)`,
+      })
+      .from(messageFeedback)
+      .where(eq(messageFeedback.userId, userId))
+      .groupBy(messageFeedback.messageCategory);
+    return rows
+      .filter((r) => r.category)
+      .map((r) => ({ category: r.category as string, likes: Number(r.likes ?? 0), dislikes: Number(r.dislikes ?? 0) }));
+  }
+
+  // ── Feed drafts ──────────────────────────────────────────────────────────
+
+  async createFeedDraft(data: { userId: string; sourceMessageId?: string | null; title?: string | null; content: string; category?: string | null; hashtags?: string | null; privacy?: string }): Promise<FeedDraft> {
+    const [created] = await db
+      .insert(feedDrafts)
+      .values({
+        userId: data.userId,
+        sourceMessageId: data.sourceMessageId ?? null,
+        title: data.title ?? null,
+        content: data.content,
+        category: data.category ?? null,
+        hashtags: data.hashtags ?? null,
+        privacy: data.privacy ?? "public",
+        status: "draft",
+      })
+      .returning();
+    return created;
+  }
+
+  async getFeedDraft(id: string, userId: string): Promise<FeedDraft | undefined> {
+    const [draft] = await db
+      .select()
+      .from(feedDrafts)
+      .where(and(eq(feedDrafts.id, id), eq(feedDrafts.userId, userId)));
+    return draft;
+  }
+
+  async markFeedDraftPublished(id: string, userId: string, publishedPostId: string): Promise<FeedDraft | undefined> {
+    const [updated] = await db
+      .update(feedDrafts)
+      .set({ status: "published", publishedPostId, updatedAt: new Date() })
+      .where(and(eq(feedDrafts.id, id), eq(feedDrafts.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async cancelFeedDraft(id: string, userId: string): Promise<boolean> {
+    const updated = await db
+      .update(feedDrafts)
+      .set({ status: "canceled", updatedAt: new Date() })
+      .where(and(eq(feedDrafts.id, id), eq(feedDrafts.userId, userId)))
+      .returning();
+    return updated.length > 0;
   }
 }
 

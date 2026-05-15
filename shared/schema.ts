@@ -28,6 +28,7 @@ export const users = pgTable("users", {
   level: integer("level").notNull().default(1),
   xp: integer("xp").notNull().default(0),
   anonymousProfileVisitsEnabled: boolean("anonymous_profile_visits_enabled").notNull().default(false),
+  allowMessagesFromStrangers: boolean("allow_messages_from_strangers").notNull().default(true),
   currentStreak: integer("current_streak").notNull().default(0),
   longestStreak: integer("longest_streak").notNull().default(0),
   totalMessagesCount: integer("total_messages_count").notNull().default(0),
@@ -64,15 +65,159 @@ export const userPersonality = pgTable("user_personality", {
   index("user_personality_user_id_idx").on(table.userId),
 ]);
 
+export const userMemories = pgTable("user_memories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  memoryType: varchar("memory_type", { length: 40 }).notNull().default("fact"),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  source: varchar("source", { length: 40 }).notNull().default("chat"),
+  importance: integer("importance").notNull().default(3),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("user_memories_user_active_idx").on(table.userId, table.active, table.importance),
+  uniqueIndex("user_memories_user_content_uidx").on(table.userId, table.content),
+]);
+
+export const userPreferences = pgTable("user_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 60 }).notNull(),
+  preference: text("preference").notNull(),
+  weight: integer("weight").notNull().default(1),
+  source: varchar("source", { length: 40 }).notNull().default("inferred"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("user_preferences_user_active_idx").on(table.userId, table.active, table.category),
+  uniqueIndex("user_preferences_user_category_preference_uidx").on(table.userId, table.category, table.preference),
+]);
+
+export const beeConversationContexts = pgTable("bee_conversation_contexts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  contextSummary: text("context_summary").notNull().default(""),
+  recentTopics: jsonb("recent_topics").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  emotionalTone: varchar("emotional_tone", { length: 40 }).notNull().default("neutral"),
+  activeGoals: jsonb("active_goals").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  personalizationEnabled: boolean("personalization_enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_conversation_contexts_user_idx").on(table.userId),
+]);
+
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   content: text("content").notNull(),
   metadata: text("metadata"),
+  repliedToMessageId: varchar("replied_to_message_id"),
+  repliedToMessageContent: text("replied_to_message_content"),
+  repliedToMessageRole: text("replied_to_message_role"),
+  repliedToMessageCreatedAt: timestamp("replied_to_message_created_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("messages_user_created_idx").on(table.userId, table.createdAt),
+  index("messages_reply_idx").on(table.repliedToMessageId),
+]);
+
+export const adImpressions = pgTable("ad_impressions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  messageId: varchar("message_id").references(() => messages.id, { onDelete: "cascade" }),
+  anchorMessageId: varchar("anchor_message_id"),
+  adGroupId: varchar("ad_group_id"),
+  adId: text("ad_id").notNull(),
+  adMobAdUnitId: text("ad_mob_ad_unit_id"),
+  adFormat: varchar("ad_format", { length: 40 }).notNull().default("native"),
+  adType: varchar("ad_type", { length: 40 }).notNull().default("product_ad"),
+  title: text("title").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  videoUrl: text("video_url"),
+  mediaContent: jsonb("media_content").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  productUrl: text("product_url"),
+  advertiserName: text("advertiser_name"),
+  callToAction: text("call_to_action"),
+  price: text("price"),
+  category: varchar("category", { length: 80 }),
+  source: varchar("source", { length: 40 }).notNull().default("chat"),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  addedToWishlist: boolean("added_to_wishlist").notNull().default(false),
+  viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+  clickedAt: timestamp("clicked_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  adData: jsonb("ad_data").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("ad_impressions_user_expires_idx").on(table.userId, table.expiresAt),
+  index("ad_impressions_message_idx").on(table.messageId),
+  index("ad_impressions_anchor_idx").on(table.userId, table.anchorMessageId),
+  index("ad_impressions_group_idx").on(table.adGroupId),
+  uniqueIndex("ad_impressions_user_anchor_ad_uidx").on(table.userId, table.anchorMessageId, table.adId),
+]);
+
+export const adGroups = pgTable("ad_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  messageId: varchar("message_id").references(() => messages.id, { onDelete: "cascade" }),
+  anchorMessageId: varchar("anchor_message_id"),
+  title: text("title").notNull().default("Anúncios que podem te interessar"),
+  layoutType: varchar("layout_type", { length: 30 }).notNull().default("carousel"),
+  maxItems: integer("max_items").notNull().default(3),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("ad_groups_user_expires_idx").on(table.userId, table.expiresAt),
+  index("ad_groups_message_idx").on(table.messageId),
+]);
+
+export const adGroupItems = pgTable("ad_group_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adGroupId: varchar("ad_group_id").notNull().references(() => adGroups.id, { onDelete: "cascade" }),
+  adImpressionId: varchar("ad_impression_id").notNull().references(() => adImpressions.id, { onDelete: "cascade" }),
+  order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("ad_group_items_group_order_idx").on(table.adGroupId, table.order),
+]);
+
+export const messageFeedback = pgTable("message_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  messageId: varchar("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+  feedbackType: text("feedback_type").notNull(), // "like" | "dislike"
+  feedbackReason: text("feedback_reason"),       // free-form ou chave de motivo
+  messageCategory: text("message_category"),     // inferida (saude, produtividade, ...)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("message_feedback_user_idx").on(table.userId, table.createdAt),
+  uniqueIndex("message_feedback_user_message_uidx").on(table.userId, table.messageId),
+]);
+
+export const feedDrafts = pgTable("feed_drafts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sourceMessageId: varchar("source_message_id").references(() => messages.id, { onDelete: "set null" }),
+  title: text("title"),
+  content: text("content").notNull(),
+  category: text("category"),
+  hashtags: text("hashtags"),               // CSV "produtividade,foco"
+  privacy: text("privacy").notNull().default("public"), // "public" | "friends" | "private"
+  status: text("status").notNull().default("draft"),     // "draft" | "published" | "canceled"
+  publishedPostId: varchar("published_post_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("feed_drafts_user_status_idx").on(table.userId, table.status, table.createdAt),
 ]);
 
 export const notificationReads = pgTable("notification_reads", {
@@ -287,6 +432,19 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true,
 });
 
+export const insertAdImpressionSchema = createInsertSchema(adImpressions).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertAdGroupSchema = createInsertSchema(adGroups).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertAdGroupItemSchema = createInsertSchema(adGroupItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertNotificationReadSchema = createInsertSchema(notificationReads).omit({
   id: true,
   readAt: true,
@@ -305,6 +463,23 @@ export const insertAchievementSchema = createInsertSchema(achievements).omit({
 export const insertUserPersonalitySchema = createInsertSchema(userPersonality).omit({
   id: true,
   lastUpdatedAt: true,
+});
+
+export const insertUserMemorySchema = createInsertSchema(userMemories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUserPreferenceSchema = createInsertSchema(userPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeConversationContextSchema = createInsertSchema(beeConversationContexts).omit({
+  id: true,
+  updatedAt: true,
 });
 
 export const insertPostSchema = createInsertSchema(posts).omit({
@@ -443,6 +618,8 @@ export const wishlistItems = pgTable("wishlist_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   sourceAdId: text("source_ad_id"),
+  sourceMessageId: varchar("source_message_id"),
+  sourceConversationId: varchar("source_conversation_id"),
   productId: text("product_id"),
   title: text("title").notNull(),
   description: text("description"),
@@ -663,8 +840,22 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type UserPersonality = typeof userPersonality.$inferSelect;
 export type InsertUserPersonality = z.infer<typeof insertUserPersonalitySchema>;
+export type UserMemory = typeof userMemories.$inferSelect;
+export type InsertUserMemory = z.infer<typeof insertUserMemorySchema>;
+export type UserPreference = typeof userPreferences.$inferSelect;
+export type InsertUserPreference = z.infer<typeof insertUserPreferenceSchema>;
+export type BeeConversationContext = typeof beeConversationContexts.$inferSelect;
+export type InsertBeeConversationContext = z.infer<typeof insertBeeConversationContextSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type AdImpression = typeof adImpressions.$inferSelect;
+export type InsertAdImpression = z.infer<typeof insertAdImpressionSchema>;
+export type AdGroup = typeof adGroups.$inferSelect;
+export type InsertAdGroup = z.infer<typeof insertAdGroupSchema>;
+export type AdGroupItem = typeof adGroupItems.$inferSelect;
+export type InsertAdGroupItem = z.infer<typeof insertAdGroupItemSchema>;
+export type MessageFeedback = typeof messageFeedback.$inferSelect;
+export type FeedDraft = typeof feedDrafts.$inferSelect;
 export type NotificationRead = typeof notificationReads.$inferSelect;
 export type InsertNotificationRead = z.infer<typeof insertNotificationReadSchema>;
 export type MoodEntry = typeof moodEntries.$inferSelect;

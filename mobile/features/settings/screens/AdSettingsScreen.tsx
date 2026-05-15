@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -13,6 +14,7 @@ import {
   saveAdPreferences,
   defaultAdPreferences,
 } from "@mobile/lib/adService";
+import { api } from "@mobile/lib/api";
 import { AD_INTEREST_OPTIONS, type AdFrequency, type UserAdPreferences } from "@mobile/lib/ads";
 
 const FREQUENCY_OPTIONS: { value: AdFrequency; label: string; desc: string }[] = [
@@ -20,6 +22,15 @@ const FREQUENCY_OPTIONS: { value: AdFrequency; label: string; desc: string }[] =
   { value: "normal", label: "Normal",  desc: "Máximo 3 anúncios por dia" },
   { value: "high",   label: "Alta",    desc: "Máximo 5 anúncios por dia" },
 ];
+
+interface RecentAdImpression {
+  id: string;
+  title: string;
+  description?: string | null;
+  productUrl?: string | null;
+  advertiserName?: string | null;
+  expiresAt: string;
+}
 
 export default function AdSettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -31,9 +42,13 @@ export default function AdSettingsScreen() {
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [prefs, setPrefs]     = useState<UserAdPreferences>(defaultAdPreferences());
+  const [recentAds, setRecentAds] = useState<RecentAdImpression[]>([]);
 
   useEffect(() => {
     loadAdPreferences().then((p) => { setPrefs(p); setLoading(false); });
+    api.get("/api/ad-impressions/recent")
+      .then((response) => setRecentAds(Array.isArray(response.data) ? response.data : []))
+      .catch(() => setRecentAds([]));
   }, []);
 
   function toggleInterest(interest: string) {
@@ -184,6 +199,32 @@ export default function AdSettingsScreen() {
           </View>
         )}
 
+        {recentAds.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Anúncios vistos</Text>
+            <Text style={styles.cardSub}>Disponíveis por até 2 dias, caso você não salve na Lista de Desejos.</Text>
+            {recentAds.slice(0, 5).map((ad) => {
+              const expiresAt = new Date(ad.expiresAt);
+              return (
+                <View key={ad.id} style={styles.recentAdRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.recentAdTitle} numberOfLines={1}>{ad.title}</Text>
+                    <Text style={styles.recentAdMeta} numberOfLines={1}>{ad.advertiserName || "Anunciante"}</Text>
+                    <Text style={styles.recentAdMeta}>
+                      Até {expiresAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às {expiresAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </View>
+                  {ad.productUrl ? (
+                    <TouchableOpacity style={styles.openAdButton} onPress={() => Linking.openURL(ad.productUrl!).catch(() => {})}>
+                      <Feather name="external-link" size={14} color={colors.foreground} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* Privacy note */}
         <View style={styles.privacyNote}>
           <Feather name="lock" size={12} color={colors.muted} />
@@ -273,6 +314,28 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       paddingVertical: 6,
     },
     hiddenAdvName: { fontFamily: FONTS.sans, fontSize: 13, color: colors.foreground },
+    recentAdRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 10,
+      marginTop: 8,
+      backgroundColor: colors.background,
+    },
+    recentAdTitle: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "800", color: colors.foreground },
+    recentAdMeta: { fontFamily: FONTS.sans, fontSize: 11, color: colors.muted, marginTop: 2 },
+    openAdButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
 
     privacyNote: {
       flexDirection: "row", gap: 8, alignItems: "flex-start",

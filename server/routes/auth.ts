@@ -65,13 +65,13 @@ export function createAuthRouter() {
 
     const email = normalizeEmail(parsed.data.email);
     const existing = await storage.getUserByUsername(parsed.data.username);
-    if (!email) throw badRequest("E-mail e obrigatorio para cadastro com senha");
+    if (!email) throw badRequest("E-mail é obrigatório para cadastro com senha");
     if (existing) {
       throw conflict("Nome de usuário já existe");
     }
     if (email) {
       const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-      if (existingEmail) throw conflict("E-mail ja cadastrado");
+      if (existingEmail) throw conflict("E-mail já cadastrado");
     }
 
     const { displayName, gender } = req.body as { displayName?: string; gender?: string };
@@ -107,6 +107,7 @@ export function createAuthRouter() {
         language: user.language,
         onboardingCompleted: user.onboardingCompleted,
         anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
+        allowMessagesFromStrangers: user.allowMessagesFromStrangers,
         currentStreak: user.currentStreak,
       },
     });
@@ -172,6 +173,7 @@ export function createAuthRouter() {
         language: user.language,
         onboardingCompleted: user.onboardingCompleted,
         anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
+        allowMessagesFromStrangers: user.allowMessagesFromStrangers,
         currentStreak: user.currentStreak,
       },
     });
@@ -209,6 +211,7 @@ export function createAuthRouter() {
         language: user.language,
         onboardingCompleted: user.onboardingCompleted,
         anonymousProfileVisitsEnabled: user.anonymousProfileVisitsEnabled,
+        allowMessagesFromStrangers: user.allowMessagesFromStrangers,
         currentStreak: user.currentStreak,
       },
     });
@@ -250,7 +253,7 @@ export function createAuthRouter() {
       ))
       .limit(1);
 
-    if (!row) throw badRequest("Link invalido ou expirado");
+    if (!row) throw badRequest("Link inválido ou expirado");
 
     await storage.updateUserPassword(row.userId, await hashPassword(password));
     await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, row.id));
@@ -276,12 +279,22 @@ export function createAuthRouter() {
   }));
 
   router.patch("/api/me/preferences", requireAuth, asyncHandler(async (req, res) => {
-    const { anonymousProfileVisitsEnabled, displayName, bio, language, onboardingCompleted } = req.body ?? {};
+    const { anonymousProfileVisitsEnabled, allowMessagesFromStrangers, displayName, bio, language, onboardingCompleted } = req.body ?? {};
 
     if (anonymousProfileVisitsEnabled !== undefined && typeof anonymousProfileVisitsEnabled !== "boolean") {
       throw validationError("Preferências inválidas", [
         {
           path: ["anonymousProfileVisitsEnabled"],
+          message: "Envie um valor booleano",
+          code: "invalid_type",
+        },
+      ]);
+    }
+
+    if (allowMessagesFromStrangers !== undefined && typeof allowMessagesFromStrangers !== "boolean") {
+      throw validationError("Preferências inválidas", [
+        {
+          path: ["allowMessagesFromStrangers"],
           message: "Envie um valor booleano",
           code: "invalid_type",
         },
@@ -299,6 +312,7 @@ export function createAuthRouter() {
 
     const updatedUser = await storage.updateUserPreferences(req.userId!, {
       anonymousProfileVisitsEnabled,
+      allowMessagesFromStrangers,
       displayName: displayName !== undefined ? String(displayName).trim().slice(0, 80) || null : undefined,
       bio: bio !== undefined ? String(bio).trim().slice(0, 300) || null : undefined,
       language: language !== undefined ? String(language) : undefined,
@@ -308,6 +322,7 @@ export function createAuthRouter() {
     req.logger.info("user.preferences.updated", {
       userId: updatedUser.id,
       anonymousProfileVisitsEnabled: updatedUser.anonymousProfileVisitsEnabled,
+      allowMessagesFromStrangers: updatedUser.allowMessagesFromStrangers,
     });
 
     return sendOk(res, sanitizeUser(updatedUser));
@@ -387,6 +402,38 @@ export function createAuthRouter() {
       interests: JSON.stringify(interests),
       recentTopics: personality?.recentTopics ?? "[]",
     });
+
+    await Promise.allSettled([
+      ...onboardingFacts.map((fact) =>
+        storage.upsertUserMemory({
+          userId: req.userId!,
+          memoryType: fact.startsWith("Objetivos") ? "goal" : "profile",
+          title: fact.split(":")[0].slice(0, 80),
+          content: fact,
+          source: "onboarding",
+          importance: fact.startsWith("Objetivos") || fact.startsWith("Rotina") ? 5 : 4,
+          active: true,
+        }),
+      ),
+      ...interests.map((interest) =>
+        storage.upsertUserPreference({
+          userId: req.userId!,
+          category: "interesse",
+          preference: interest,
+          weight: 4,
+          source: "onboarding",
+          active: true,
+        }),
+      ),
+      storage.upsertBeeConversationContext({
+        userId: req.userId!,
+        contextSummary: `Onboarding concluido. Objetivos: ${rawObjectives.join(", ")}. Rotina: ${routine}`,
+        recentTopics: interests.slice(0, 8),
+        emotionalTone: "neutral",
+        activeGoals: rawObjectives,
+        personalizationEnabled: true,
+      }),
+    ]);
 
     const updated = await storage.updateUserPreferences(req.userId!, { onboardingCompleted: true });
     return sendOk(res, sanitizeUser(updated));

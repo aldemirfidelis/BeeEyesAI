@@ -143,7 +143,12 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.avatarSection}>
-          <View style={styles.avatar}>
+          <TouchableOpacity
+            onPress={() => router.push("/settings" as never)}
+            activeOpacity={0.85}
+            accessibilityLabel="Trocar foto de perfil"
+            style={styles.avatar}
+          >
             {profileImageUri ? (
               <Image source={{ uri: profileImageUri }} style={styles.avatarImage} />
             ) : (
@@ -151,13 +156,23 @@ export default function ProfileScreen() {
                 {profile?.username?.[0]?.toUpperCase() ?? "?"}
               </Text>
             )}
+            <View style={styles.avatarEditOverlay}>
+              <Feather name="camera" size={12} color="#1A1A1A" />
+            </View>
             {profile?.level ? (
               <View style={styles.levelBadge}>
                 <Text style={styles.levelBadgeText}>Nv {profile.level}</Text>
               </View>
             ) : null}
+          </TouchableOpacity>
+          <View style={styles.usernameRow}>
+            <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
+            {typeof profile?.xp === "number" ? (
+              <View style={styles.xpChip}>
+                <Text style={styles.xpChipText}>{profile.xp} XP</Text>
+              </View>
+            ) : null}
           </View>
-          <Text style={styles.username}>{profile?.displayName || profile?.username}</Text>
           {profile?.displayName ? <Text style={styles.usernameHandle}>@{profile?.username}</Text> : null}
           {profile?.bio ? (
             <Text style={styles.profileBio}>{profile.bio}</Text>
@@ -405,6 +420,7 @@ export default function ProfileScreen() {
           <KeyboardAvoidingView
             style={{ flex: 1, justifyContent: "flex-end" }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
           >
             <TouchableOpacity
               style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" }}
@@ -574,6 +590,26 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     },
     avatarImage: { width: "100%", height: "100%" },
     avatarText: { fontFamily: FONTS.display, fontSize: 36, fontWeight: "700", color: "#1A1A1A" },
+    avatarEditOverlay: {
+      position: "absolute",
+      bottom: -2,
+      left: -2,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: colors.primary,
+      borderWidth: 2,
+      borderColor: colors.background,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    usernameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" },
+    xpChip: {
+      paddingHorizontal: 8, paddingVertical: 2,
+      borderRadius: 99,
+      backgroundColor: colors.primary + "22",
+    },
+    xpChipText: { fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800", color: colors.primaryDark },
     username: { fontFamily: FONTS.display, fontSize: 22, fontWeight: "700", color: colors.foreground },
     usernameHandle: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted },
     profileBio: { fontFamily: FONTS.sans, fontSize: 13, lineHeight: 19, color: colors.foreground, textAlign: "center", paddingHorizontal: 18 },

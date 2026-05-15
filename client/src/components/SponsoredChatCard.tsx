@@ -13,6 +13,7 @@ interface SponsoredChatCardProps {
 }
 
 export function SponsoredChatCard({
+  messageId,
   meta,
   onHide,
   onNotRelevant,
@@ -23,11 +24,25 @@ export function SponsoredChatCard({
   const [dismissed, setDismissed] = useState(false);
   const [wishlistSaving, setWishlistSaving] = useState(false);
   const [wishlistFeedback, setWishlistFeedback] = useState("");
+  const [savedToWishlist, setSavedToWishlist] = useState(meta.addedToWishlist === true);
   const { ad, beeIntroMessage, isPersonalized, adId } = meta;
+  const expiresAt = meta.expiresAt ? new Date(meta.expiresAt) : null;
+  const availabilityLabel = savedToWishlist
+    ? "Salvo na Lista de Desejos."
+    : expiresAt && !Number.isNaN(expiresAt.getTime())
+      ? `Disponível até ${expiresAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${expiresAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Salve para não perder.`
+      : "Disponível por até 2 dias. Salve na Lista de Desejos para não perder.";
 
   if (dismissed) return null;
 
   function handleHide() {
+    const token = localStorage.getItem("bee_token");
+    if (meta.adImpressionId) {
+      fetch(`/api/ad-impressions/${meta.adImpressionId}/hide`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {});
+    }
     setDismissed(true);
     setShowMenu(false);
     onHide(adId);
@@ -46,10 +61,21 @@ export function SponsoredChatCard({
   }
 
   function handleCta() {
+    const token = localStorage.getItem("bee_token");
+    if (meta.adImpressionId) {
+      fetch(`/api/ad-impressions/${meta.adImpressionId}/click`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {});
+    }
     window.open(ad.targetUrl, "_blank", "noopener,noreferrer");
   }
 
   async function handleAddToWishlist() {
+    if (savedToWishlist) {
+      setWishlistFeedback("Esse produto já está na sua Lista de Desejos.");
+      return;
+    }
     setWishlistSaving(true);
     setWishlistFeedback("");
     try {
@@ -62,6 +88,8 @@ export function SponsoredChatCard({
         },
         body: JSON.stringify({
           sourceAdId: ad.id,
+          sourceMessageId: messageId,
+          sourceConversationId: null,
           title: ad.title,
           description: ad.body,
           originalUrl: ad.targetUrl,
@@ -69,10 +97,16 @@ export function SponsoredChatCard({
           brand: ad.advertiserName,
           storeName: ad.advertiserName,
           sourceType: "sponsored_ad",
-          metadata: { topicKeywords: ad.topicKeywords, ctaLabel: ad.ctaLabel },
+          metadata: {
+            topicKeywords: ad.topicKeywords,
+            ctaLabel: ad.ctaLabel,
+            adImpressionId: meta.adImpressionId,
+            expiresAt: meta.expiresAt,
+          },
         }),
       });
       const data = await res.json().catch(() => null);
+      if (res.ok) setSavedToWishlist(true);
       setWishlistFeedback(data?.message ?? "Prontinho! Salvei isso na sua Lista de Desejos 🐝");
     } catch {
       setWishlistFeedback("Não consegui salvar agora. Tente novamente em instantes.");
@@ -162,6 +196,9 @@ export function SponsoredChatCard({
           <p className="text-[11px] text-muted-foreground">{ad.advertiserName}</p>
           <p className="text-sm font-bold text-foreground leading-snug">{ad.title}</p>
           <p className="text-xs text-muted-foreground leading-relaxed">{ad.body}</p>
+          <p className="rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            {availabilityLabel}
+          </p>
         </div>
 
         {/* CTA button */}
@@ -175,10 +212,10 @@ export function SponsoredChatCard({
           </button>
           <button
             onClick={handleAddToWishlist}
-            disabled={wishlistSaving}
+            disabled={wishlistSaving || savedToWishlist}
             className="w-full flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 py-2.5 text-xs font-bold text-primary hover:bg-primary/15 transition-colors disabled:opacity-60"
           >
-            <Heart className="w-3.5 h-3.5" />
+            <Heart className="w-3.5 h-3.5" fill={savedToWishlist ? "currentColor" : "none"} />
             {wishlistSaving ? "Salvando..." : "Adicionar à Lista de Desejos"}
           </button>
           {wishlistFeedback ? (

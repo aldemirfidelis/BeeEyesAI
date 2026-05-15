@@ -138,13 +138,17 @@ export function createDailyBriefingRouter() {
       weather = await fetchWeatherForCity(resolvedCity);
     }
 
-    const personality = await storage.getPersonality(userId);
+    const [personality, memories] = await Promise.all([
+      storage.getPersonality(userId),
+      storage.getActiveUserMemories(userId, 8),
+    ]);
     const interests = personality?.interests
       ? (JSON.parse(personality.interests) as string[]).slice(0, 6)
       : [];
-    const facts = personality?.traits
+    const legacyFacts = personality?.traits
       ? (JSON.parse(personality.traits) as string[]).slice(0, 5)
       : [];
+    const facts = Array.from(new Set([...memories.map((memory) => memory.content), ...legacyFacts])).slice(0, 8);
 
     const briefingText = await generateDailyBriefing({
       userName: user.displayName || user.username,

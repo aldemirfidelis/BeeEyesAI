@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { Check, ChevronRight, Lock, Megaphone, Shield, Sparkles, X } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Check, ChevronRight, ExternalLink, Lock, Megaphone, Shield, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { AD_INTEREST_OPTIONS, type AdFrequency, type UserAdPreferences } from "@/lib/ads";
@@ -72,7 +72,28 @@ interface AdSettingsModalProps {
   onClose: () => void;
 }
 
+interface RecentAdImpression {
+  id: string;
+  title: string;
+  description?: string | null;
+  productUrl?: string | null;
+  advertiserName?: string | null;
+  price?: string | null;
+  viewedAt: string;
+  expiresAt: string;
+}
+
 export function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }: AdSettingsModalProps) {
+  const [recentAds, setRecentAds] = useState<RecentAdImpression[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("bee_token");
+    fetch("/api/ad-impressions/recent", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((res) => res.ok ? res.json() : [])
+      .then((rows) => setRecentAds(Array.isArray(rows) ? rows : []))
+      .catch(() => setRecentAds([]));
+  }, []);
+
   function toggleInterest(interest: string) {
     onPrefsChange({
       ...prefs,
@@ -199,6 +220,41 @@ export function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {recentAds.length > 0 && (
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2">
+              <p className="text-sm font-bold">Anúncios vistos</p>
+              <p className="text-[11px] text-muted-foreground">Disponíveis por até 2 dias, caso você não salve na Lista de Desejos.</p>
+              <div className="space-y-2">
+                {recentAds.slice(0, 5).map((ad) => {
+                  const expiresAt = new Date(ad.expiresAt);
+                  return (
+                    <div key={ad.id} className="rounded-lg border border-border/50 bg-card/70 p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-foreground">{ad.title}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">{ad.advertiserName || "Anunciante"}</p>
+                        </div>
+                        {ad.productUrl ? (
+                          <button
+                            type="button"
+                            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground"
+                            onClick={() => window.open(ad.productUrl!, "_blank", "noopener,noreferrer")}
+                            aria-label="Abrir anúncio"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Fica disponível até {expiresAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às {expiresAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

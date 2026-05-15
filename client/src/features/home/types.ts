@@ -4,6 +4,10 @@ export interface Message {
   content: string;
   timestamp: Date;
   metadata?: string | null;
+  repliedToMessageId?: string | null;
+  repliedToMessageContent?: string | null;
+  repliedToMessageRole?: "user" | "assistant" | null;
+  repliedToMessageCreatedAt?: Date | string | null;
 }
 
 export interface User {
@@ -19,6 +23,7 @@ export interface User {
   level: number;
   xp: number;
   anonymousProfileVisitsEnabled?: boolean;
+  allowMessagesFromStrangers?: boolean;
   currentStreak: number;
   totalMessagesCount?: number;
   city?: string | null;

@@ -232,7 +232,7 @@ export default function FeedScreen() {
           <KeyboardAvoidingView
             style={styles.composerKeyboard}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+            keyboardVerticalOffset={0}
           >
             <View style={styles.composerSheet}>
               {/* Handle */}
@@ -409,6 +409,8 @@ export default function FeedScreen() {
           maxToRenderPerBatch={6}
           windowSize={7}
           removeClippedSubviews
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
           ListHeaderComponent={
             <View>
               <TouchableOpacity style={[styles.composerTrigger, { display: "none" }]} onPress={openComposer} activeOpacity={0.75}>

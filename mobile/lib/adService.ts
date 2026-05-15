@@ -216,6 +216,51 @@ export function selectBestAd(
   return scored[0]?.ad ?? null;
 }
 
+export function selectBestAds(
+  prefs: UserAdPreferences,
+  state: AdEngineState,
+  context: AdContext,
+  campaigns: AdCampaign[] = MOCK_ADS,
+  maxItems = 3,
+): AdCampaign[] {
+  const now = new Date().toISOString();
+  const eligible = campaigns.filter((ad) => {
+    if (!ad.isActive) return false;
+    if (ad.startsAt > now || ad.endsAt < now) return false;
+    if (!isAdCategoryAllowed(ad.category, prefs)) return false;
+    if (prefs.hiddenAdvertisers.includes(ad.advertiserName)) return false;
+    if (state.hiddenAdIds.includes(ad.id)) return false;
+    return true;
+  });
+
+  const scored = eligible.map((ad) => {
+    let score = 1 + Math.random() * 0.5;
+    const topicMatch = context.recentTopics.some((topic) =>
+      ad.tags.some((tag) => tag.toLowerCase().includes(topic.toLowerCase())),
+    );
+    if (topicMatch) score += 3;
+    if (prefs.allowPersonalizedAds && prefs.consentGiven) {
+      const interestMatch = prefs.selectedInterests.some(
+        (interest) =>
+          ad.tags.some((tag) => tag.toLowerCase().includes(interest.toLowerCase()))
+          || ad.category.toLowerCase().includes(interest.toLowerCase()),
+      );
+      if (interestMatch) score += 2;
+    }
+    return { ad, score };
+  });
+
+  const seen = new Set<string>();
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .flatMap((item) => {
+      if (seen.has(item.ad.id)) return [];
+      seen.add(item.ad.id);
+      return [item.ad];
+    })
+    .slice(0, Math.max(1, Math.min(3, maxItems)));
+}
+
 // ── generateBeeAdIntroMessage ─────────────────────────────────────────────────
 
 const BEE_INTRO_MESSAGES = [
@@ -289,4 +334,17 @@ export async function getEligibleAd(
   if (!shouldShowAdsToUser(user, prefs, state)) return null;
   if (context.isSensitiveContext) return null;
   return selectBestAd(prefs, state, context);
+}
+
+export async function getEligibleAds(
+  user: UserForAds,
+  context: AdContext,
+  maxItems = 3,
+): Promise<AdCampaign[]> {
+  const prefs = await loadAdPreferences();
+  const state = await loadAdEngineState();
+  if (!shouldShowAdsToUser(user, prefs, state)) return [];
+  if (context.isSensitiveContext) return [];
+  const allowedMax = prefs.preferredAdFrequency === "high" ? Math.min(3, maxItems) : Math.min(2, maxItems);
+  return selectBestAds(prefs, state, context, MOCK_ADS, allowedMax);
 }

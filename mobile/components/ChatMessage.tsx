@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Image, View, Text, StyleSheet } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { Animated as RNAnimated, Image, PanResponder, View, Text, StyleSheet } from "react-native";
+import Reanimated, { FadeInDown } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import { FONTS, getThemeColors } from "../lib/theme";
 import { useUIStore } from "../stores/uiStore";
 import { UserAvatar } from "./UserAvatar";
@@ -12,25 +13,73 @@ interface ChatMessageProps {
   userName?: string;
   userAvatarUrl?: string | null;
   actions?: ReactNode;
+  repliedToMessageContent?: string | null;
+  repliedToMessageRole?: "user" | "assistant" | null;
+  onReply?: () => void;
 }
 
-export default function ChatMessage({ role, content, createdAt, userName = "Usu√°rio", userAvatarUrl, actions }: ChatMessageProps) {
+export default function ChatMessage({
+  role,
+  content,
+  createdAt,
+  userName = "Usu√°rio",
+  userAvatarUrl,
+  actions,
+  repliedToMessageContent,
+  repliedToMessageRole,
+  onReply,
+}: ChatMessageProps) {
   const isUser = role === "user";
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
   const styles = makeStyles(colors);
+  const translateX = new RNAnimated.Value(0);
+
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => !!onReply && Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+    onPanResponderMove: (_, gesture) => {
+      if (!onReply) return;
+      const next = Math.max(0, Math.min(gesture.dx, 72));
+      translateX.setValue(next);
+    },
+    onPanResponderRelease: (_, gesture) => {
+      if (onReply && gesture.dx > 46) onReply();
+      RNAnimated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 22, bounciness: 7 }).start();
+    },
+    onPanResponderTerminate: () => {
+      RNAnimated.spring(translateX, { toValue: 0, useNativeDriver: true, speed: 22, bounciness: 7 }).start();
+    },
+  });
 
   return (
-    <Animated.View
+    <Reanimated.View
       entering={FadeInDown.duration(200)}
       style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}
     >
+      <View style={[styles.swipeShell, isUser ? styles.swipeShellUser : styles.swipeShellAssistant]}>
+        <View style={styles.replyGlyph}>
+          <Feather name="corner-up-left" size={16} color={colors.primaryDark} />
+        </View>
+        <RNAnimated.View
+          style={{ transform: [{ translateX }] }}
+          {...panResponder.panHandlers}
+        >
       <View style={[styles.row, isUser && styles.userRow]}>
         {!isUser ? (
           <Image source={require("../assets/beeyes-design/bee-icon.png")} style={styles.assistantAvatar} />
         ) : null}
 
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+          {repliedToMessageContent ? (
+            <View style={[styles.replyReference, isUser ? styles.userReplyReference : styles.assistantReplyReference]}>
+              <Text style={styles.replyReferenceLabel}>
+                Respondendo √† {repliedToMessageRole === "assistant" ? "Bee" : userName}
+              </Text>
+              <Text style={styles.replyReferenceText} numberOfLines={2}>
+                {repliedToMessageContent}
+              </Text>
+            </View>
+          ) : null}
           <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
             {content}
           </Text>
@@ -47,6 +96,8 @@ export default function ChatMessage({ role, content, createdAt, userName = "Usu√
           />
         ) : null}
       </View>
+        </RNAnimated.View>
+      </View>
 
       {createdAt && (
         <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
@@ -54,7 +105,7 @@ export default function ChatMessage({ role, content, createdAt, userName = "Usu√
         </Text>
       )}
       {actions ? <View style={[styles.actions, isUser ? styles.userActions : styles.assistantActions]}>{actions}</View> : null}
-    </Animated.View>
+    </Reanimated.View>
   );
 }
 
@@ -77,6 +128,30 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
       alignItems: "flex-end",
       gap: 8,
       maxWidth: "88%",
+    },
+    swipeShell: {
+      position: "relative",
+      maxWidth: "100%",
+    },
+    swipeShellUser: {
+      alignItems: "flex-end",
+    },
+    swipeShellAssistant: {
+      alignItems: "flex-start",
+    },
+    replyGlyph: {
+      position: "absolute",
+      left: 6,
+      top: "50%",
+      width: 30,
+      height: 30,
+      marginTop: -15,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.primary + "20",
+      borderWidth: 1,
+      borderColor: colors.primary + "66",
     },
     userRow: {
       justifyContent: "flex-end",
@@ -126,6 +201,34 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     text: {
       fontSize: 15,
       lineHeight: 22,
+    },
+    replyReference: {
+      marginBottom: 8,
+      borderLeftWidth: 3,
+      borderRadius: 10,
+      paddingHorizontal: 9,
+      paddingVertical: 7,
+    },
+    userReplyReference: {
+      borderLeftColor: "#1A1A1A",
+      backgroundColor: "rgba(255,255,255,0.28)",
+    },
+    assistantReplyReference: {
+      borderLeftColor: colors.primary,
+      backgroundColor: colors.primary + "14",
+    },
+    replyReferenceLabel: {
+      fontFamily: FONTS.sans,
+      fontSize: 11,
+      fontWeight: "800",
+      color: colors.primaryDark,
+      marginBottom: 2,
+    },
+    replyReferenceText: {
+      fontFamily: FONTS.sans,
+      fontSize: 12,
+      lineHeight: 17,
+      color: isDark ? "#EDEDED" : "#3A2A08",
     },
     userText: {
       color: "#1A1A1A",

@@ -30,6 +30,7 @@ interface SettingsScreenProps {
   themeMode: ThemeMode;
   settingsMessage: string;
   anonymousProfileVisitsEnabled: boolean;
+  allowMessagesFromStrangers: boolean;
   authHeaders: () => Record<string, string>;
   onClose: () => void;
   onUserUpdate: (user: User) => void;
@@ -37,6 +38,7 @@ interface SettingsScreenProps {
   onRemoveProfilePhoto: () => void;
   onThemeSelect: (theme: ThemeMode) => void;
   onAnonymousProfileVisitsToggle: (next: boolean) => void;
+  onStrangerMessagesToggle: (next: boolean) => void;
   onLogout: () => void;
 }
 
@@ -49,6 +51,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
     profilePhotoUrl,
     settingsMessage,
     anonymousProfileVisitsEnabled,
+    allowMessagesFromStrangers,
     authHeaders,
     onClose,
     onUserUpdate,
@@ -56,6 +59,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
     onRemoveProfilePhoto,
     onThemeSelect,
     onAnonymousProfileVisitsToggle,
+    onStrangerMessagesToggle,
     onLogout,
   } = props;
 
@@ -299,6 +303,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
               <PrivacySecurityCard
                 anonymousProfileVisitsEnabled={anonymousProfileVisitsEnabled}
                 onAnonymousToggle={onAnonymousProfileVisitsToggle}
+                allowMessagesFromStrangers={allowMessagesFromStrangers}
+                onStrangerMessagesToggle={onStrangerMessagesToggle}
                 currentPassword={currentPassword}
                 newPassword={newPassword}
                 setCurrentPassword={setCurrentPassword}

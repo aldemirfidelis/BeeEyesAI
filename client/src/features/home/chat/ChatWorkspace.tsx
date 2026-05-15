@@ -31,8 +31,11 @@ interface ChatWorkspaceProps {
   inputRef: RefObject<HTMLInputElement>;
   inputValue: string;
   isLoading: boolean;
+  selectedReplyMessage: Message | null;
   messageActionsRenderer: (message: Message) => ReactNode;
   messageRenderer?: (message: Message) => ReactNode | null;
+  onReplyToMessage: (message: Message) => void;
+  onCancelReply: () => void;
   onToggleSettings: () => void;
   onToggleSearch: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -197,6 +200,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     inputRef,
     inputValue,
     isLoading,
+    selectedReplyMessage,
     messageActionsRenderer,
     messageRenderer,
     authHeaders,
@@ -208,6 +212,8 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     onInputChange,
     onInputFocusChange,
     onSendMessage,
+    onReplyToMessage,
+    onCancelReply,
     onSendVoiceMessage,
     onOpenUserProfile,
     onNotificationsCleared,
@@ -417,7 +423,18 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
                 if (custom) return <div key={message.id}>{custom}</div>;
               }
               return (
-                <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} actions={messageActionsRenderer(message)} profilePhotoUrl={profilePhotoUrl} />
+                <ChatMessage
+                  key={message.id}
+                  role={message.role}
+                  content={message.content}
+                  timestamp={message.timestamp}
+                  actions={messageActionsRenderer(message)}
+                  profilePhotoUrl={profilePhotoUrl}
+                  repliedToMessageContent={message.repliedToMessageContent}
+                  repliedToMessageRole={message.repliedToMessageRole}
+                  userName={user?.displayName || user?.username || "você"}
+                  onReply={() => onReplyToMessage(message)}
+                />
               );
             })}
             {researchLoadingSlot && (
@@ -434,6 +451,27 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
               Não consegui entender o áudio. Fale mais alto ou por mais tempo e tente novamente.
             </p>
           )}
+          {selectedReplyMessage ? (
+            <div className="mx-auto mb-2 flex max-w-4xl items-center gap-3 rounded-2xl border border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur">
+              <div className="h-10 w-1 shrink-0 rounded-full bg-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-extrabold text-primary">
+                  Respondendo à {selectedReplyMessage.role === "assistant" ? "Bee" : user?.displayName || user?.username || "você"}
+                </p>
+                <p className="line-clamp-2 text-xs text-muted-foreground">
+                  {selectedReplyMessage.content}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onCancelReply}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                aria-label="Cancelar resposta"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
           <div className="mx-auto flex max-w-4xl gap-2 rounded-full border border-primary/20 bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
             <Input
               ref={inputRef}

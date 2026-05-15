@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -135,7 +136,17 @@ function ChatScreen({
   const queryClient = useQueryClient();
   const tabBarHeight = useBottomTabBarHeight();
   const [draft, setDraft] = useState("");
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => {
+      setIsKeyboardVisible(true);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    const hide = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const messagesQuery = useQuery<DMMessage[]>({
     queryKey: ["dm-messages", conversation.user.id],
@@ -213,7 +224,8 @@ function ChatScreen({
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           ref={scrollRef}
@@ -244,7 +256,7 @@ function ChatScreen({
           )}
         </ScrollView>
 
-        <View style={[styles.inputRow, { paddingBottom: tabBarHeight > 0 ? tabBarHeight + (Platform.OS === "ios" ? 12 : 16) : insets.bottom + 6 }]}>
+        <View style={[styles.inputRow, { paddingBottom: isKeyboardVisible ? 8 : (tabBarHeight > 0 ? tabBarHeight + (Platform.OS === "ios" ? 12 : 16) : insets.bottom + 6) }]}>
           <TextInput
             style={styles.input}
             value={draft}

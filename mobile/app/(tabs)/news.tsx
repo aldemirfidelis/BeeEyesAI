@@ -59,8 +59,8 @@ export default function NewsScreen() {
 
         {!newsQuery.isLoading && !newsQuery.data?.items?.length ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Nenhuma noticia agora</Text>
-            <Text style={styles.emptyText}>Quando houver itens relevantes, eles aparecem aqui com opcao de resumo.</Text>
+            <Text style={styles.emptyTitle}>Nenhuma notícia agora</Text>
+            <Text style={styles.emptyText}>Quando houver itens relevantes, eles aparecem aqui com opção de resumo.</Text>
           </View>
         ) : null}
 

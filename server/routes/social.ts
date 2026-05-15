@@ -483,6 +483,17 @@ export function createSocialRouter() {
       throw notFound("Usuário não encontrado");
     }
 
+    // Privacidade: se o destinatário desabilitou DMs de desconhecidos,
+    // só permite o envio quando já existe conexão aceita entre os dois.
+    if (recipient.allowMessagesFromStrangers === false) {
+      const connection = await storage.getConnectionStatus(req.userId!, recipientId);
+      if (!connection || connection.status !== "accepted") {
+        throw forbidden(
+          "Este usuário só aceita mensagens de pessoas conectadas. Envie um pedido de conexão primeiro.",
+        );
+      }
+    }
+
     const [created, sender] = await Promise.all([
       storage.sendDirectMessage({ senderId: req.userId!, recipientId, content }),
       storage.getUser(req.userId!),

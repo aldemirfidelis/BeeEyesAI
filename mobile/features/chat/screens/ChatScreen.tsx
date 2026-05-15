@@ -10,9 +10,10 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, API_URL_RAW } from "@mobile/lib/api";
-import { useChatStore } from "@mobile/stores/chatStore";
+import { useChatStore, type Message as ChatStoreMessage } from "@mobile/stores/chatStore";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { useChat } from "@mobile/hooks/useChat";
@@ -25,7 +26,9 @@ import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { type ConnectionRequestMeta, type NewsDigestMeta, isConnectionRequestMeta, isNewsDigestMeta, parseMessageMeta } from "@mobile/lib/social";
 import type { IntelligentNotification, NotificationCenterItem, ScoreSnapshot } from "@mobile/lib/intelligence";
 import type { EyeExpression } from "@mobile/stores/uiStore";
-import { SponsoredChatCard } from "@mobile/components/SponsoredChatCard";
+import { AdMobSmartAdCard } from "@mobile/components/AdMobSmartAdCard";
+import { MessageFeedback, type FeedbackType, DISLIKE_REASONS } from "@mobile/components/MessageFeedback";
+import { SendToFeedModal } from "@mobile/components/SendToFeedModal";
 import { ResearchResultCard, ResearchLoadingCard } from "@mobile/components/ResearchResultCard";
 import type { ResearchResult } from "@mobile/components/ResearchResultCard";
 import { WorkoutSuggestionCard, type WorkoutSuggestionPlan } from "@mobile/components/WorkoutSuggestionCard";
@@ -127,6 +130,7 @@ export default function ChatScreen() {
   const { eyeExpression, themeMode, profileImageUri, setEyeExpression } = useUIStore();
   const { user } = useAuthStore();
   const { sendMessage } = useChat();
+  const [selectedReplyMessage, setSelectedReplyMessage] = useState<ChatStoreMessage | null>(null);
   const { onAfterAssistantResponse } = useAdEngine(
     user ? { level: user.level, xp: user.xp } : null,
   );
@@ -144,6 +148,7 @@ export default function ChatScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const { width, height } = Dimensions.get("window");
 
   useEffect(() => {
@@ -289,7 +294,7 @@ export default function ChatScreen() {
     mutationFn: async ({ messageId, meta, decision }: { messageId: string; meta: any; decision: "activate" | "keep_paused" }) => {
       const alarmId = meta?.alarmId;
       const title = meta?.title ?? "alarme";
-      if (!alarmId) throw new Error("Alarme invalido");
+      if (!alarmId) throw new Error("Alarme inválido");
 
       if (decision === "activate") {
         await api.patch(`/api/colmeia/alarms/${alarmId}`, { active: true });
@@ -550,13 +555,27 @@ export default function ChatScreen() {
   async function handleSend() {
     const message = inputValue.trim();
     if (!message) return;
+    const replyTarget = selectedReplyMessage;
     setInputValue("");
+    setSelectedReplyMessage(null);
     markInteraction();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     isAtBottomRef.current = true;
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
     const commandHandled = await handleSlashCommand(message);
-    if (!commandHandled) await sendMessage(message);
+    if (!commandHandled) await sendMessage(message, replyTarget);
+  }
+
+  function handleSwipeReply(message: ChatStoreMessage) {
+    if (message.id === "streaming") return;
+    setSelectedReplyMessage(message);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+  }
+
+  function handleCancelReply() {
+    setSelectedReplyMessage(null);
+    Haptics.selectionAsync().catch(() => {});
   }
 
   async function handleSlashCommand(raw: string) {
@@ -595,38 +614,108 @@ export default function ChatScreen() {
     ? allMessages.filter((message) => message.content.toLowerCase().includes(msgSearchQuery.trim().toLowerCase()))
     : allMessages;
 
-  function handleAssistantLike() {
-    pulseEyeExpression("happy", "neutral", 1400);
+  // ── Feedback em mensagens da Bee ──
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, FeedbackType>>({});
+  const [feedbackBusy, setFeedbackBusy] = useState<Record<string, boolean>>({});
+  const [feedbackToast, setFeedbackToast] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
+  const [draftModal, setDraftModal] = useState<{ messageId: string | null; content: string } | null>(null);
+  const [draftSubmitting, setDraftSubmitting] = useState(false);
+
+  function pushFeedbackToast(tone: "success" | "info" | "error", text: string) {
+    setFeedbackToast({ tone, text });
+    setTimeout(() => setFeedbackToast(null), 3000);
   }
 
-  function handleAssistantDislike() {
-    addMessage({
-      id: `feedback-${Date.now()}`,
-      role: "assistant",
-      content: "Anotado. Essa resposta saiu meio pão de ontem, vou caprichar mais na próxima.",
-      createdAt: new Date().toISOString(),
-      metadata: JSON.stringify({ feedback: "dislike" }),
-    });
-    pulseEyeExpression("curious", "neutral", 1800);
-  }
+  // Sincroniza estado dos botões ao carregar mensagens
+  useEffect(() => {
+    const ids = chatMessages
+      .filter((m) => m.role === "assistant" && !m.id.startsWith("temp-") && !m.id.startsWith("feedback-") && !m.id.startsWith("shared-") && m.id !== "streaming")
+      .map((m) => m.id);
+    if (ids.length === 0) return;
+    api.post("/api/messages/feedback/batch", { ids })
+      .then((r) => {
+        const rows = Array.isArray(r.data) ? r.data : [];
+        setFeedbackMap((prev) => {
+          const next = { ...prev };
+          for (const row of rows) next[row.messageId] = row.feedbackType;
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [chatMessages.length]);
 
-  async function handleAssistantShare(content: string) {
+  async function submitFeedback(messageId: string, type: FeedbackType, reason?: string) {
+    if (feedbackBusy[messageId]) return;
+    setFeedbackBusy((p) => ({ ...p, [messageId]: true }));
+    setFeedbackMap((p) => ({ ...p, [messageId]: type }));
     try {
-      await api.post("/api/posts", { content: `Mensagem da Bee:\n\n${content}`, imageUrl: null });
-      addMessage({
-        id: `shared-${Date.now()}`,
-        role: "assistant",
-        content: "Compartilhei isso no Feed. Dei uma ajeitada para ficar com cara de post.",
-        createdAt: new Date().toISOString(),
-        metadata: JSON.stringify({ sharedToFeed: true }),
-      });
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-    } catch {
-      try {
-        await Share.share({ message: content });
-      } catch {
-        Alert.alert("Não consegui compartilhar", "Tente novamente em instantes.");
+      await api.post(`/api/messages/${messageId}/feedback`, { type, reason });
+      if (type === "like") {
+        pulseEyeExpression("happy", "neutral", 1400);
+        pushFeedbackToast("success", "A Bee vai lembrar que esse tipo de resposta foi útil 💛");
+      } else {
+        const label = DISLIKE_REASONS.find((r) => r.value === reason)?.label;
+        pulseEyeExpression("curious", "neutral", 1400);
+        pushFeedbackToast("info", label
+          ? `Obrigada pelo feedback (${label.toLowerCase()}). Vou tentar melhorar nas próximas.`
+          : "Obrigada pelo feedback. Vou tentar melhorar nas próximas respostas.");
       }
+    } catch {
+      setFeedbackMap((p) => {
+        const next = { ...p };
+        delete next[messageId];
+        return next;
+      });
+      pushFeedbackToast("error", "Não consegui salvar seu feedback agora.");
+    } finally {
+      setFeedbackBusy((p) => ({ ...p, [messageId]: false }));
+    }
+  }
+
+  async function undoFeedback(messageId: string) {
+    if (feedbackBusy[messageId]) return;
+    const previous = feedbackMap[messageId];
+    setFeedbackBusy((p) => ({ ...p, [messageId]: true }));
+    setFeedbackMap((p) => {
+      const next = { ...p };
+      delete next[messageId];
+      return next;
+    });
+    try {
+      await api.delete(`/api/messages/${messageId}/feedback`);
+      pushFeedbackToast("info", "Feedback desfeito.");
+    } catch {
+      if (previous) setFeedbackMap((p) => ({ ...p, [messageId]: previous }));
+      pushFeedbackToast("error", "Não consegui desfazer agora.");
+    } finally {
+      setFeedbackBusy((p) => ({ ...p, [messageId]: false }));
+    }
+  }
+
+  async function publishDraft(data: { sourceMessageId: string | null; title: string; content: string; category: string | null; hashtags: string; privacy: "public" | "friends" | "private"; publishNow: boolean }) {
+    setDraftSubmitting(true);
+    try {
+      const draftRes = await api.post("/api/feed-drafts", {
+        sourceMessageId: data.sourceMessageId,
+        title: data.title,
+        content: data.content,
+        category: data.category,
+        hashtags: data.hashtags,
+        privacy: data.privacy,
+      });
+      const draft = draftRes.data;
+      if (data.publishNow) {
+        await api.post(`/api/feed-drafts/${draft.id}/publish`, {});
+        pushFeedbackToast("success", "Publicado no Feed 🐝");
+        queryClient.invalidateQueries({ queryKey: ["feed"] });
+      } else {
+        pushFeedbackToast("success", "Rascunho salvo.");
+      }
+      setDraftModal(null);
+    } catch {
+      pushFeedbackToast("error", "Não consegui enviar para o Feed agora.");
+    } finally {
+      setDraftSubmitting(false);
     }
   }
 
@@ -794,9 +883,9 @@ export default function ChatScreen() {
       ) : null}
 
       <KeyboardAvoidingView
-        style={[styles.chatArea, { paddingTop: 0, paddingBottom: isKeyboardVisible ? 6 : Platform.OS === "ios" ? 86 : 76 }]}
+        style={styles.chatArea}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        keyboardVerticalOffset={0}
       >
         {allMessages.length === 0 ? (
           <View style={styles.emptyState}>
@@ -813,9 +902,10 @@ export default function ChatScreen() {
               if (rawMeta.appTip === true) {
                 return <AppTipCard content={item.content} createdAt={item.createdAt} styles={styles} />;
               }
-              if (rawMeta.type === "sponsored") {
+              if (rawMeta.type === "sponsored" || rawMeta.type === "sponsored_group") {
                 return (
-                  <SponsoredChatCard
+                  <AdMobSmartAdCard
+                    messageId={item.id}
                     meta={rawMeta as unknown as SponsoredMessageMeta}
                     onHide={(adId) => handleSponsoredHide(item.id, adId)}
                     onNotRelevant={(adId) => handleSponsoredNotRelevant(item.id, adId)}
@@ -831,21 +921,19 @@ export default function ChatScreen() {
                     createdAt={item.createdAt}
                     userName={currentUserName}
                     userAvatarUrl={currentUserAvatarUrl}
-                    actions={item.role === "assistant" && item.id !== "streaming" ? (
-                      <View style={styles.assistantActionRow}>
-                        <TouchableOpacity style={styles.assistantActionBtn} onPress={handleAssistantLike}>
-                          <Feather name="thumbs-up" size={13} color={colors.muted} />
-                          <Text style={styles.assistantActionText}>Curti</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.assistantActionBtn} onPress={handleAssistantDislike}>
-                          <Feather name="thumbs-down" size={13} color={colors.muted} />
-                          <Text style={styles.assistantActionText}>Não curti</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.assistantActionBtn} onPress={() => handleAssistantShare(item.content)}>
-                          <Feather name="share-2" size={13} color={colors.muted} />
-                          <Text style={styles.assistantActionText}>Feed</Text>
-                        </TouchableOpacity>
-                      </View>
+                    repliedToMessageContent={item.repliedToMessageContent}
+                    repliedToMessageRole={item.repliedToMessageRole}
+                    onReply={() => handleSwipeReply(item)}
+                    actions={item.role === "assistant" && item.id !== "streaming" && !item.id.startsWith("temp-") && !item.id.startsWith("feedback-") && !item.id.startsWith("shared-") ? (
+                      <MessageFeedback
+                        current={feedbackMap[item.id] ?? null}
+                        busy={!!feedbackBusy[item.id]}
+                        colors={colors}
+                        onLike={() => submitFeedback(item.id, "like")}
+                        onDislike={(reason) => submitFeedback(item.id, "dislike", reason)}
+                        onUndo={() => undoFeedback(item.id)}
+                        onSendToFeed={() => setDraftModal({ messageId: item.id, content: item.content })}
+                      />
                     ) : null}
                   />
                   {isConnectionRequestMeta(meta) ? <ConnectionRequestCard styles={styles} pending={resolveConnection.isPending} meta={meta} onAccept={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "accept" })} onReject={() => resolveConnection.mutate({ messageId: item.id, connectionId: meta.connectionId, decision: "reject" })} /> : null}
@@ -938,7 +1026,7 @@ export default function ChatScreen() {
         )}
 
         {isRecording || isTranscribing ? (
-          <View style={[styles.recordingRow, isKeyboardVisible && styles.composerKeyboard]}>
+          <View style={[styles.recordingRow, { marginBottom: isKeyboardVisible ? 6 : tabBarHeight + 4 }]}>
             {/* Cancel — trash icon */}
             <TouchableOpacity
               onPress={handleCancelRecording}
@@ -981,7 +1069,28 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={[styles.inputRow, isKeyboardVisible && styles.composerKeyboard]}>
+          <>
+          {selectedReplyMessage ? (
+            <View style={[styles.replyComposerPreview, { marginBottom: isKeyboardVisible ? 6 : 4 }]}>
+              <View style={styles.replyComposerBar} />
+              <View style={styles.replyComposerContent}>
+                <Text style={styles.replyComposerLabel}>
+                  Respondendo à {selectedReplyMessage.role === "assistant" ? "Bee" : currentUserName}
+                </Text>
+                <Text style={styles.replyComposerText} numberOfLines={2}>
+                  {selectedReplyMessage.content}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.replyComposerClose}
+                onPress={handleCancelReply}
+                accessibilityLabel="Cancelar resposta"
+              >
+                <Feather name="x" size={18} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <View style={[styles.inputRow, { marginBottom: isKeyboardVisible ? 8 : tabBarHeight + 4 }]}>
             <TextInput
               style={styles.input}
               value={inputValue}
@@ -1001,9 +1110,39 @@ export default function ChatScreen() {
               <Feather name="send" size={18} color="#1A1A1A" />
             </TouchableOpacity>
           </View>
+          </>
         )}
 
       </KeyboardAvoidingView>
+
+      <SendToFeedModal
+        open={!!draftModal}
+        sourceMessageId={draftModal?.messageId ?? null}
+        sourceContent={draftModal?.content ?? ""}
+        submitting={draftSubmitting}
+        colors={colors}
+        onCancel={() => setDraftModal(null)}
+        onPublish={publishDraft}
+      />
+
+      {feedbackToast ? (
+        <View
+          style={[
+            styles.feedbackToast,
+            feedbackToast.tone === "success" && { backgroundColor: "#10b981" },
+            feedbackToast.tone === "error" && { backgroundColor: colors.destructive },
+            feedbackToast.tone === "info" && { backgroundColor: colors.primary },
+          ]}
+          accessibilityLiveRegion="polite"
+        >
+          <Feather
+            name={feedbackToast.tone === "success" ? "check-circle" : feedbackToast.tone === "error" ? "alert-circle" : "info"}
+            size={14}
+            color="#fff"
+          />
+          <Text style={styles.feedbackToastText}>{feedbackToast.text}</Text>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1189,6 +1328,24 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     notificationTitle: { fontFamily: FONTS.sans, fontSize: 12, fontWeight: "700", color: colors.foreground },
     notificationBody: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 18, color: colors.foreground },
     chatArea: { flex: 1 },
+    feedbackToast: {
+      position: "absolute",
+      bottom: 100,
+      left: 16,
+      right: 16,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      shadowColor: "#000",
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 6,
+    },
+    feedbackToastText: { flex: 1, fontFamily: FONTS.sans, fontSize: 13, fontWeight: "700", color: "#fff" },
     emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
     emptyText: { fontFamily: FONTS.sans, fontSize: 16, color: colors.muted, textAlign: "center", lineHeight: 26 },
     dateChipWrap: { alignItems: "center", marginBottom: 18 },
@@ -1206,14 +1363,35 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     welcomeActionsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4 },
     welcomeActionBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.primary + "1A", borderWidth: 1, borderColor: colors.primary + "66" },
     welcomeActionText: { fontFamily: FONTS.sans, fontSize: 13, fontWeight: "600", color: colors.primaryDark },
-    inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 6, paddingVertical: 5, gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
-    composerKeyboard: { marginBottom: 4 },
+    inputRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 14, paddingHorizontal: 6, paddingVertical: 5, gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.card + "F2", shadowColor: "#4B3508", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 22, elevation: 12 },
+    replyComposerPreview: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 16,
+      backgroundColor: colors.card + "F6",
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: "#4B3508",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.10,
+      shadowRadius: 14,
+      elevation: 6,
+    },
+    replyComposerBar: { width: 3, alignSelf: "stretch", borderRadius: 999, backgroundColor: colors.primary, marginRight: 10 },
+    replyComposerContent: { flex: 1, minWidth: 0 },
+    replyComposerLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "800", color: colors.primaryDark, marginBottom: 2 },
+    replyComposerText: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 17, color: colors.foreground },
+    replyComposerClose: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondary },
+    composerKeyboard: {},
     input: { flex: 1, backgroundColor: "transparent", paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontFamily: FONTS.sans, color: colors.foreground, maxHeight: 110 },
     sendButton: { minWidth: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.24, shadowRadius: 14, elevation: 6 },
     sendButtonDisabled: { opacity: 0.4 },
     micButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
     micButtonRecording: { backgroundColor: colors.destructive },
-    recordingRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 24, backgroundColor: colors.card, minHeight: 64 },
+    recordingRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 24, backgroundColor: colors.card, minHeight: 64 },
     recCancelBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
     recInfo: { flexDirection: "row", alignItems: "center", gap: 6 },
     recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.destructive },

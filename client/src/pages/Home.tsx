@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Plus, MessageCircle, Globe, UserPlus, Heart, Users, X, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon, ThumbsUp, ThumbsDown, Share2 } from "lucide-react";
+import { Send, Plus, MessageCircle, Globe, UserPlus, Heart, Users, X, ChevronRight, Settings, Camera, Moon, Sun, MessageSquare, Users2, LayoutGrid, RefreshCw, Search, Hexagon } from "lucide-react";
+import { MessageFeedback, type FeedbackType, DISLIKE_REASONS } from "@/features/home/chat/MessageFeedback";
+import { SendToFeedModal } from "@/features/home/chat/SendToFeedModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiFetch, getApiErrorMessage } from "@/features/home/shared/api";
 import { AuthScreen } from "@/features/home/auth/AuthScreen";
@@ -26,13 +28,13 @@ import { applyTheme, onThemeChange, readTheme, resolveInitialTheme, ThemeMode } 
 import { fileToCompressedDataUrl, fileToDataUrl, FEED_IMAGE_ACCEPT, isAcceptedFeedImage } from "@/lib/image";
 import NewsCard from "@/components/NewsCard";
 import CommunityPostCard from "@/components/CommunityPostCard";
-import { SponsoredChatCard } from "@/components/SponsoredChatCard";
+import { AdMobSmartAdCard } from "@/components/AdMobSmartAdCard";
 import { ResearchResultCard, ResearchLoadingState, ResearchSourceBadge } from "@/components/ResearchResultCard";
 import { WorkoutSuggestionCard, type WorkoutSuggestionPlan } from "@/components/WorkoutSuggestionCard";
 import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ResearchResult, ResearchMeta } from "@/features/home/types";
 import {
   generateBeeAdIntroMessage,
-  getEligibleAd,
+  getEligibleAds,
   hideAd,
   incrementMessageCount,
   loadAdPreferences,
@@ -80,6 +82,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [selectedReplyMessage, setSelectedReplyMessage] = useState<Message | null>(null);
   const [eyeExpression, setEyeExpression] = useState<BeeEyesExpression>("neutral");
   const [eyeEvent, setEyeEvent] = useState<BeeEyesEvent | null>(null);
   const [eyeInputFocused, setEyeInputFocused] = useState(false);
@@ -216,20 +219,51 @@ export default function Home() {
     const recentMsgs = messages.slice(-4).map((m) => ({ role: m.role, content: m.content }));
     const contextTopics = messages.slice(-4).flatMap((m) => m.content.toLowerCase().split(/\s+/).slice(0, 10));
 
-    const ad = getEligibleAd(userForAds, contextTopics, recentMsgs);
-    if (!ad) { incrementMessageCount(); return; }
+    const ads = getEligibleAds(userForAds, contextTopics, recentMsgs, 3);
+    if (ads.length === 0) { incrementMessageCount(); return; }
 
     const introMsg = generateBeeAdIntroMessage();
     const prefs = loadAdPreferences();
-    const sponsoredMeta: SponsoredMessageMeta = {
-      type: "sponsored",
-      adId: ad.id,
-      beeIntroMessage: introMsg,
-      isPersonalized: prefs.allowPersonalizedAds,
-      ad,
-    };
-    recordAdView(ad.id);
-    injectAssistantMessage(introMsg, sponsoredMeta);
+    void (async () => {
+      try {
+        const res = await fetch("/api/ad-impressions/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            anchorMessageId: lastMsg.id,
+            adId: ads[0].id,
+            beeIntroMessage: introMsg,
+            isPersonalized: prefs.allowPersonalizedAds,
+            ad: ads[0],
+            ads,
+            groupTitle: ads.length > 1 ? "Anúncios que podem te interessar" : undefined,
+            layoutType: ads.length > 1 ? "carousel" : undefined,
+            source: "web_chat",
+          }),
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const persisted = data?.message;
+        if (!persisted?.id) return;
+
+        for (const ad of ads) recordAdView(ad.id);
+        const msg: Message = {
+          id: persisted.id,
+          role: "assistant",
+          content: persisted.content,
+          timestamp: new Date(persisted.createdAt),
+          metadata: persisted.metadata,
+        };
+        setMessages((prev) => prev.some((item) => item.id === msg.id) ? prev : [...prev, msg]);
+        isNearBottomRef.current = true;
+        setEyeExpression("attentive");
+        pulseEyeEvent("message-received", 1500);
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      } catch {
+        // Nunca exibe anúncio que não foi persistido.
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, isLoading, user]);
 
@@ -463,6 +497,25 @@ export default function Home() {
       });
       setUser(updatedUser);
       setSettingsMessage(nextValue ? "Navegação anônima ativada." : "Navegação anônima desativada.");
+    } catch (error) {
+      setSettingsMessage(getApiErrorMessage(error, "Não foi possível atualizar sua preferência agora."));
+    }
+  }, [token, user]);
+
+  const handleStrangerMessagesToggle = useCallback(async (nextValue: boolean) => {
+    if (!token || !user) return;
+    try {
+      const updatedUser = await apiFetch<User>("/api/me/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ allowMessagesFromStrangers: nextValue }),
+      });
+      setUser(updatedUser);
+      setSettingsMessage(
+        nextValue
+          ? "Você passa a receber DMs de qualquer pessoa."
+          : "Apenas amigos conectados podem te enviar DMs agora.",
+      );
     } catch (error) {
       setSettingsMessage(getApiErrorMessage(error, "Não foi possível atualizar sua preferência agora."));
     }
@@ -1103,7 +1156,7 @@ export default function Home() {
     setMessages([{
       id: "welcome",
       role: "assistant",
-      content: `Olá ${name}! Eu sou a BeeEyes 🐝, sua melhor amiga AI. Como posso te ajudar hoje?`,
+      content: `Oi, ${name}! Eu sou a Bee, sua assistente digital de rotina e evolução. Quer organizar seu dia, revisar seus treinos ou continuar de onde paramos?`,
       timestamp: new Date(),
     }]);
     setEyeExpression("happy");
@@ -1182,10 +1235,20 @@ export default function Home() {
       return;
     }
 
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date() };
+    const replyTarget = selectedReplyMessage;
+    const replyPayload = replyTarget
+      ? {
+          repliedToMessageId: replyTarget.id,
+          repliedToMessageContent: replyTarget.content.slice(0, 1000),
+          repliedToMessageRole: replyTarget.role,
+          repliedToMessageCreatedAt: replyTarget.timestamp instanceof Date ? replyTarget.timestamp.toISOString() : replyTarget.repliedToMessageCreatedAt ?? null,
+        }
+      : {};
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content, timestamp: new Date(), ...replyPayload };
     setMessages((prev) => [...prev, userMsg]);
     isNearBottomRef.current = true;
     setInputValue("");
+    setSelectedReplyMessage(null);
     setEyeIsTyping(false);
     if (typingTimeoutRef.current) {
       window.clearTimeout(typingTimeoutRef.current);
@@ -1224,7 +1287,7 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, ...replyPayload }),
       });
 
       if (res.status === 429) {
@@ -1601,23 +1664,131 @@ export default function Home() {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }
 
-  const handleAssistantDislike = () => {
-    injectAssistantMessage("Anotado. Essa resposta foi uma torrada sem manteiga, eu melhoro a próxima.");
-  };
+  // ── Feedback em mensagens da Bee (Curtir / Não curti / Enviar para o Feed) ──
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, FeedbackType>>({});
+  const [feedbackBusy, setFeedbackBusy] = useState<Record<string, boolean>>({});
+  const [feedbackToast, setFeedbackToast] = useState<{ tone: "success" | "info" | "error"; text: string } | null>(null);
+  const [draftModal, setDraftModal] = useState<{ messageId: string | null; content: string } | null>(null);
+  const [draftSubmitting, setDraftSubmitting] = useState(false);
 
-  const handleShareAssistantToFeed = async (content: string) => {
+  function pushFeedbackToast(tone: "success" | "info" | "error", text: string) {
+    setFeedbackToast({ tone, text });
+    window.setTimeout(() => setFeedbackToast(null), 3000);
+  }
+
+  // Sincroniza estado dos botões ao carregar mensagens
+  useEffect(() => {
+    const assistantIds = messages.filter((m) => m.role === "assistant" && !m.id.startsWith("temp-") && !m.id.startsWith("feedback-") && !m.id.startsWith("shared-")).map((m) => m.id);
+    if (!token || assistantIds.length === 0) return;
+    fetch("/api/messages/feedback/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ ids: assistantIds }),
+    })
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows: Array<{ messageId: string; feedbackType: FeedbackType }>) => {
+        if (!Array.isArray(rows)) return;
+        setFeedbackMap((prev) => {
+          const next = { ...prev };
+          for (const r of rows) next[r.messageId] = r.feedbackType;
+          return next;
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, token]);
+
+  const submitFeedback = async (messageId: string, type: FeedbackType, reason?: string) => {
+    if (feedbackBusy[messageId]) return;
+    setFeedbackBusy((p) => ({ ...p, [messageId]: true }));
+    // Optimistic
+    setFeedbackMap((p) => ({ ...p, [messageId]: type }));
     try {
-      const res = await fetch("/api/posts", {
+      const res = await fetch(`/api/messages/${messageId}/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: `Mensagem da Bee:\n\n${content}`, imageUrl: null }),
+        body: JSON.stringify({ type, reason }),
       });
-      if (!res.ok) throw new Error("share failed");
-      injectAssistantMessage("Compartilhei no Feed. Já deixei com cara de post, sem perder o tempero.");
-      loadFeed();
+      if (!res.ok) throw new Error("feedback failed");
+      if (type === "like") {
+        pushFeedbackToast("success", "A Bee vai lembrar que esse tipo de resposta foi útil 💛");
+      } else {
+        const label = DISLIKE_REASONS.find((r) => r.value === reason)?.label;
+        pushFeedbackToast("info", label
+          ? `Obrigada pelo feedback (${label.toLowerCase()}). Vou tentar melhorar nas próximas.`
+          : "Obrigada pelo feedback. Vou tentar melhorar nas próximas respostas.");
+      }
     } catch {
-      if (navigator.share) navigator.share({ text: content }).catch(() => {});
-      else alert("Não foi possível compartilhar agora.");
+      // rollback
+      setFeedbackMap((p) => {
+        const next = { ...p };
+        delete next[messageId];
+        return next;
+      });
+      pushFeedbackToast("error", "Não consegui salvar seu feedback agora.");
+    } finally {
+      setFeedbackBusy((p) => ({ ...p, [messageId]: false }));
+    }
+  };
+
+  const undoFeedback = async (messageId: string) => {
+    if (feedbackBusy[messageId]) return;
+    const previous = feedbackMap[messageId];
+    setFeedbackBusy((p) => ({ ...p, [messageId]: true }));
+    setFeedbackMap((p) => {
+      const next = { ...p };
+      delete next[messageId];
+      return next;
+    });
+    try {
+      await fetch(`/api/messages/${messageId}/feedback`, { method: "DELETE", headers: authHeaders() });
+      pushFeedbackToast("info", "Feedback desfeito.");
+    } catch {
+      if (previous) setFeedbackMap((p) => ({ ...p, [messageId]: previous }));
+      pushFeedbackToast("error", "Não consegui desfazer agora.");
+    } finally {
+      setFeedbackBusy((p) => ({ ...p, [messageId]: false }));
+    }
+  };
+
+  const openDraftModal = (messageId: string, content: string) => {
+    setDraftModal({ messageId, content });
+  };
+
+  const publishDraft = async (data: { sourceMessageId: string | null; title: string; content: string; category: string | null; hashtags: string; privacy: "public" | "friends" | "private"; publishNow: boolean }) => {
+    setDraftSubmitting(true);
+    try {
+      const draftRes = await fetch("/api/feed-drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          sourceMessageId: data.sourceMessageId,
+          title: data.title,
+          content: data.content,
+          category: data.category,
+          hashtags: data.hashtags,
+          privacy: data.privacy,
+        }),
+      });
+      if (!draftRes.ok) throw new Error("draft failed");
+      const draft = await draftRes.json();
+
+      if (data.publishNow) {
+        const pubRes = await fetch(`/api/feed-drafts/${draft.id}/publish`, {
+          method: "POST",
+          headers: authHeaders(),
+        });
+        if (!pubRes.ok) throw new Error("publish failed");
+        pushFeedbackToast("success", "Publicado no Feed 🐝");
+        loadFeed();
+      } else {
+        pushFeedbackToast("success", "Rascunho salvo.");
+      }
+      setDraftModal(null);
+    } catch {
+      pushFeedbackToast("error", "Não consegui enviar para o Feed agora.");
+    } finally {
+      setDraftSubmitting(false);
     }
   };
 
@@ -1926,24 +2097,21 @@ export default function Home() {
         inputRef={inputRef}
         inputValue={inputValue}
         isLoading={isLoading}
+        selectedReplyMessage={selectedReplyMessage}
         messageActionsRenderer={(message) => {
           if (message.role !== "assistant") return null;
-          const baseActions = (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => pulseEyeEvent("message-received", 900)}>
-                <ThumbsUp className="h-3 w-3" />
-                Curti
-              </button>
-              <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground" onClick={handleAssistantDislike}>
-                <ThumbsDown className="h-3 w-3" />
-                Não curti
-              </button>
-              <button type="button" className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground" onClick={() => handleShareAssistantToFeed(message.content)}>
-                <Share2 className="h-3 w-3" />
-                Feed
-              </button>
-            </div>
-          );
+          // Pula mensagens sintéticas (ex.: feedback, shared, streaming) sem id de banco
+          const isPersisted = !!message.id && !message.id.startsWith("temp-") && !message.id.startsWith("feedback-") && !message.id.startsWith("shared-") && message.id !== "streaming";
+          const baseActions = isPersisted ? (
+            <MessageFeedback
+              current={feedbackMap[message.id] ?? null}
+              busy={!!feedbackBusy[message.id]}
+              onLike={() => { pulseEyeEvent("message-received", 900); submitFeedback(message.id, "like"); }}
+              onDislike={(reason) => submitFeedback(message.id, "dislike", reason)}
+              onUndo={() => undoFeedback(message.id)}
+              onSendToFeed={() => openDraftModal(message.id, message.content)}
+            />
+          ) : null;
           const meta = getMessageMeta(message.metadata);
           if (!meta) return baseActions;
 
@@ -2060,9 +2228,9 @@ export default function Home() {
         }}
         messageRenderer={(message) => {
           const meta = getMessageMeta(message.metadata);
-          if (meta?.type === "sponsored") {
+          if (meta?.type === "sponsored" || meta?.type === "sponsored_group") {
             return (
-              <SponsoredChatCard
+              <AdMobSmartAdCard
                 messageId={message.id}
                 meta={meta as SponsoredMessageMeta}
                 onHide={(adId) => handleSponsoredHide(message.id, adId)}
@@ -2074,6 +2242,11 @@ export default function Home() {
           return null;
         }}
         onToggleSettings={() => setShowSettingsScreen(true)}
+        onReplyToMessage={(message) => {
+          setSelectedReplyMessage(message);
+          setTimeout(() => inputRef.current?.focus(), 50);
+        }}
+        onCancelReply={() => setSelectedReplyMessage(null)}
         onToggleSearch={() => { setShowMsgSearch((value) => !value); setMsgSearchQuery(""); }}
         onSearchQueryChange={setMsgSearchQuery}
         onScrollStateChange={() => {
@@ -2165,6 +2338,7 @@ export default function Home() {
         themeMode={themeMode}
         settingsMessage={settingsMessage}
         anonymousProfileVisitsEnabled={Boolean(user?.anonymousProfileVisitsEnabled)}
+        allowMessagesFromStrangers={user?.allowMessagesFromStrangers !== false}
         authHeaders={authHeaders}
         onClose={() => setShowSettingsScreen(false)}
         onUserUpdate={setUser}
@@ -2172,6 +2346,7 @@ export default function Home() {
         onRemoveProfilePhoto={handleRemoveProfilePhoto}
         onThemeSelect={handleThemeSelect}
         onAnonymousProfileVisitsToggle={handleAnonymousProfileVisitsToggle}
+        onStrangerMessagesToggle={handleStrangerMessagesToggle}
         onLogout={handleLogout}
       />
 
@@ -2201,6 +2376,31 @@ export default function Home() {
           onDismiss={dismissDailyBriefing}
         />
       )}
+
+      <SendToFeedModal
+        open={!!draftModal}
+        sourceMessageId={draftModal?.messageId ?? null}
+        sourceContent={draftModal?.content ?? ""}
+        submitting={draftSubmitting}
+        onCancel={() => setDraftModal(null)}
+        onPublish={publishDraft}
+      />
+
+      {feedbackToast ? (
+        <div
+          className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] rounded-xl border shadow-lg px-3 py-2.5 text-xs font-medium backdrop-blur-md ${
+            feedbackToast.tone === "success"
+              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+              : feedbackToast.tone === "error"
+              ? "border-destructive/40 bg-destructive/15 text-destructive"
+              : "border-primary/40 bg-primary/15 text-primary"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {feedbackToast.text}
+        </div>
+      ) : null}
     </div>
   );
 }

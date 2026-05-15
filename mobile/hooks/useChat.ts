@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { API_URL_RAW, getApiErrorMessage } from "../lib/api";
 import { NewsDigestMeta } from "../lib/social";
 import type { ResearchResult } from "../components/ResearchResultCard";
+import type { Message } from "../stores/chatStore";
 
 function cleanAIText(text: string): string {
   return text
@@ -22,8 +23,16 @@ export function useChat() {
   const { setEyeExpression, showAchievement } = useUIStore();
   const queryClient = useQueryClient();
 
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, repliedTo?: Pick<Message, "id" | "role" | "content" | "createdAt"> | null) {
     if (!content.trim()) return;
+    const replyPayload = repliedTo
+      ? {
+          repliedToMessageId: repliedTo.id,
+          repliedToMessageContent: repliedTo.content.slice(0, 1000),
+          repliedToMessageRole: repliedTo.role,
+          repliedToMessageCreatedAt: repliedTo.createdAt,
+        }
+      : {};
 
     addMessage({
       id: Date.now().toString(),
@@ -31,6 +40,7 @@ export function useChat() {
       content,
       createdAt: new Date().toISOString(),
       metadata: null,
+      ...replyPayload,
     });
 
     setIsTyping(true);
@@ -49,7 +59,7 @@ export function useChat() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, ...replyPayload }),
         signal: controller.signal,
       });
 

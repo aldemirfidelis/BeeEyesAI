@@ -182,7 +182,7 @@ export default function RegisterScreen() {
   const strength = passwordStrength(password);
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient colors={["#FFF3D0", "#FFD700", "#F5C842"]} style={styles.hero}>
         <Animated.View style={[styles.beeContainer, floatStyle]}>
           <BeeEyes expression="excited" size={100} />

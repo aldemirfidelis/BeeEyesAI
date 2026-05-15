@@ -1,16 +1,16 @@
 import { useRef, useCallback } from "react";
+import { api } from "@mobile/lib/api";
 import {
   loadAdPreferences,
   loadAdEngineState,
   saveAdEngineState,
-  getEligibleAd,
+  getEligibleAds,
   generateBeeAdIntroMessage,
   recordAdView,
   isSensitiveContext,
   extractTopicsFromMessages,
   type UserForAds,
 } from "../lib/adService";
-import type { SponsoredMessageMeta } from "../lib/ads";
 
 interface ChatMessage {
   id: string;
@@ -55,29 +55,35 @@ export function useAdEngine(user: UserForAds | null) {
           isSensitiveContext: sensitive,
         };
 
-        const ad = await getEligibleAd(user, context);
-        if (!ad) return;
-
-        await recordAdView(ad.id);
+        const ads = await getEligibleAds(user, context, 3);
+        if (ads.length === 0) return;
 
         const prefs = await loadAdPreferences();
         const isPersonalized = prefs.allowPersonalizedAds && prefs.consentGiven;
         const beeIntroMessage = generateBeeAdIntroMessage();
 
-        const meta: SponsoredMessageMeta = {
-          type: "sponsored",
-          adId: ad.id,
+        const response = await api.post("/api/ad-impressions/chat", {
+          anchorMessageId: lastMessageId,
+          adId: ads[0].id,
           beeIntroMessage,
           isPersonalized,
-          ad,
-        };
+          ad: ads[0],
+          ads,
+          groupTitle: ads.length > 1 ? "Anúncios que podem te interessar" : undefined,
+          layoutType: ads.length > 1 ? "carousel" : undefined,
+          source: "mobile_chat",
+        });
 
+        const persisted = response.data?.message;
+        if (!persisted?.id) return;
+
+        for (const ad of ads) await recordAdView(ad.id);
         addMessage({
-          id: `bee_ad_${Date.now()}`,
+          id: persisted.id,
           role: "assistant",
-          content: beeIntroMessage,
-          createdAt: new Date().toISOString(),
-          metadata: JSON.stringify(meta),
+          content: persisted.content,
+          createdAt: persisted.createdAt,
+          metadata: persisted.metadata,
         });
       } catch {
         // Never crash the chat because of an ad error

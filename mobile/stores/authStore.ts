@@ -12,6 +12,7 @@ interface UserBasic {
   level: number;
   xp: number;
   anonymousProfileVisitsEnabled?: boolean;
+  allowMessagesFromStrangers?: boolean;
   bio?: string | null;
   language?: string;
   onboardingCompleted?: boolean;

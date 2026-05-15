@@ -1,11 +1,15 @@
 import { create } from "zustand";
 
-interface Message {
+export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
   metadata?: string | null;
+  repliedToMessageId?: string | null;
+  repliedToMessageContent?: string | null;
+  repliedToMessageRole?: "user" | "assistant" | null;
+  repliedToMessageCreatedAt?: string | null;
 }
 
 interface ChatState {

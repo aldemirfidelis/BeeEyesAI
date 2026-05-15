@@ -8,6 +8,8 @@ import { SettingsCard, SettingsRow, SectionLabel } from "./SettingsShell";
 interface PrivacySecurityCardProps {
   anonymousProfileVisitsEnabled: boolean;
   onAnonymousToggle: (next: boolean) => void;
+  allowMessagesFromStrangers: boolean;
+  onStrangerMessagesToggle: (next: boolean) => void;
   currentPassword: string;
   newPassword: string;
   setCurrentPassword: (v: string) => void;
@@ -21,6 +23,8 @@ export function PrivacySecurityCard(props: PrivacySecurityCardProps) {
   const {
     anonymousProfileVisitsEnabled,
     onAnonymousToggle,
+    allowMessagesFromStrangers,
+    onStrangerMessagesToggle,
     currentPassword,
     newPassword,
     setCurrentPassword,
@@ -68,8 +72,18 @@ export function PrivacySecurityCard(props: PrivacySecurityCardProps) {
         />
         <SettingsRow
           title="Mensagens de desconhecidos"
-          description="Em breve · Receber DMs de pessoas fora da sua rede"
-          trailing={<Switch checked={false} disabled aria-label="Mensagens de desconhecidos (em breve)" />}
+          description={
+            allowMessagesFromStrangers
+              ? "Qualquer pessoa pode te enviar DMs. Desligue para receber só de quem está na sua rede."
+              : "Apenas pessoas conectadas podem te enviar DMs."
+          }
+          trailing={
+            <Switch
+              checked={allowMessagesFromStrangers}
+              onCheckedChange={onStrangerMessagesToggle}
+              aria-label="Permitir mensagens de desconhecidos"
+            />
+          }
         />
       </SettingsCard>
 

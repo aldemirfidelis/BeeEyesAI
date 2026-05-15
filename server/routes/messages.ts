@@ -1,5 +1,5 @@
 ﻿import { Router, type Response } from "express";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { asyncHandler } from "../api/async-handler";
 import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
@@ -26,13 +26,15 @@ import { storage } from "../storage";
 import { runResearch, formatResultsForContext, type ResearchResult } from "../services/beeResearchService";
 import { classifyIntent, type SearchIntent } from "../services/searchIntentService";
 import { buildCalendarContextForAI } from "../services/calendarInfoService";
-import { calendarPreferences, healthProfiles, workoutPlans } from "../../shared/schema";
+import { calendarPreferences, healthProfiles, workoutPlans, moodEntries, userInterests } from "../../shared/schema";
 import {
   parseHealthIntent,
   buildFollowUpQuestion,
   buildHealthContextForAI,
   type HealthIntentResult,
 } from "../services/healthIntentService";
+import { buildBeePersonalizationContext, buildConversationContextUpdate } from "../services/beeContextService";
+import { filterVisibleSponsoredMessages } from "../services/adImpressionService";
 import {
   buildWorkoutPlan,
   type HealthGoal,
@@ -350,8 +352,9 @@ export function createMessagesRouter() {
   router.get("/api/messages", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 50, min: 1, max: 100 });
     const existing = await storage.getMessagesByUser(req.userId!, limit);
+    const visibleExisting = await filterVisibleSponsoredMessages(req.userId!, existing);
 
-    if (existing.length === 0) {
+    if (visibleExisting.length === 0) {
       const user = await storage.getUser(req.userId!);
       const firstName = (() => {
         const name = user?.displayName || user?.username || "";
@@ -390,7 +393,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
       return sendOk(res, [welcome]);
     }
 
-    return sendOk(res, existing);
+    return sendOk(res, visibleExisting);
   }));
 
   router.get("/api/score", requireAuth, asyncHandler(async (req, res) => {
@@ -465,7 +468,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
           id: `proactive-${message.id}`,
           category: "activity" as const,
           source: "proactive" as const,
-          title: "A Bee chamou sua atencao",
+          title: "A Bee chamou sua atenção",
           body: message.content,
           tone: "neutral" as const,
           createdAt: new Date(message.createdAt).toISOString(),
@@ -572,7 +575,14 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
 
   router.post("/api/chat", requireAuth, asyncHandler(async (req, res) => {
     const userId = req.userId!;
-    const { content, isSystem = false } = req.body ?? {};
+    const {
+      content,
+      isSystem = false,
+      repliedToMessageId,
+      repliedToMessageContent,
+      repliedToMessageRole,
+      repliedToMessageCreatedAt,
+    } = req.body ?? {};
 
     if (!content?.trim()) {
       return sendError(res, 400, "VALIDATION_ERROR", "Mensagem não pode ser vazia");
@@ -593,7 +603,19 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
 
     const now = new Date();
     const routineUntil = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const [user, personality, history, routineEvents, routineAlarms] = await Promise.all([
+    const [
+      user,
+      personality,
+      history,
+      routineEvents,
+      routineAlarms,
+      beeMemories,
+      beePreferences,
+      beeConversationContext,
+      messageFeedbackSummary,
+      recentMoodEntries,
+      wishlistInterests,
+    ] = await Promise.all([
       storage.getUser(userId),
       storage.getPersonality(userId),
       storage.getMessagesByUser(userId, 20),
@@ -619,14 +641,53 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
         .where(and(eq(alarmReminders.userId, userId), eq(alarmReminders.active, true), gte(alarmReminders.nextTriggerAt, now), lte(alarmReminders.nextTriggerAt, routineUntil)))
         .orderBy(alarmReminders.nextTriggerAt)
         .limit(10),
+      storage.getActiveUserMemories(userId, 18),
+      storage.getUserPreferences(userId, true),
+      storage.getBeeConversationContext(userId),
+      storage.getMessageFeedbackSummary(userId),
+      db.select()
+        .from(moodEntries)
+        .where(and(eq(moodEntries.userId, userId), gte(moodEntries.createdAt, new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000))))
+        .orderBy(desc(moodEntries.createdAt))
+        .limit(14)
+        .catch(() => []),
+      db.select({
+        interestName: userInterests.interestName,
+        category: userInterests.category,
+        score: userInterests.score,
+      })
+        .from(userInterests)
+        .where(and(eq(userInterests.userId, userId), eq(userInterests.active, true)))
+        .orderBy(desc(userInterests.score))
+        .limit(12)
+        .catch(() => []),
     ]);
 
     if (!user || !personality) {
       return sendError(res, 404, "NOT_FOUND", "Usuário não encontrado");
     }
 
+    const replyContext = typeof repliedToMessageContent === "string" && repliedToMessageContent.trim()
+      ? {
+          repliedToMessageId: typeof repliedToMessageId === "string" ? repliedToMessageId : null,
+          repliedToMessageContent: repliedToMessageContent.trim().slice(0, 1000),
+          repliedToMessageRole: repliedToMessageRole === "assistant" ? "assistant" : repliedToMessageRole === "user" ? "user" : null,
+          repliedToMessageCreatedAt: typeof repliedToMessageCreatedAt === "string" && !isNaN(new Date(repliedToMessageCreatedAt).getTime())
+            ? new Date(repliedToMessageCreatedAt)
+            : null,
+        }
+      : null;
+
     if (!isSystem) {
-      await storage.createMessage({ userId, role: "user", content });
+      await storage.createMessage({
+        userId,
+        role: "user",
+        content,
+        repliedToMessageId: replyContext?.repliedToMessageId ?? null,
+        repliedToMessageContent: replyContext?.repliedToMessageContent ?? null,
+        repliedToMessageRole: replyContext?.repliedToMessageRole ?? null,
+        repliedToMessageCreatedAt: replyContext?.repliedToMessageCreatedAt ?? null,
+      });
       await storage.incrementMessageCount(userId);
     }
 
@@ -682,6 +743,15 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
 
       storage.updateUserStreak(userId).catch(() => {});
       updatePersonalityFromMessage(userId, content, cleanText).catch(() => {});
+      storage.upsertBeeConversationContext({
+        userId,
+        ...buildConversationContextUpdate({
+          previous: beeConversationContext,
+          recentMessages: history,
+          userMessage: content,
+          assistantResponse: cleanText,
+        }),
+      }).catch(() => {});
 
       res.write(`data: ${JSON.stringify({ type: "done", cleanText, id: assistantMessage.id, metadata: assistantMessage.metadata ?? null })}\n\n`);
       res.end();
@@ -704,6 +774,21 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     const calendarContext = buildCalendarContextForAI(30, calPrefs?.state ?? user.city?.slice(0, 2) ?? null);
 
     const routineContext = formatRoutineContext(routineEvents, routineAlarms);
+    const replyRuntimeContext = replyContext
+      ? `\n## Mensagem especifica que o usuario esta respondendo\n- Autor original: ${replyContext.repliedToMessageRole === "assistant" ? "Bee" : "usuario"}\n- ID original: ${replyContext.repliedToMessageId ?? "nao informado"}\n- Criada em: ${replyContext.repliedToMessageCreatedAt ? replyContext.repliedToMessageCreatedAt.toISOString() : "nao informado"}\n- Trecho original: "${replyContext.repliedToMessageContent}"\n\nInterprete pronomes como "isso", "esse", "essa ideia", "faz assim" e "amanha" considerando essa mensagem respondida.`
+      : "";
+    const beePersonalizationContext = buildBeePersonalizationContext({
+      user,
+      personality,
+      memories: beeMemories,
+      preferences: beePreferences,
+      conversationContext: beeConversationContext,
+      feedbackSummary: messageFeedbackSummary,
+      moodEntries: recentMoodEntries,
+      wishlistInterests,
+      recentMessages: history,
+      userMessage: content,
+    });
 
     // ── Research: classify intent, run search, inject context into AI ─────────
     let researchResults: ResearchResult[] = [];
@@ -790,7 +875,7 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     // ── Stream AI response (with research + health context injected) ─────────
     let fullResponse = "";
     try {
-      const combinedContext = [routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
+      const combinedContext = [beePersonalizationContext, replyRuntimeContext, routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
       fullResponse = await streamChat(user, personality, chatHistory, content, (chunk) => {
         res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
       }, combinedContext);
@@ -945,6 +1030,15 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
 
     storage.updateUserStreak(userId).catch(() => {});
     updatePersonalityFromMessage(userId, content, cleanText).catch(() => {});
+    storage.upsertBeeConversationContext({
+      userId,
+      ...buildConversationContextUpdate({
+        previous: beeConversationContext,
+        recentMessages: history,
+        userMessage: content,
+        assistantResponse: cleanText,
+      }),
+    }).catch(() => {});
 
     res.write(`data: ${JSON.stringify({ type: "done", cleanText, id: assistantMessage.id, metadata: assistantMessage.metadata ?? null })}\n\n`);
     res.end();

@@ -6,6 +6,7 @@ import { badRequest, notFound } from "../api/errors";
 import { sendOk } from "../api/response";
 import { db } from "../db";
 import { requireAuth } from "../middleware/requireAuth";
+import { markAdImpressionsSaved } from "../services/adImpressionService";
 import {
   userInterests,
   wishlistEvents,
@@ -24,6 +25,8 @@ import {
 
 const addWishlistItemSchema = z.object({
   sourceAdId: z.string().trim().max(180).optional().nullable(),
+  sourceMessageId: z.string().trim().max(180).optional().nullable(),
+  sourceConversationId: z.string().trim().max(180).optional().nullable(),
   productId: z.string().trim().max(180).optional().nullable(),
   title: z.string().trim().min(1).max(180),
   description: z.string().trim().max(1200).optional().nullable(),
@@ -195,6 +198,11 @@ async function updateInterestsFromItem(userId: string, item: { title: string; ca
   }
 }
 
+function getMetadataString(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function buildRecommendationReason(category: string) {
   if (category === "Outros") return "Recomendado porque você salvou itens parecidos na sua Lista de Desejos.";
   return `Recomendado porque você salvou itens de ${category.toLowerCase()}.`;
@@ -247,6 +255,12 @@ export function createWishlistRouter() {
         .where(and(eq(wishlistItems.userId, req.userId!), isNull(wishlistItems.removedAt), or(...duplicateConditions as any)))
         .limit(1);
       if (existing) {
+        await markAdImpressionsSaved(req.userId!, {
+          sourceAdId: body.sourceAdId,
+          sourceMessageId: body.sourceMessageId,
+          adImpressionId: getMetadataString(body.metadata, "adImpressionId"),
+          wishlistItemId: existing.id,
+        });
         await recordWishlistEvent(req.userId!, existing.id, "duplicate_add_attempt", { sourceAdId: body.sourceAdId, productId: body.productId });
         return sendOk(res, { item: existing, alreadyExists: true, message: "Esse item já está na sua Lista de Desejos." });
       }
@@ -255,6 +269,8 @@ export function createWishlistRouter() {
     const [created] = await db.insert(wishlistItems).values({
       userId: req.userId!,
       sourceAdId: body.sourceAdId ?? null,
+      sourceMessageId: body.sourceMessageId ?? null,
+      sourceConversationId: body.sourceConversationId ?? null,
       productId: body.productId ?? null,
       title: body.title,
       description: body.description ?? null,
@@ -271,6 +287,12 @@ export function createWishlistRouter() {
     }).returning();
 
     await Promise.all([
+      markAdImpressionsSaved(req.userId!, {
+        sourceAdId: body.sourceAdId,
+        sourceMessageId: body.sourceMessageId,
+        adImpressionId: getMetadataString(body.metadata, "adImpressionId"),
+        wishlistItemId: created.id,
+      }),
       recordWishlistEvent(req.userId!, created.id, "added_to_wishlist", { sourceType: created.sourceType, category }),
       updateInterestsFromItem(req.userId!, { ...created, metadata: created.metadata }),
     ]);

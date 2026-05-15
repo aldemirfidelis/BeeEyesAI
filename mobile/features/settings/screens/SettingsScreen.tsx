@@ -28,6 +28,7 @@ import { applyAppLanguage } from "@mobile/lib/i18n";
 import { FONTS, getThemeColors, type ThemePreference } from "@mobile/lib/theme";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { useUIStore } from "@mobile/stores/uiStore";
+import { queryClient as globalQueryClient } from "@mobile/lib/queryClient";
 
 type MeResponse = {
   id: string;
@@ -38,6 +39,7 @@ type MeResponse = {
   bio?: string | null;
   language?: string;
   anonymousProfileVisitsEnabled?: boolean;
+  allowMessagesFromStrangers?: boolean;
   level?: number;
   xp?: number;
   currentStreak?: number;
@@ -90,6 +92,8 @@ export default function SettingsScreen() {
   }, [feedback]);
 
   const anonymousEnabled = Boolean(me?.anonymousProfileVisitsEnabled ?? authUser?.anonymousProfileVisitsEnabled);
+  // Default true (backwards compatible) — old records sem o campo são tratadas como "permite"
+  const strangerMessagesAllowed = (me?.allowMessagesFromStrangers ?? authUser?.allowMessagesFromStrangers) !== false;
   const nameChanged = (me?.displayName ?? "") !== displayName;
   const bioChanged = (me?.bio ?? "") !== bio;
   const nameLen = displayName.length;
@@ -99,7 +103,7 @@ export default function SettingsScreen() {
   const passwordValid = newPassword.length >= 8 && /[A-Za-z]/.test(newPassword) && /[0-9]/.test(newPassword);
 
   const updatePreferences = useMutation({
-    mutationFn: (payload: Partial<Pick<MeResponse, "anonymousProfileVisitsEnabled" | "displayName" | "bio" | "language">>) =>
+    mutationFn: (payload: Partial<Pick<MeResponse, "anonymousProfileVisitsEnabled" | "allowMessagesFromStrangers" | "displayName" | "bio" | "language">>) =>
       api.patch("/api/me/preferences", payload).then((response) => response.data as MeResponse),
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["me"], updatedUser);
@@ -192,6 +196,14 @@ export default function SettingsScreen() {
     updatePreferences.mutate({ anonymousProfileVisitsEnabled: value });
   }
 
+  function handleToggleStrangerMessages(value: boolean) {
+    // Optimistic update: feedback imediato no toggle enquanto a mutation roda
+    queryClient.setQueryData<MeResponse | undefined>(["me"], (prev) =>
+      prev ? { ...prev, allowMessagesFromStrangers: value } : prev,
+    );
+    updatePreferences.mutate({ allowMessagesFromStrangers: value });
+  }
+
   function handleLanguageSelect(nextLanguage: string) {
     setLanguage(nextLanguage);
     setSavingField("language");
@@ -221,7 +233,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
         {/* Header */}
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Voltar">
@@ -430,9 +442,27 @@ export default function SettingsScreen() {
               )}
             </View>
             <View style={styles.separator} />
+            <View style={styles.settingHeader}>
+              <View style={styles.settingHeaderCopy}>
+                <Text style={styles.rowTitle}>Mensagens de desconhecidos</Text>
+                <Text style={styles.smallText}>
+                  {strangerMessagesAllowed
+                    ? "Qualquer pessoa pode te enviar DMs. Desligue para receber só de quem está na sua rede."
+                    : "Apenas pessoas conectadas podem te enviar DMs."}
+                </Text>
+              </View>
+              <Switch
+                value={strangerMessagesAllowed}
+                onValueChange={handleToggleStrangerMessages}
+                disabled={updatePreferences.isPending}
+                thumbColor={strangerMessagesAllowed ? "#111827" : "#f4f4f5"}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                accessibilityLabel="Mensagens de desconhecidos"
+              />
+            </View>
+            <View style={styles.separator} />
             <FutureRow styles={styles} title="Conta privada" desc="Em breve · só amigos verão seu perfil" />
             <FutureRow styles={styles} title="Mostrar status online" desc="Em breve · amigos veem quando você está ativo" />
-            <FutureRow styles={styles} title="Mensagens de desconhecidos" desc="Em breve · DMs de pessoas fora da sua rede" />
           </SettingsCard>
 
           {/* Segurança */}
@@ -483,7 +513,7 @@ export default function SettingsScreen() {
           </SettingsCard>
 
           {/* Anúncios */}
-          <SettingsCard icon="shield" title="Anúncios" subtitle="Personalização e privacidade" styles={styles}>
+          <SettingsCard icon="target" title="Anúncios" subtitle="Personalização e privacidade" styles={styles}>
             <Text style={styles.smallText}>
               Anúncios discretos ajudam a manter a Bee gratuita. Você decide frequência, interesses e nível de
               personalização — sem rastreamento fora do app.
@@ -503,6 +533,36 @@ export default function SettingsScreen() {
             <TouchableOpacity style={styles.linkButton} onPress={() => setLegalModal("terms")}>
               <Text style={styles.linkButtonText}>{t("settings_terms_of_use")}</Text>
               <Feather name="chevron-right" size={16} color={colors.muted} />
+            </TouchableOpacity>
+          </SettingsCard>
+
+          {/* Conta — Sair */}
+          <SettingsCard
+            icon="user"
+            title="Conta"
+            subtitle={me?.email ? `Conectado como ${me.email}` : me?.username ? `Conectado como @${me.username}` : undefined}
+            styles={styles}
+          >
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={() =>
+                Alert.alert("Sair", "Tem certeza que deseja sair?", [
+                  { text: "Cancelar", style: "cancel" },
+                  {
+                    text: "Sair",
+                    style: "destructive",
+                    onPress: async () => {
+                      await useAuthStore.getState().logout();
+                      globalQueryClient.clear();
+                      router.replace("/(auth)/login" as never);
+                    },
+                  },
+                ])
+              }
+              accessibilityLabel="Sair da conta"
+            >
+              <Feather name="log-out" size={14} color={colors.destructive} />
+              <Text style={styles.logoutText}>Sair da conta</Text>
             </TouchableOpacity>
           </SettingsCard>
 
@@ -723,6 +783,14 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     // Link button
     linkButton: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingVertical: 12, paddingHorizontal: 12 },
     linkButtonText: { fontFamily: FONTS.sans, fontWeight: "700", color: colors.foreground, fontSize: 13 },
+
+    // Logout
+    logoutButton: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+      borderRadius: 12, borderWidth: 1.5, borderColor: colors.destructive + "55",
+      backgroundColor: colors.background, paddingVertical: 12,
+    },
+    logoutText: { fontFamily: FONTS.sans, fontWeight: "700", color: colors.destructive, fontSize: 13 },
 
     footerHint: { fontFamily: FONTS.sans, fontSize: 10, color: colors.muted, textAlign: "center", marginTop: 8 },
 

@@ -30,7 +30,7 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <LinearGradient colors={["#FFF8E7", "#FFE566", "#F5C842"]} style={styles.hero}>
         <BeeEyes expression="happy" size={92} />
         <Text style={styles.brandName}>Nova senha</Text>

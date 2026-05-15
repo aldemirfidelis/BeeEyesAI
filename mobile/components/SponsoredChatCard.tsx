@@ -12,6 +12,7 @@ import { WhyThisAdModal } from "./WhyThisAdModal";
 import type { SponsoredMessageMeta } from "@mobile/lib/ads";
 
 interface SponsoredChatCardProps {
+  messageId: string;
   meta: SponsoredMessageMeta;
   onHide: (adId: string) => void;
   onNotRelevant: (adId: string) => void;
@@ -19,6 +20,7 @@ interface SponsoredChatCardProps {
 }
 
 export function SponsoredChatCard({
+  messageId,
   meta,
   onHide,
   onNotRelevant,
@@ -33,12 +35,22 @@ export function SponsoredChatCard({
   const [hidden, setHidden] = useState(false);
   const [wishlistSaving, setWishlistSaving] = useState(false);
   const [wishlistFeedback, setWishlistFeedback] = useState("");
+  const [savedToWishlist, setSavedToWishlist] = useState(meta.addedToWishlist === true);
 
   const { ad, beeIntroMessage, isPersonalized, adId } = meta;
+  const expiresAt = meta.expiresAt ? new Date(meta.expiresAt) : null;
+  const availabilityLabel = savedToWishlist
+    ? "Salvo na Lista de Desejos."
+    : expiresAt && !Number.isNaN(expiresAt.getTime())
+      ? `Disponível até ${expiresAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${expiresAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Salve para não perder.`
+      : "Disponível por até 2 dias. Salve na Lista de Desejos para não perder.";
 
   if (hidden) return null;
 
   function handleCtaPress() {
+    if (meta.adImpressionId) {
+      api.post(`/api/ad-impressions/${meta.adImpressionId}/click`).catch(() => {});
+    }
     if (!ad.targetUrl) return;
     Linking.openURL(ad.targetUrl).catch(() =>
       Alert.alert("Não foi possível abrir o link."),
@@ -46,6 +58,9 @@ export function SponsoredChatCard({
   }
 
   function handleHide() {
+    if (meta.adImpressionId) {
+      api.post(`/api/ad-impressions/${meta.adImpressionId}/hide`).catch(() => {});
+    }
     setShowMenu(false);
     setHidden(true);
     onHide(adId);
@@ -76,12 +91,18 @@ export function SponsoredChatCard({
 
   async function handleAddToWishlist() {
     if (wishlistSaving) return;
+    if (savedToWishlist) {
+      setWishlistFeedback("Esse produto já está na sua Lista de Desejos.");
+      return;
+    }
     setWishlistSaving(true);
     setWishlistFeedback("");
 
     try {
       const response = await api.post("/api/wishlist/items", {
         sourceAdId: adId,
+        sourceMessageId: messageId,
+        sourceConversationId: null,
         title: ad.title,
         description: ad.description,
         imageUrl: ad.imageUrl,
@@ -93,10 +114,13 @@ export function SponsoredChatCard({
         metadata: {
           tags: ad.tags ?? [],
           callToActionText: ad.callToActionText,
+          adImpressionId: meta.adImpressionId,
+          expiresAt: meta.expiresAt,
         },
       });
 
       const data = response.data;
+      setSavedToWishlist(true);
       const message = data?.message
         ?? (data?.alreadyExists
           ? "Esse item já está na sua Lista de Desejos."
@@ -169,6 +193,7 @@ export function SponsoredChatCard({
         <Text style={styles.adTitle}>{ad.title}</Text>
         <Text style={styles.adDescription}>{ad.description}</Text>
         <Text style={styles.advertiserName}>{ad.advertiserName}</Text>
+        <Text style={styles.availabilityText}>{availabilityLabel}</Text>
 
         {/* Action row */}
         <View style={styles.actionRow}>
@@ -180,7 +205,7 @@ export function SponsoredChatCard({
             style={styles.wishlistBtn}
             onPress={handleAddToWishlist}
             activeOpacity={0.75}
-            disabled={wishlistSaving}
+            disabled={wishlistSaving || savedToWishlist}
           >
             <Feather name="heart" size={13} color={colors.primaryDark} />
             <Text style={styles.wishlistBtnText}>
@@ -285,6 +310,16 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     adTitle: { fontFamily: FONTS.sans, fontSize: 15, fontWeight: "800", color: colors.foreground },
     adDescription: { fontFamily: FONTS.sans, fontSize: 13, color: colors.muted, lineHeight: 19 },
     advertiserName: { fontFamily: FONTS.mono, fontSize: 11, color: colors.muted },
+    availabilityText: {
+      fontFamily: FONTS.sans,
+      fontSize: 11,
+      color: colors.muted,
+      backgroundColor: colors.primary + "12",
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      lineHeight: 16,
+    },
 
     // Actions
     actionRow: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" },

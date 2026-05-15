@@ -141,6 +141,30 @@ export function selectBestAd(
   return scored[0]?.ad ?? null;
 }
 
+export function selectBestAds(
+  prefs: UserAdPreferences,
+  state: AdEngineState,
+  contextTopics: string[],
+  user: UserForAds,
+  campaigns: AdCampaign[] = MOCK_AD_CAMPAIGNS,
+  maxItems = 3,
+): AdCampaign[] {
+  const scored = campaigns
+    .filter((ad) => !state.hiddenAdIds.includes(ad.id))
+    .map((ad) => ({ ad, score: scoreAd(ad, prefs, contextTopics, user) }))
+    .filter((item) => item.score >= 0)
+    .sort((a, b) => b.score - a.score);
+
+  const seen = new Set<string>();
+  return scored
+    .flatMap((item) => {
+      if (seen.has(item.ad.id)) return [];
+      seen.add(item.ad.id);
+      return [item.ad];
+    })
+    .slice(0, Math.max(1, Math.min(3, maxItems)));
+}
+
 const BEE_INTRO_MESSAGES = [
   "Ei, pausinha rápida: a Bee tem um recado patrocinado pra você. Prometo que é relevante (ou quase).",
   "Vou ser honesta: isso aqui é um anúncio. Mas é de algo que talvez faça sentido pra você.",
@@ -188,4 +212,18 @@ export function getEligibleAd(
   if (!shouldShowAdsToUser(user, prefs, state)) return null;
   if (isSensitiveContext(recentMessages)) return null;
   return selectBestAd(prefs, state, contextTopics, user);
+}
+
+export function getEligibleAds(
+  user: UserForAds,
+  contextTopics: string[],
+  recentMessages: { role: string; content: string }[],
+  maxItems = 3,
+): AdCampaign[] {
+  const prefs = loadAdPreferences();
+  const state = loadAdEngineState();
+  if (!shouldShowAdsToUser(user, prefs, state)) return [];
+  if (isSensitiveContext(recentMessages)) return [];
+  const allowedMax = prefs.preferredAdFrequency === "high" ? Math.min(3, maxItems) : Math.min(2, maxItems);
+  return selectBestAds(prefs, state, contextTopics, user, MOCK_AD_CAMPAIGNS, allowedMax);
 }

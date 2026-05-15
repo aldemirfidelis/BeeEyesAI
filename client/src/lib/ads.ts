@@ -32,27 +32,72 @@ export const BLOCKED_AD_CATEGORIES = [
 export type BlockedAdCategory = (typeof BLOCKED_AD_CATEGORIES)[number];
 
 export type AdFrequency = "low" | "normal" | "high";
+export type AdMobAdFormat =
+  | "banner"
+  | "adaptive_banner"
+  | "native"
+  | "native_image"
+  | "native_video"
+  | "interstitial"
+  | "rewarded"
+  | "rewarded_interstitial"
+  | "app_open";
+
+export type SponsoredMessageType = "sponsored" | "sponsored_group";
 
 export interface AdCampaign {
   id: string;
+  adMobAdUnitId?: string;
+  adFormat?: AdMobAdFormat;
+  adType?: string;
   advertiserName: string;
   advertiserLogo?: string;
   title: string;
   body: string;
+  description?: string;
   ctaLabel: string;
+  callToAction?: string;
   targetUrl: string;
+  productUrl?: string;
   category: AllowedAdCategory;
   topicKeywords: string[];
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  mediaContent?: Record<string, unknown>;
+  price?: string | number | null;
+  source?: string;
+  isVideo?: boolean;
+  isNative?: boolean;
+  isBanner?: boolean;
+  isRewarded?: boolean;
+  isInterstitial?: boolean;
+  isAppOpen?: boolean;
   ageRating: "all" | "18+";
   isActive: boolean;
 }
 
+export interface AdItem extends AdCampaign {
+  expiresAt?: string;
+  addedToWishlist?: boolean;
+  adImpressionId?: string;
+  status?: "active" | "expired" | "unavailable";
+}
+
 export interface SponsoredMessageMeta {
-  type: "sponsored";
+  type: SponsoredMessageType;
   adId: string;
   beeIntroMessage: string;
   isPersonalized: boolean;
-  ad: AdCampaign;
+  ad: AdItem;
+  ads?: AdItem[];
+  adGroupId?: string;
+  groupTitle?: string;
+  layoutType?: "carousel" | "grid" | "vertical";
+  adImpressionId?: string;
+  expiresAt?: string;
+  addedToWishlist?: boolean;
+  status?: "active" | "expired" | "unavailable";
+  wishlistItemId?: string;
 }
 
 export interface UserAdPreferences {

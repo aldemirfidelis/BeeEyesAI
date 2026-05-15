@@ -18,21 +18,21 @@ export const TIER_COLORS: Record<MedalTier, { body: string; ring: string; text: 
 };
 
 export const MEDAL_CATALOG: MedalSpec[] = [
-  { type: "early_adopter", title: "Pioneiro BeeEyes", description: "Faz parte da geracao fundadora do app.", icon: "🐝", tier: "special", hint: "Crie sua conta no BeeEyes." },
+  { type: "early_adopter", title: "Pioneiro BeeEyes", description: "Faz parte da geração fundadora do app.", icon: "🐝", tier: "special", hint: "Crie sua conta no BeeEyes." },
   { type: "first_message", title: "Primeira Conversa", description: "Conversou com a Bee pela primeira vez.", icon: "💬", tier: "bronze", hint: "Envie sua primeira mensagem para a Bee." },
   { type: "first_post", title: "Voz Ativa", description: "Compartilhou o primeiro momento no feed.", icon: "📢", tier: "bronze", hint: "Publique algo no Feed." },
-  { type: "mood_first_log", title: "Autoconsciencia", description: "Registrou seu humor pela primeira vez.", icon: "🌡️", tier: "bronze", hint: "Registre seu humor." },
-  { type: "streak_3", title: "3 Dias Seguidos", description: "Presenca por 3 dias consecutivos.", icon: "📅", tier: "bronze", hint: "Acesse por 3 dias seguidos." },
+  { type: "mood_first_log", title: "Autoconsciência", description: "Registrou seu humor pela primeira vez.", icon: "🌡️", tier: "bronze", hint: "Registre seu humor." },
+  { type: "streak_3", title: "3 Dias Seguidos", description: "Presença por 3 dias consecutivos.", icon: "📅", tier: "bronze", hint: "Acesse por 3 dias seguidos." },
   { type: "streak_7", title: "Semana Sólida", description: "Sete dias de sequência.", icon: "🌟", tier: "silver", hint: "Mantenha 7 dias de streak." },
-  { type: "streak_30", title: "Mes Imparavel", description: "Trinta dias consecutivos.", icon: "👑", tier: "diamond", hint: "Mantenha 30 dias de streak." },
+  { type: "streak_30", title: "Mês Imparável", description: "Trinta dias consecutivos.", icon: "👑", tier: "diamond", hint: "Mantenha 30 dias de streak." },
   { type: "first_friend", title: "Primeira Conexão", description: "Fez sua primeira conexão.", icon: "🤝", tier: "bronze", hint: "Conecte-se com alguém." },
   { type: "five_friends", title: "Rede em Expansão", description: "Cinco conexões ativas.", icon: "👥", tier: "silver", hint: "Tenha 5 amigos." },
   { type: "first_testimonial_received", title: "Depoimento Recebido", description: "Um amigo deixou um depoimento no seu perfil.", icon: "💝", tier: "bronze", hint: "Receba um depoimento." },
-  { type: "community_joined", title: "Cidadao do App", description: "Entrou na primeira comunidade.", icon: "🌐", tier: "bronze", hint: "Participe de uma comunidade." },
+  { type: "community_joined", title: "Cidadão do App", description: "Entrou na primeira comunidade.", icon: "🌐", tier: "bronze", hint: "Participe de uma comunidade." },
   { type: "first_community_post", title: "Voz na Comunidade", description: "Publicou pela primeira vez em uma comunidade.", icon: "📣", tier: "silver", hint: "Publique em uma comunidade." },
-  { type: "level_2", title: "Nivel 2", description: "Subiu ao nivel 2.", icon: "⬆️", tier: "bronze", hint: "Alcance o nivel 2." },
-  { type: "level_5", title: "Nivel 5", description: "Nivel 5 conquistado.", icon: "🌠", tier: "silver", hint: "Alcance o nivel 5." },
-  { type: "level_10", title: "Veterano", description: "Nivel 10 no BeeEyes.", icon: "🏆", tier: "gold", hint: "Alcance o nivel 10." },
+  { type: "level_2", title: "Nível 2", description: "Subiu ao nível 2.", icon: "⬆️", tier: "bronze", hint: "Alcance o nível 2." },
+  { type: "level_5", title: "Nível 5", description: "Nível 5 conquistado.", icon: "🌠", tier: "silver", hint: "Alcance o nível 5." },
+  { type: "level_10", title: "Veterano", description: "Nível 10 no BeeEyes.", icon: "🏆", tier: "gold", hint: "Alcance o nível 10." },
 ];
 
 export const MEDAL_BY_TYPE: Record<string, MedalSpec> = Object.fromEntries(MEDAL_CATALOG.map((medal) => [medal.type, medal]));

@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Switch } from "react-native";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -285,7 +286,14 @@ function CommunityDetail({
   const bottomInset = tabBarHeight > 0
     ? tabBarHeight + (Platform.OS === "ios" ? 12 : 16)
     : insets.bottom + 6;
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [newPost, setNewPost] = useState("");
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [editForm, setEditForm] = useState({ name: community.name, description: community.description || "", imageUrl: community.imageUrl || "" });
@@ -497,7 +505,7 @@ function CommunityDetail({
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+          keyboardVerticalOffset={0}
         >
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -703,8 +711,16 @@ function CommunityDetail({
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView contentContainerStyle={[styles.postsList, { paddingBottom: (detail.isMember ? 68 : 16) + bottomInset }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.postsList, { paddingBottom: (detail.isMember ? 68 : 16) + bottomInset }]}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+        >
           {detail.description ? (
             <Text style={styles.detailDesc}>{detail.description}</Text>
           ) : null}
@@ -761,7 +777,7 @@ function CommunityDetail({
         </ScrollView>
 
         {detail.isMember && (
-          <View style={[styles.composeWrapper, { paddingBottom: bottomInset }]}>
+          <View style={[styles.composeWrapper, { paddingBottom: isKeyboardVisible ? 8 : bottomInset }]}>
             {/* Image preview with remove button */}
             {postImagePreview ? (
               <View style={styles.imagePreviewRow}>
@@ -924,7 +940,7 @@ export default function CommunitiesScreen() {
           <KeyboardAvoidingView
             style={styles.modalKeyboardSheet}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
+            keyboardVerticalOffset={0}
           >
             <ScrollView
               keyboardShouldPersistTaps="handled"
