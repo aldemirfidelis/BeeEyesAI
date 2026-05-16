@@ -1,9 +1,28 @@
 # Relatório Final de Entrega — Auditoria + Hardening pré-Play Store
 
 **Projeto:** BeeEyesAI (Bee)
-**Período:** 2026-05-16 (sessão única)
+**Período:** 2026-05-16 (sessão estendida com F1+F2+F3+F4)
 **Branch:** main
 **Status:** 🟢 **Pronto para teste interno na Play Store** — 3 ações humanas finais pendentes
+
+## Atualização pós-F3+F4 (1cdff87 e anteriores)
+
+Após o relatório original (F1+F2), foram aplicadas duas fases adicionais:
+
+**F3 — Privacidade LGPD + Performance + Mobile** (2 commits, 13 testes novos):
+- `3b88678` — AES-256-GCM em tokens Google Calendar (`server/encryption.ts` com formato `enc:v1:`, coexistência com legacy plaintext, backfill `npm run encrypt:google-tokens`) + opt-in PII no prompt da Bee (parâmetro `personalizationEnabled` em `buildSystemPrompt` propagado por toda a cadeia `streamChat`)
+- `81b9b21` — Refactor `getDirectConversations` para SQL puro com `DISTINCT ON` (elimina O(N) memory) + cache `daily-briefing` por (userId, dia) + ErrorBoundary global mobile via re-export no Expo Router
+
+**F4 — IA robusta + Streaming real** (1 commit, 20 testes novos):
+- `1cdff87` — Parser balanceado em `server/ai-actions-parser.ts` (substitui 5 regex frágeis por extração com contagem de braces + 5 schemas Zod por ação, rejeita payloads inválidos antes do banco) + streaming SSE real no mobile via `response.body.getReader()` (a Bee parece "digitando" em tempo real em vez de esperar 30s a resposta completa)
+
+**Métricas atualizadas:**
+- 82/82 testes passando (+38 desde início)
+- tsc backend limpo, mobile/useChat.ts sem erros TS introduzidos
+- 12 commits totais em `main`
+
+Detalhes de cada item nas seções abaixo (numeração mantida para histórico).
+
 
 ---
 

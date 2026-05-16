@@ -1,19 +1,31 @@
 # Auditoria Final — Bee (BeeEyesAI) antes da Play Store
 
 Data: 2026-05-16
-Última atualização: 2026-05-16 (pós-correções)
-Status do projeto: **🟢 PRONTO PARA TESTE INTERNO** — testes 44/44 ✓, tsc limpo ✓, 8 commits aplicados
+Última atualização: 2026-05-16 (pós F3+F4)
+Status do projeto: **🟢 PRONTO PARA TESTE INTERNO** — testes 82/82 ✓, tsc limpo ✓, 12 commits aplicados
 Bloqueadores Play Store remanescentes: **3 ações humanas** (rotacionar Firebase key, rodar EAS Build, apontar URL no Console)
 
-> **Resumo das correções já aplicadas (8 commits, 26 arquivos novos/modificados, ~1500 linhas):**
+> **Resumo das correções já aplicadas (12 commits, ~37 arquivos novos/modificados):**
+>
+> **F1 — Fundação (commits 1-5):**
 > 1. `chore(security): remove google-services.json from git, fix Play Store blockers`
 > 2. `feat(server): security hardening for Play Store release` (HSTS, CORS whitelist, rate limit auth, timing attack, Google ID verify, DELETE /api/me, media caps, /legal/* routes, JWT cookie httpOnly backend)
 > 3. `feat(db): índices faltantes + FK em messages.replied_to_message_id`
 > 4. `refactor(web): migrate JWT auth from localStorage to httpOnly cookie`
 > 5. `docs: auditoria final pré-Play Store`
+>
+> **F2 — Decisões aprovadas (commits 6-8):**
 > 6. `chore: remove dead code, orphan files e deps NPM zombies`
 > 7. `feat(bee): detecção de crise + cap de custo IA por usuário/mês`
 > 8. `chore(android): remove permissão SYSTEM_ALERT_WINDOW`
+>
+> **F3 — Privacidade LGPD + Performance + ErrorBoundary (commits 9-10):**
+> 9. `feat(privacy): AES-256-GCM em tokens Google Calendar + opt-in PII no prompt da Bee`
+> 10. `perf: refactor getDirectConversations (SQL DISTINCT ON) + cache daily briefing + ErrorBoundary mobile`
+>
+> **F4 — IA robusta + streaming real (commits 11-12):**
+> 11. `feat(bee): parser balanceado + Zod em ações IA + streaming SSE real no mobile`
+> 12. (docs deste update)
 
 Ver [`PLAY_STORE_CHECKLIST.md`](PLAY_STORE_CHECKLIST.md) para a checklist completa de submissão com Data Safety mapeado.
 
@@ -299,13 +311,14 @@ Resolvidas:
 - ✅ **Dead code parcial** (commit anterior): 5 deps NPM zombies removidas, `client/src/{components,pages}/examples`, `mobile/features/auth/screens/{Login,Register}Screen.tsx`, `mobile/hooks/useMissions.ts` deletados
 
 Pendentes (decisão tua):
-- ⚠️ **S6** Toggle "Bee pode usar dados pessoais nas conversas" em Settings — não aplicado; existe `bee_conversation_contexts.personalizationEnabled` no schema mas não é honrado no prompt. Refactor moderado.
-- ⚠️ **S4** Criptografia AES-256-GCM para `user_integrations.accessToken`/`refreshToken` (Google Calendar). Esforço médio + migration de backfill.
-- ⚠️ **A1** Migrar `parseAIActions` para function calling nativo do OpenAI + Zod validation. Esforço alto.
+- ✅ **S6** Toggle "Bee pode usar dados pessoais nas conversas" — **backend pronto** (commit 9: opt-in honrado em `buildSystemPrompt` quando `bee_conversation_contexts.personalizationEnabled === false`). UI em Settings (mobile + web) ainda pendente — endpoint `PATCH /api/bee/context` já aceita a flag.
+- ✅ **S4** Criptografia AES-256-GCM para `user_integrations.accessToken`/`refreshToken` — **aplicado** (commit 9: `server/encryption.ts`, hooks em colmeia.ts, script `npm run encrypt:google-tokens` para backfill, formato `enc:v1:` com coexistência legacy plaintext).
+- ✅ **A1** `parseAIActions` — **substituído** (commit 11: parser balanceado em `server/ai-actions-parser.ts` + 5 schemas Zod, lida com JSON aninhado e rejeita payloads inválidos antes do INSERT; function calling nativo fica como recomendação futura para apenas OpenAI primário).
 - ⚠️ **U2** Health Coach já existe na web; precisa criar paridade mobile OU remover do web. Decisão de produto.
 - ⚠️ **U3** Onboarding obrigatório no web (mobile já tem). Decisão de produto.
 - ⚠️ **Dead code restante**: `deploy/hostgator/`, `unity/`, `beeyes-design/`, `icons-colmeia/` — não tocado (sem autorização para mover, e usuário pode usar `beeyes-design/`).
 - ⚠️ **Sentry / Crashlytics** — não integrado. Bom adicionar antes do release.
+- ✅ **ErrorBoundary mobile** — **aplicado** (commit 10: re-export de `RouteErrorBoundary` como root `ErrorBoundary` do Expo Router).
 
 ### Fase 3 — Performance e escalabilidade (2-3 dias)
 - Indices restantes (D)
