@@ -322,6 +322,9 @@ export const messages = pgTable("messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   metadata: text("metadata"),
+  // FK self-reference (messages.id) é aplicada via migration 0014 + ensureDatabaseCompatibility,
+  // não declarada aqui em Drizzle para evitar circularidade no schema.
+  // ON DELETE SET NULL: ao apagar a mensagem original, o reply preserva contexto histórico.
   repliedToMessageId: varchar("replied_to_message_id"),
   repliedToMessageContent: text("replied_to_message_content"),
   repliedToMessageRole: text("replied_to_message_role"),
@@ -565,6 +568,7 @@ export const communityMembers = pgTable("community_members", {
 }, (table) => [
   index("community_members_user_idx").on(table.userId),
   uniqueIndex("community_members_community_user_uidx").on(table.communityId, table.userId),
+  index("community_members_community_status_idx").on(table.communityId, table.status),
 ]);
 
 export const communityPosts = pgTable("community_posts", {

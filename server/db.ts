@@ -427,4 +427,36 @@ export async function ensureDatabaseCompatibility() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS "posts_created_at_idx" ON "posts" ("created_at");
   `);
+
+  // Índices adicionais detectados em auditoria pré-Play Store (migration 0014).
+  // Replicados aqui para Neon serverless aplicar mesmo sem rodar drizzle-kit push.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS "community_members_community_status_idx"
+      ON "community_members" ("community_id", "status");
+    CREATE INDEX IF NOT EXISTS "direct_messages_recipient_created_idx"
+      ON "direct_messages" ("recipient_id", "created_at" DESC);
+    CREATE INDEX IF NOT EXISTS "community_post_comments_user_idx"
+      ON "community_post_comments" ("user_id");
+    CREATE INDEX IF NOT EXISTS "ad_impressions_expires_idx"
+      ON "ad_impressions" ("expires_at");
+    CREATE INDEX IF NOT EXISTS "notification_reads_notification_idx"
+      ON "notification_reads" ("notification_id");
+  `);
+
+  // FK ausente em messages.replied_to_message_id (apontava para messages.id sem references).
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'messages_replied_to_message_id_fk'
+          AND table_name = 'messages'
+      ) THEN
+        ALTER TABLE "messages"
+          ADD CONSTRAINT "messages_replied_to_message_id_fk"
+          FOREIGN KEY ("replied_to_message_id") REFERENCES "messages"("id")
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
 }
