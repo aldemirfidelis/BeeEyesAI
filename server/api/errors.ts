@@ -35,6 +35,10 @@ export function validationError(message: string, details?: unknown) {
   return new ApiError(422, "VALIDATION_ERROR", message, details);
 }
 
+export function tooManyRequests(message = "Muitas solicitações. Tente novamente mais tarde.", details?: unknown) {
+  return new ApiError(429, "TOO_MANY_REQUESTS", message, details);
+}
+
 export function internalError(message = "Erro interno do servidor", details?: unknown) {
   return new ApiError(500, "INTERNAL_ERROR", message, details);
 }

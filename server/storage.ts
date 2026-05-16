@@ -44,6 +44,7 @@ export interface IStorage {
   updateUserStreak(userId: string): Promise<User>;
   incrementMessageCount(userId: string): Promise<void>;
   getAllUsersExcept(userId: string): Promise<User[]>;
+  hardDeleteUser(userId: string): Promise<void>;
 
   // Personality
   getPersonality(userId: string): Promise<UserPersonality | undefined>;
@@ -266,6 +267,16 @@ export class DrizzleStorage implements IStorage {
 
   async getAllUsersExcept(userId: string): Promise<User[]> {
     return db.select().from(users).where(ne(users.id, userId));
+  }
+
+  /**
+   * Exclui o usuário e todos os dados pessoais associados (LGPD direito ao esquecimento).
+   * Confia no ON DELETE CASCADE configurado em todas as FKs que apontam para users.id
+   * (verificado em shared/schema.ts — todas as ~60 referências usam onDelete: cascade ou set null).
+   * Operação irreversível.
+   */
+  async hardDeleteUser(userId: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, userId));
   }
 
   async updateUserXP(userId: string, xpToAdd: number): Promise<User> {

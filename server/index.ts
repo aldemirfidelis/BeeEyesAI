@@ -11,14 +11,42 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", 1); // confiar no primeiro proxy (Nginx) para req.ip e req.protocol
 
-// CORS — permite requisições do app mobile (React Native não aplica CORS,
-// mas browsers e WebViews sim; header explícito evita bloqueios)
-app.use((_req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+// CORS — whitelist por env (CORS_ALLOWED_ORIGINS=comma,separated).
+// React Native (mobile) não envia Origin nem aplica CORS, então requests sem Origin passam.
+// Browsers e WebViews precisam de Origin permitido.
+const ALLOWED_ORIGINS = new Set(
+  (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+);
+// Em desenvolvimento, libera localhost por padrão se nada configurado
+if (ALLOWED_ORIGINS.size === 0 && process.env.NODE_ENV !== "production") {
+  ALLOWED_ORIGINS.add("http://localhost:5000");
+  ALLOWED_ORIGINS.add("http://localhost:5173");
+  ALLOWED_ORIGINS.add("http://127.0.0.1:5000");
+  ALLOWED_ORIGINS.add("http://127.0.0.1:5173");
+}
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin) {
+    // Sem Origin (mobile React Native, server-to-server, curl) — não enviar header CORS.
+    // Express ainda processa normalmente.
+  } else if (ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else {
+    // Origin presente mas não permitido — bloqueia
+    if (req.method === "OPTIONS") { res.sendStatus(403); return; }
+    // GET/POST sem Origin permitido segue, mas sem header CORS o browser bloqueia a leitura.
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  if (_req.method === "OPTIONS") { res.sendStatus(204); return; }
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+  if (req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 });
 
