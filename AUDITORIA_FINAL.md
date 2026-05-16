@@ -1,8 +1,21 @@
 # Auditoria Final — Bee (BeeEyesAI) antes da Play Store
 
 Data: 2026-05-16
-Autor: revisão final pré-release
-Status do projeto: **🟡 PRONTO COM RESSALVAS** — testes 31/31 ✓, tsc limpo ✓, mas 12 bloqueadores reais
+Última atualização: 2026-05-16 (pós-correções)
+Status do projeto: **🟢 PRONTO PARA TESTE INTERNO** — testes 44/44 ✓, tsc limpo ✓, 8 commits aplicados
+Bloqueadores Play Store remanescentes: **3 ações humanas** (rotacionar Firebase key, rodar EAS Build, apontar URL no Console)
+
+> **Resumo das correções já aplicadas (8 commits, 26 arquivos novos/modificados, ~1500 linhas):**
+> 1. `chore(security): remove google-services.json from git, fix Play Store blockers`
+> 2. `feat(server): security hardening for Play Store release` (HSTS, CORS whitelist, rate limit auth, timing attack, Google ID verify, DELETE /api/me, media caps, /legal/* routes, JWT cookie httpOnly backend)
+> 3. `feat(db): índices faltantes + FK em messages.replied_to_message_id`
+> 4. `refactor(web): migrate JWT auth from localStorage to httpOnly cookie`
+> 5. `docs: auditoria final pré-Play Store`
+> 6. `chore: remove dead code, orphan files e deps NPM zombies`
+> 7. `feat(bee): detecção de crise + cap de custo IA por usuário/mês`
+> 8. `chore(android): remove permissão SYSTEM_ALERT_WINDOW`
+
+Ver [`PLAY_STORE_CHECKLIST.md`](PLAY_STORE_CHECKLIST.md) para a checklist completa de submissão com Data Safety mapeado.
 
 ---
 
@@ -29,6 +42,8 @@ Existem **4 bloqueadores diretos** para submissão na Play Store, **8 problemas 
 HTTP cleartext habilitado para todo o app. Google Play exige HTTPS. **Rejeição automática**.
 **Fix:** remover ou condicionar a debug. APIs já são HTTPS em produção — não há motivo legítimo.
 
+✅ **APLICADO** (commit `ea3ecd2`): removido de `mobile/app.json`.
+
 ### B2. Release Android assinado com debug.keystore — `mobile/android/app/build.gradle:115`
 ```gradle
 release {
@@ -37,13 +52,34 @@ release {
 ```
 Play Console rejeita AAB com debug keystore. **Decisão necessária:** EAS Build (recomendado, gerencia keystore na nuvem) ou keystore manual local.
 
+⚠️ **PENDENTE (ação humana):** decisão tomada — usar EAS Build. Rodar:
+```sh
+cd mobile && eas build --platform android --profile production
+```
+A Expo gera/usa keystore na nuvem automaticamente. O AAB resultante é submetido ao Play Console. `mobile/eas.json` já tem profile `production` com `autoIncrement: true`.
+
 ### B3. `mobile/google-services.json` versionado no Git
 Confirmado em `git ls-files`. Contém `api_key: AIzaSyAl3xfCBcvIB8RRDho3Du3VKZHHfslSilU`. Embora API key Android seja "pública por design", expõe a app de uso por terceiros. `.gitignore` não cobre.
 **Fix:** `git rm --cached mobile/google-services.json` + adicionar ao `.gitignore` + rotacionar chave + documentar setup local (`eas secret:create`).
 
+✅ **PARCIALMENTE APLICADO** (commit `ea3ecd2`):
+- `git rm --cached mobile/google-services.json` feito.
+- `.gitignore` atualizado para cobrir `google-services.json`, `*.keystore`, `*.jks`, `mobile/.env`, `uploads/`.
+- Template `mobile/google-services.example.json` criado.
+- ⚠️ **PENDENTE (ação humana):** rotacionar a chave Firebase no Console e baixar novo google-services.json local. A chave antiga continua no histórico git.
+
 ### B4. Privacy Policy e Termos sem URL pública
 Textos existem em `mobile/lib/legalTexts.ts` e `client/src/lib/legalTexts.ts` (duplicados), mas Play Console exige **URL pública**. Sem URL ⇒ submissão bloqueada.
 **Decisão necessária:** hospedar onde? (sugestões: `https://app.beeeyes.ai/privacy`, `https://beeeyes.net/privacy`). Posso gerar os HTMLs e rota Express servindo de `/legal/privacy` e `/legal/terms`.
+
+✅ **APLICADO** (commit `9d9ca0c`): `server/routes/legal.ts` cria:
+- `GET /legal/privacy` (HTML estilizado em PT-BR cobrindo LGPD)
+- `GET /legal/privacy.json` (mesmo texto em JSON)
+- `GET /legal/terms` + `/legal/terms.json`
+
+Versão consolidada e expandida (mais completa que os textos inline). Inclui menção a IA, ads, exclusão de conta via app, contato `suporte@beeeyes.net`.
+
+⚠️ **PENDENTE (ação humana):** colocar `https://<seu-dominio>/legal/privacy` no campo "Privacy Policy" do Play Console.
 
 ### Outros itens Play Store ALTOS (não bloqueadores mas vão render rejeição/rebaixamento)
 
@@ -232,31 +268,44 @@ Não é tudo que precisa melhorar — vale registrar o que está sólido:
 
 ## Plano de Correções Sugerido (faseado)
 
-### Fase 1 — Bloqueadores Play Store + segurança crítica (1-2 dias)
-Esses dão pra fazer agora, **maioria sem decisão de negócio**:
+### Fase 1 — Bloqueadores Play Store + segurança crítica ✅ APLICADA
 
-1. **B1** Remover `usesCleartextTraffic: true` (`mobile/app.json:42`)
-2. **B3** `git rm --cached mobile/google-services.json` + atualizar `.gitignore` (também `*.keystore`, `*.jks`, exceto `debug.keystore`)
-3. **U1** Corrigir mojibake em `mobile/app/onboarding.tsx`
-4. **D1, D2, D3** Migration de índices + FK
-5. **S2** Whitelist CORS por ambiente
-6. **S3** Rate limit em rotas auth
-7. **S5** Remover log de link de reset; mitigação timing attack
-8. **S7** Validar ID token Google com `google-auth-library`
-9. **S8** `DELETE /api/me` com cascata
-10. **Headers** HSTS + remover `unsafe-inline` no style-src
-11. **Permissions** mobile — remover `BIOMETRIC/FINGERPRINT` se não usados; idem para `RECORD_AUDIO`/`LOCATION`
-12. **Validations** cap em tamanho de imagem base64 + content text
+Aplicados em 5 commits sequenciais. Resultado:
 
-### Fase 2 — Decisões de negócio (precisam de você)
-- **B2** Como assinar release? EAS Build (recomendado) ou keystore manual?
-- **B4** Onde hospedar Privacy Policy / Terms? Eu posso servir via `/legal/*` no Express.
-- **S1** Migrar JWT pra httpOnly cookie no web? (impacto: Admin.tsx, Home.tsx, todos os Sponsored*)
-- **S6** Toggle "Bee pode usar minhas memórias e dados pessoais" — onde colocar em Settings?
-- **A2** Detecção de crise — quais palavras-chave? telefones por região (CVV 188 é nacional)?
-- **A3** Cap de custo IA — definir budget mensal por user
-- **U2/U3** Health Coach mobile e Onboarding web — implementar ou remover?
-- **Dead code** — autorizar remoção de `deploy/hostgator/`, `fly.toml`, `unity/`, `beeyes-design/`, `client/src/components/examples/`, duplicatas mobile auth?
+1. ✅ **B1** Removido `usesCleartextTraffic: true`
+2. ✅ **B3** `mobile/google-services.json` untracked + `.gitignore` atualizado + template `.example.json`
+3. ✅ **U1** Mojibake `mobile/app/onboarding.tsx:18,72` corrigido (separadores ASCII limpos)
+4. ✅ **D1, D2, D3, D4** Migration `0014_play_store_indexes.sql` + `ensureDatabaseCompatibility` aplicam todos os índices e FK; getAllUsersExcept comentado como código morto a remover
+5. ✅ **S2** CORS por whitelist (env `CORS_ALLOWED_ORIGINS`); dev libera localhost
+6. ✅ **S3** Rate limit em `/login` (5/15min), `/register` (5/h), `/password-reset/request` (3/h IP + 3/h email), `/social` (10/15min)
+7. ✅ **S5** Log de link removido em produção (`NODE_ENV === production`); timing attack mitigado com dummy bcrypt + dummy delay
+8. ✅ **S7** Google ID verify via `tokeninfo?id_token=` + audience check (suporta tanto idToken quanto accessToken)
+9. ✅ **S8** `DELETE /api/me` (LGPD) com confirmação de senha + `hardDeleteUser` no storage
+10. ✅ **Headers** HSTS adicionado (max-age 1 ano + preload); CSP `unsafe-inline` mantido em style-src (refatoração de nonces fica para F3)
+11. ✅ **Permissions** SYSTEM_ALERT_WINDOW removida (zero uso confirmado); LOCATION e RECORD_AUDIO validadas como em uso real e mantidas
+12. ✅ **Validations** `server/media.ts` agora limita imagem decoded a 8MB + MIME whitelist (`jpg/jpeg/png/webp/gif`)
+13. ✅ **S1** JWT no `localStorage` → cookie httpOnly (refactor backend completo + 7 arquivos web)
+
+**Validação Fase 1:** 44/44 testes passam, tsc limpo.
+
+### Fase 2 — Decisões de negócio ✅ PARCIALMENTE APLICADA
+
+Resolvidas:
+- ✅ **B2** EAS Build escolhido (`mobile/eas.json` profile production já configurado)
+- ✅ **B4** Servido por Express em `/legal/privacy` e `/legal/terms` com texto consolidado em PT-BR (commit `9d9ca0c`)
+- ✅ **S1** JWT migrado para cookie httpOnly (commit `9d9ca0c` + `75b20a4`)
+- ✅ **A2** Detector de crise em `server/ai-crisis.ts` (CVV 188, SAMU 192, chat CVV); hook em `/api/chat` antes do LLM; 6 testes (commit `17228d9`)
+- ✅ **A3** Cap mensal de custo IA em `server/aiBudget.ts` ($5/user/mês default, configurável); estimativa gpt-4o-mini; exemption list; 7 testes (commit `17228d9`)
+- ✅ **Dead code parcial** (commit anterior): 5 deps NPM zombies removidas, `client/src/{components,pages}/examples`, `mobile/features/auth/screens/{Login,Register}Screen.tsx`, `mobile/hooks/useMissions.ts` deletados
+
+Pendentes (decisão tua):
+- ⚠️ **S6** Toggle "Bee pode usar dados pessoais nas conversas" em Settings — não aplicado; existe `bee_conversation_contexts.personalizationEnabled` no schema mas não é honrado no prompt. Refactor moderado.
+- ⚠️ **S4** Criptografia AES-256-GCM para `user_integrations.accessToken`/`refreshToken` (Google Calendar). Esforço médio + migration de backfill.
+- ⚠️ **A1** Migrar `parseAIActions` para function calling nativo do OpenAI + Zod validation. Esforço alto.
+- ⚠️ **U2** Health Coach já existe na web; precisa criar paridade mobile OU remover do web. Decisão de produto.
+- ⚠️ **U3** Onboarding obrigatório no web (mobile já tem). Decisão de produto.
+- ⚠️ **Dead code restante**: `deploy/hostgator/`, `unity/`, `beeyes-design/`, `icons-colmeia/` — não tocado (sem autorização para mover, e usuário pode usar `beeyes-design/`).
+- ⚠️ **Sentry / Crashlytics** — não integrado. Bom adicionar antes do release.
 
 ### Fase 3 — Performance e escalabilidade (2-3 dias)
 - Indices restantes (D)

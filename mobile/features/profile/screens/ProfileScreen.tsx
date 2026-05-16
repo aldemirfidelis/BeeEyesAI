@@ -11,6 +11,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from "react-native";
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -242,6 +243,33 @@ export default function ProfileScreen() {
             </View>
           </View>
         ) : null}
+
+        <View style={styles.privacySection}>
+          <View style={styles.privacyHeader}>
+            <View style={styles.privacyIconWrap}>
+              <Feather name="shield" size={16} color={colors.primaryDark} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Privacidade do perfil</Text>
+              <Text style={styles.privacySubtitle}>Controle como amigos encontram você</Text>
+            </View>
+          </View>
+          <ProfilePrivacyRow
+            title="Conta privada"
+            description="Em breve · Só amigos verão seu perfil"
+            value={false}
+            colors={colors}
+            styles={styles}
+          />
+          <View style={styles.privacySeparator} />
+          <ProfilePrivacyRow
+            title="Mostrar status online"
+            description="Em breve · Amigos veem quando você está ativo"
+            value={true}
+            colors={colors}
+            styles={styles}
+          />
+        </View>
 
         <View style={styles.statsGrid}>
           <StatCard emoji="🏆" label="Medalhas" value={safeAchievements.length.toString()} colors={colors} />
@@ -515,6 +543,36 @@ export default function ProfileScreen() {
   );
 }
 
+function ProfilePrivacyRow({
+  title,
+  description,
+  value,
+  colors,
+  styles,
+}: {
+  title: string;
+  description: string;
+  value: boolean;
+  colors: ReturnType<typeof getThemeColors>;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View style={styles.privacyRow}>
+      <View style={styles.privacyRowCopy}>
+        <Text style={styles.privacyRowTitle}>{title}</Text>
+        <Text style={styles.privacyRowDescription}>{description}</Text>
+      </View>
+      <Switch
+        value={value}
+        disabled
+        thumbColor={value ? "#111827" : "#f4f4f5"}
+        trackColor={{ false: colors.border, true: colors.primary }}
+        accessibilityLabel={`${title} (em breve)`}
+      />
+    </View>
+  );
+}
+
 function StatCard({
   emoji,
   label,
@@ -652,6 +710,34 @@ function makeStyles(colors: ReturnType<typeof getThemeColors>) {
     scoreChip: { minWidth: 78, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.secondary, alignItems: "center", gap: 2 },
     scoreChipValue: { fontFamily: FONTS.display, fontSize: 26, fontWeight: "800", color: colors.foreground },
     scoreChipLabel: { fontFamily: FONTS.sans, fontSize: 11, fontWeight: "700", color: colors.primaryDark, textTransform: "uppercase" },
+    privacySection: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 16,
+      gap: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: "#4B3508",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.06,
+      shadowRadius: 16,
+      elevation: 4,
+    },
+    privacyHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+    privacyIconWrap: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.primary + "22",
+    },
+    privacySubtitle: { fontFamily: FONTS.sans, fontSize: 12, color: colors.muted, marginTop: 2 },
+    privacyRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, opacity: 0.72 },
+    privacyRowCopy: { flex: 1, gap: 2 },
+    privacyRowTitle: { fontFamily: FONTS.sans, fontSize: 14, fontWeight: "700", color: colors.foreground },
+    privacyRowDescription: { fontFamily: FONTS.sans, fontSize: 12, lineHeight: 17, color: colors.muted },
+    privacySeparator: { height: 1, backgroundColor: colors.border },
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
