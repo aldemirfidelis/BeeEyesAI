@@ -36,11 +36,10 @@ export function SponsoredChatCard({
   if (dismissed) return null;
 
   function handleHide() {
-    const token = localStorage.getItem("bee_token");
     if (meta.adImpressionId) {
       fetch(`/api/ad-impressions/${meta.adImpressionId}/hide`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       }).catch(() => {});
     }
     setDismissed(true);
@@ -61,11 +60,10 @@ export function SponsoredChatCard({
   }
 
   function handleCta() {
-    const token = localStorage.getItem("bee_token");
     if (meta.adImpressionId) {
       fetch(`/api/ad-impressions/${meta.adImpressionId}/click`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       }).catch(() => {});
     }
     window.open(ad.targetUrl, "_blank", "noopener,noreferrer");
@@ -79,13 +77,10 @@ export function SponsoredChatCard({
     setWishlistSaving(true);
     setWishlistFeedback("");
     try {
-      const token = localStorage.getItem("bee_token");
       const res = await fetch("/api/wishlist/items", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sourceAdId: ad.id,
           sourceMessageId: messageId,

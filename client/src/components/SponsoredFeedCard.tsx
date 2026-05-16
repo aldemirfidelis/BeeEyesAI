@@ -52,13 +52,10 @@ export function SponsoredFeedCard({ ad, onDismiss }: SponsoredFeedCardProps) {
     setWishlistSaving(true);
     setWishlistFeedback("");
     try {
-      const token = localStorage.getItem("bee_token");
       const res = await fetch("/api/wishlist/items", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sourceAdId: ad.id,
           sourceMessageId: null,

@@ -47,17 +47,27 @@ const SENTIMENT_EMOJI: Record<string, string> = {
   neutral: "😐", excited: "🎉", proud: "🏆",
 };
 
-// Simple token storage
-const getToken = () => localStorage.getItem("bee_token");
-const setToken = (t: string) => localStorage.setItem("bee_token", t);
-const clearToken = () => localStorage.removeItem("bee_token");
+// Auth via cookie httpOnly (setado pelo backend no login/register/social).
+// localStorage não é mais usado para o token — mitiga roubo via XSS.
+// O state `tokenState` (useState abaixo) é apenas um booleano disfarçado
+// de string: qualquer valor truthy = "logado". Migrações antigas ainda
+// limpam o localStorage para garantir que tokens vazios não fiquem residuais.
+const LEGACY_TOKEN_KEY = "bee_token";
+try { localStorage.removeItem(LEGACY_TOKEN_KEY); } catch { /* SSR/safari */ }
+
+const AUTH_SENTINEL = "cookie-auth";
+const setTokenLegacy = (_t: string) => { /* no-op — cookie cuida */ };
+const clearTokenLegacy = () => {
+  fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+};
 const getProfilePhoto = () => localStorage.getItem("bee_profile_photo");
 const setProfilePhoto = (url: string) => localStorage.setItem("bee_profile_photo", url);
 const clearProfilePhoto = () => localStorage.removeItem("bee_profile_photo");
 
 function authHeaders(): Record<string, string> {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Cookie httpOnly bee_token é enviado automaticamente em chamadas same-origin.
+  // Mantemos a função para compatibilidade — apenas retorna objeto vazio.
+  return {};
 }
 
 function cleanAIText(text: string): string {
@@ -78,7 +88,24 @@ function timeAgo(dateInput: string | Date): string {
 }
 
 export default function Home() {
-  const [token, setTokenState] = useState<string | null>(getToken);
+  // Inicia null; o useEffect logo abaixo tenta /api/me para detectar sessão via cookie httpOnly.
+  const [token, setTokenState] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Hidrata sessão a partir do cookie httpOnly no mount.
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<User>("/api/me")
+      .then((u) => {
+        if (cancelled) return;
+        setTokenState(AUTH_SENTINEL);
+        setUser(u);
+      })
+      .catch(() => { /* não logado */ })
+      .finally(() => { if (!cancelled) setAuthChecked(true); });
+    return () => { cancelled = true; };
+  }, []);
+
   const [user, setUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -351,7 +378,7 @@ export default function Home() {
           if (local) setProfilePhotoUrl(local);
         }
       })
-      .catch(() => { clearToken(); setTokenState(null); });
+      .catch(() => { clearTokenLegacy(); setTokenState(null); });
 
     apiFetch<any[]>("/api/messages?limit=50", { headers: authHeaders() })
       .then((msgs: any[]) => {
@@ -1199,8 +1226,9 @@ export default function Home() {
   };
 
   const finishAuth = (data: any) => {
-    setToken(data.token);
-    setTokenState(data.token);
+    // Cookie httpOnly já foi setado pelo backend. Marcamos a sessão como ativa no state.
+    setTokenLegacy(data.token);
+    setTokenState(AUTH_SENTINEL);
     setUser(data.user);
     const name = data.user.displayName || data.user.username;
     setMessages([{
@@ -1492,7 +1520,7 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    clearToken();
+    clearTokenLegacy();
     setTokenState(null);
     setUser(null);
     setMessages([]);

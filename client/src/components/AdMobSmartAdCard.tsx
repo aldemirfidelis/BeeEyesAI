@@ -66,15 +66,11 @@ export function AdMobSmartAdCard({ messageId, meta, onHide, onNotRelevant, onRep
 
   if (dismissed || !primaryAd) return null;
 
-  function authHeader(): Record<string, string> {
-    const token = localStorage.getItem("bee_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
+  // Auth via cookie httpOnly bee_token (same-origin).
   function handleHide() {
     const impressionId = primaryAd.adImpressionId ?? meta.adImpressionId;
     if (impressionId) {
-      fetch(`/api/ad-impressions/${impressionId}/hide`, { method: "POST", headers: authHeader() }).catch(() => {});
+      fetch(`/api/ad-impressions/${impressionId}/hide`, { method: "POST", credentials: "include" }).catch(() => {});
     }
     setDismissed(true);
     setShowMenu(false);
@@ -84,7 +80,7 @@ export function AdMobSmartAdCard({ messageId, meta, onHide, onNotRelevant, onRep
   function handleCta(ad: AdItem) {
     const impressionId = ad.adImpressionId ?? meta.adImpressionId;
     if (impressionId) {
-      fetch(`/api/ad-impressions/${impressionId}/click`, { method: "POST", headers: authHeader() }).catch(() => {});
+      fetch(`/api/ad-impressions/${impressionId}/click`, { method: "POST", credentials: "include" }).catch(() => {});
     }
     const url = getTargetUrl(ad);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
@@ -100,7 +96,8 @@ export function AdMobSmartAdCard({ messageId, meta, onHide, onNotRelevant, onRep
     try {
       const res = await fetch("/api/wishlist/items", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sourceAdId: ad.id,
           sourceMessageId: messageId,

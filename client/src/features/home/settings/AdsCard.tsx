@@ -87,8 +87,8 @@ export function AdSettingsModal({ prefs, saved, onPrefsChange, onSave, onClose }
   const [recentAds, setRecentAds] = useState<RecentAdImpression[]>([]);
 
   useEffect(() => {
-    const token = localStorage.getItem("bee_token");
-    fetch("/api/ad-impressions/recent", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    // Auth via cookie httpOnly (same-origin envia automático).
+    fetch("/api/ad-impressions/recent", { credentials: "include" })
       .then((res) => res.ok ? res.json() : [])
       .then((rows) => setRecentAds(Array.isArray(rows) ? rows : []))
       .catch(() => setRecentAds([]));

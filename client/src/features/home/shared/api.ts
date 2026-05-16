@@ -19,13 +19,19 @@ export async function parseApiResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
+function withCredentials(init?: RequestInit): RequestInit {
+  // Envia o cookie httpOnly bee_token automaticamente em todas as chamadas same-origin.
+  // Caller pode sobrescrever passando { credentials: "omit" } explicitamente.
+  return { credentials: "include", ...init };
+}
+
 export async function apiFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
+  const response = await fetch(input, withCredentials(init));
   return parseApiResponse<T>(response);
 }
 
 export async function apiTryFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T | null> {
-  const response = await fetch(input, init);
+  const response = await fetch(input, withCredentials(init));
   if (!response.ok) {
     return null;
   }

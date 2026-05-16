@@ -7,14 +7,28 @@ import {
 } from "lucide-react";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-
-function getToken() { return localStorage.getItem("bee_token") ?? ""; }
-function authHeaders() { return { Authorization: `Bearer ${getToken()}` }; }
+// Migrado para cookie httpOnly (setado pelo backend após /api/auth/login).
+// Limpa qualquer token legacy do localStorage no carregamento.
+try { localStorage.removeItem("bee_token"); } catch { /* SSR */ }
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: authHeaders() });
+  const res = await fetch(path, { credentials: "include" });
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
+}
+
+async function adminLogin(username: string, password: string): Promise<boolean> {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ username, password }),
+  });
+  return res.ok;
+}
+
+async function adminLogout(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -110,7 +124,26 @@ function HeatmapBar({ data }: { data: HeatRow[] }) {
 // ── Login gate ────────────────────────────────────────────────────────────────
 
 function LoginGate({ onLogin }: { onLogin: () => void }) {
-  const [token, setToken] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const ok = await adminLogin(username.trim(), password);
+      if (ok) {
+        onLogin();
+      } else {
+        setError("Usuário ou senha incorretos.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="bg-card border border-border rounded-2xl p-8 w-full max-w-sm space-y-4 shadow-lg">
@@ -122,18 +155,29 @@ function LoginGate({ onLogin }: { onLogin: () => void }) {
           </div>
         </div>
         <input
-          type="password"
-          placeholder="Cole seu token JWT aqui..."
-          value={token}
-          onChange={e => setToken(e.target.value)}
+          type="text"
+          placeholder="Usuário ou e-mail"
+          autoComplete="username"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
           className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
         />
+        <input
+          type="password"
+          placeholder="Senha"
+          autoComplete="current-password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+          className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        {error && <p className="text-xs text-destructive">{error}</p>}
         <button
-          onClick={() => { localStorage.setItem("bee_token", token); onLogin(); }}
-          disabled={!token.trim()}
+          onClick={submit}
+          disabled={submitting || !username.trim() || !password}
           className="w-full py-3 rounded-xl bg-primary font-bold text-sm text-foreground disabled:opacity-40"
         >
-          Entrar no painel
+          {submitting ? "Entrando..." : "Entrar no painel"}
         </button>
       </div>
     </div>
@@ -143,10 +187,24 @@ function LoginGate({ onLogin }: { onLogin: () => void }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(Boolean(getToken()));
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<"overview" | "users" | "content">("overview");
   const [userPage, setUserPage] = useState(0);
   const [searchUser, setSearchUser] = useState("");
+
+  // Detecta sessão existente via cookie no mount
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/me", { credentials: "include" })
+      .then((r) => {
+        if (cancelled) return;
+        if (r.ok) setAuthed(true);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setChecking(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const refetchOpts = { refetchInterval: 60_000 };
 
@@ -166,10 +224,18 @@ export default function AdminPage() {
   });
 
   const toggleAdmin = useCallback(async (id: string) => {
-    await fetch(`/api/admin/users/${id}/toggle-admin`, { method: "PATCH", headers: authHeaders() });
+    await fetch(`/api/admin/users/${id}/toggle-admin`, { method: "PATCH", credentials: "include" });
     refetchUsers();
   }, [refetchUsers]);
 
+  const logout = useCallback(async () => {
+    await adminLogout();
+    setAuthed(false);
+  }, []);
+
+  if (checking) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Carregando...</div>;
+  }
   if (!authed) return <LoginGate onLogin={() => setAuthed(true)} />;
 
   if (dashError) {
@@ -178,8 +244,8 @@ export default function AdminPage() {
         <div className="text-center space-y-3">
           <Shield className="w-12 h-12 text-destructive mx-auto" />
           <p className="font-bold text-lg">Acesso negado</p>
-          <p className="text-sm text-muted-foreground">Seu token não tem permissão de administrador.</p>
-          <button onClick={() => { localStorage.removeItem("bee_token"); setAuthed(false); }} className="text-xs text-muted-foreground underline">Trocar token</button>
+          <p className="text-sm text-muted-foreground">Sua conta não tem permissão de administrador.</p>
+          <button onClick={logout} className="text-xs text-muted-foreground underline">Sair</button>
         </div>
       </div>
     );
@@ -204,7 +270,7 @@ export default function AdminPage() {
           <button onClick={() => refetchDash()} className="p-2 rounded-lg hover:bg-muted text-muted-foreground" title="Atualizar">
             <RefreshCw className="w-4 h-4" />
           </button>
-          <button onClick={() => { localStorage.removeItem("bee_token"); setAuthed(false); }} className="text-xs text-muted-foreground hover:text-destructive">Sair</button>
+          <button onClick={logout} className="text-xs text-muted-foreground hover:text-destructive">Sair</button>
         </div>
       </header>
 
