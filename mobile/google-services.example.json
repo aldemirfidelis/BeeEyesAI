@@ -1,0 +1,30 @@
+{
+  "_comment": "Template para google-services.json — NÃO commitar o arquivo real. Baixe de https://console.firebase.google.com → Project Settings → Your apps → Android. O arquivo real fica em mobile/google-services.json e está no .gitignore. Em CI/EAS, use eas secret:create FCM_GOOGLE_SERVICES_JSON.",
+  "project_info": {
+    "project_number": "<FIREBASE_PROJECT_NUMBER>",
+    "project_id": "<FIREBASE_PROJECT_ID>",
+    "storage_bucket": "<FIREBASE_PROJECT_ID>.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:<PROJECT_NUMBER>:android:<APP_ID>",
+        "android_client_info": {
+          "package_name": "com.beeeyes.ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "<ANDROID_API_KEY>"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

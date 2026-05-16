@@ -39,7 +39,6 @@
     },
     "android": {
       "package": "com.beeeyes.ai",
-      "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFD940",

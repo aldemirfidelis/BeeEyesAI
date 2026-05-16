@@ -16,3 +16,17 @@ unity/**/Build/
 unity/**/Builds/
 unity/**/Logs/
 unity/**/UserSettings/
+
+# Secrets e credenciais — NUNCA commitar
+mobile/google-services.json
+mobile/GoogleService-Info.plist
+mobile/.env
+mobile/.env.local
+mobile/android/app/release.keystore
+mobile/android/app/upload.keystore
+*.keystore
+*.jks
+!mobile/android/app/debug.keystore
+google-services.json
+GoogleService-Info.plist
+uploads/
