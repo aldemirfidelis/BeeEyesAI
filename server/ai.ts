@@ -1504,6 +1504,12 @@ Faça um resumo em 3 a 4 frases curtas e objetivas cobrindo os pontos principais
 }
 
 // ── Action Parser ─────────────────────────────────────────────────────────────
+// Implementação foi migrada para server/ai-actions-parser.ts:
+//   - Extração balanceada de chaves (lida com JSON aninhado)
+//   - Validação Zod (rejeita payloads inválidos antes de bater no banco)
+// Este wrapper mantém a API legada para compat (mesmo shape de retorno).
+
+import { parseAIActionsV2 } from "./ai-actions-parser";
 
 export function parseAIActions(response: string): {
   cleanText: string;
@@ -1513,101 +1519,7 @@ export function parseAIActions(response: string): {
   logFinance?: { type: "income" | "expense"; amount: number; category: string; description?: string };
   saveNote?: { content: string; title?: string };
 } {
-  let cleanText = response;
-  let achievement: { type: string; title: string; description: string } | undefined;
-  let fetchNews: { query: string } | undefined;
-  let createEvent: { title: string; startAt: string; endAt?: string; description?: string; location?: string; allDay?: boolean } | undefined;
-  let logFinance: { type: "income" | "expense"; amount: number; category: string; description?: string } | undefined;
-  let saveNote: { content: string; title?: string } | undefined;
-
-  const achievementMatch = response.match(/\{"achievement":\s*(\{[^}]+\})\}/);
-  if (achievementMatch) {
-    try {
-      const parsed = JSON.parse(achievementMatch[0]);
-      achievement = parsed.achievement;
-      cleanText = cleanText.replace(achievementMatch[0], "").trim();
-    } catch {
-      // ignore parse error
-    }
-  }
-
-  const newsMatch = response.match(/\{"fetch_news":\s*\{[^}]+\}\}/);
-  if (newsMatch) {
-    try {
-      const parsed = JSON.parse(newsMatch[0]);
-      fetchNews = parsed.fetch_news;
-      cleanText = cleanText.replace(newsMatch[0], "").trim();
-    } catch {
-      // ignore parse error
-    }
-  }
-
-  // Greedy match for nested objects — handles all valid JSON structures the AI can produce
-  const eventMatch = response.match(/\{"create_event"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
-  if (eventMatch) {
-    try {
-      const parsed = JSON.parse(eventMatch[0]);
-      const raw = parsed.create_event;
-      if (raw?.title) {
-        createEvent = {
-          title: raw.title,
-          startAt: raw.startAt ?? raw.start_at ?? raw.date ?? "",
-          endAt: raw.endAt ?? raw.end_at ?? undefined,
-          description: raw.description ?? undefined,
-          location: raw.location ?? undefined,
-          allDay: raw.allDay ?? raw.all_day ?? undefined,
-        };
-      }
-      cleanText = cleanText.replace(eventMatch[0], "").trim();
-    } catch (err) {
-      console.error("[parseAIActions] event parse failed:", err, eventMatch[0]);
-    }
-  }
-
-  const financeMatch = response.match(/\{"log_finance"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
-  if (financeMatch) {
-    try {
-      const parsed = JSON.parse(financeMatch[0]);
-      const raw = parsed.log_finance;
-      if (raw?.category) {
-        const amount = typeof raw.amount === "number" ? raw.amount : parseFloat(String(raw.amount ?? 0));
-        logFinance = {
-          type: raw.type === "income" ? "income" : "expense",
-          amount: isNaN(amount) ? 0 : amount,
-          category: raw.category,
-          description: raw.description ?? undefined,
-        };
-      }
-      cleanText = cleanText.replace(financeMatch[0], "").trim();
-    } catch (err) {
-      console.error("[parseAIActions] finance parse failed:", err, financeMatch[0]);
-    }
-  }
-
-  const noteMatch = response.match(/\{"save_note"\s*:\s*(\{[^}]*(?:\{[^}]*\}[^}]*)?\})\s*\}/);
-  if (noteMatch) {
-    try {
-      const parsed = JSON.parse(noteMatch[0]);
-      const raw = parsed.save_note;
-      if (raw?.content) {
-        saveNote = { content: raw.content, title: raw.title ?? undefined };
-      }
-      cleanText = cleanText.replace(noteMatch[0], "").trim();
-    } catch (err) {
-      console.error("[parseAIActions] note parse failed:", err, noteMatch[0]);
-    }
-  }
-
-  cleanText = stripAIActionBlocks(cleanText);
-
-  return { cleanText, achievement, fetchNews, createEvent, logFinance, saveNote };
-}
-
-function stripAIActionBlocks(text: string): string {
-  return text
-    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"\s*:\s*\{[\s\S]*?\}\s*\}/g, "")
-    .replace(/\{"(?:achievement|fetch_news|create_event|log_finance|save_note)"[\s\S]*$/g, "")
-    .trim();
+  return parseAIActionsV2(response);
 }
 
 // ── Daily Briefing ────────────────────────────────────────────────────────────

@@ -75,6 +75,7 @@ export function useChat() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          Accept: "text/event-stream",
         },
         body: JSON.stringify({ content, ...replyPayload }),
         signal: controller.signal,
@@ -98,21 +99,24 @@ export function useChat() {
         throw new Error(getApiErrorMessage(failure, `HTTP ${response.status}`));
       }
 
-      const raw = await response.text();
       let fullText = "";
       let visibleText = "";
-      let newsFetched: { query: string; items: any[] } | null = null;
-      let pendingResearch: { intent: string; results: ResearchResult[] } | null = null;
-      let pendingWorkout: any = null;
+      // Containers para variáveis mutadas dentro da closure handleSSELine.
+      // TypeScript não faz narrowing através de mutações em closures, então
+      // usar `.current` em um objeto preserva o tipo declarado.
+      const newsRef: { current: { query: string; items: any[] } | null } = { current: null };
+      const researchRef: { current: { intent: string; results: ResearchResult[] } | null } = { current: null };
+      const workoutRef: { current: any } = { current: null };
       let reactedToResponse = false;
       let doneMetadata: string | null = null;
       let doneId: string | undefined;
 
-      const lines = raw.split("\n");
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
+      // Processa uma linha SSE `data: ...`. Extraído pra reuso entre streaming
+      // incremental (reader) e fallback batch (response.text()).
+      const handleSSELine = (line: string) => {
+        if (!line.startsWith("data: ")) return;
         const data = line.slice(6).trim();
-        if (!data) continue;
+        if (!data) return;
         try {
           const event = JSON.parse(data);
           if (event.type === "chunk") {
@@ -131,16 +135,16 @@ export function useChat() {
             syncBeeHouseTask({ status: "searching", progress: 35 });
           } else if (event.type === "research_results") {
             if (event.results?.length > 0) {
-              pendingResearch = { intent: event.intent, results: event.results };
+              researchRef.current = { intent: event.intent, results: event.results };
             }
             setEyeExpression("excited");
             syncBeeHouseTask({ status: "generating", progress: 75, payload: { intent: event.intent } });
           } else if (event.type === "workout_suggestion") {
-            pendingWorkout = event.plan;
+            workoutRef.current = event.plan;
             setEyeExpression("excited");
             syncBeeHouseTask({ status: "generating", taskType: "fitness", progress: 80 });
           } else if (event.type === "news_fetched") {
-            newsFetched = { query: event.query, items: event.items };
+            newsRef.current = { query: event.query, items: event.items };
             setEyeExpression("excited");
             syncBeeHouseTask({ status: "generating", taskType: "research", progress: 80, payload: { query: event.query } });
           } else if (event.type === "note_saved") {
@@ -161,13 +165,40 @@ export function useChat() {
           } else if (event.type === "done") {
             doneId = event.id;
             if (event.cleanText) fullText = event.cleanText;
-            // Prefer metadata from server (already includes research); fall back to pending research
+            const pending = researchRef.current;
             doneMetadata = event.metadata
-              ?? (pendingResearch
-                ? JSON.stringify({ type: "research", intent: pendingResearch.intent, results: pendingResearch.results })
+              ?? (pending
+                ? JSON.stringify({ type: "research", intent: pending.intent, results: pending.results })
                 : null);
           }
         } catch { /* skip malformed */ }
+      };
+
+      // Streaming incremental via getReader() — usuário vê a Bee "digitando"
+      // em tempo real em vez de esperar a resposta completa. Fallback para
+      // response.text() quando o body não é exposto (RN antigo / certos shims).
+      const reader = (response.body as ReadableStream<Uint8Array> | null | undefined)?.getReader?.();
+      if (reader) {
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          // SSE separa eventos por \n\n; processa só linhas completas.
+          let newlineIdx;
+          while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+            const line = buffer.slice(0, newlineIdx);
+            buffer = buffer.slice(newlineIdx + 1);
+            handleSSELine(line);
+          }
+        }
+        // Flush qualquer linha pendente no buffer
+        if (buffer.trim()) handleSSELine(buffer);
+      } else {
+        // Fallback (modo legado): lê tudo de uma vez
+        const raw = await response.text();
+        for (const line of raw.split("\n")) handleSSELine(line);
       }
 
       finalizeStream(cleanAIText(fullText) || "Desculpe, não consegui gerar uma resposta.", doneMetadata, doneId);
@@ -180,27 +211,28 @@ export function useChat() {
       });
 
       // Injetar card de sugestão de treino após a mensagem da IA
-      if (pendingWorkout) {
+      if (workoutRef.current) {
         addMessage({
           id: `workout-${Date.now()}`,
           role: "assistant",
           content: "Aqui está minha sugestão de treino para você 🐝💪",
           createdAt: new Date().toISOString(),
-          metadata: JSON.stringify({ type: "workout_suggestion", plan: pendingWorkout }),
+          metadata: JSON.stringify({ type: "workout_suggestion", plan: workoutRef.current }),
         });
       }
 
       // Injetar card de notícias após a mensagem da IA
-      if (newsFetched && newsFetched.items.length > 0) {
+      const news = newsRef.current;
+      if (news && news.items.length > 0) {
         addMessage({
           id: `news-${Date.now()}`,
           role: "assistant",
-          content: `Aqui estão as notícias sobre "${newsFetched.query}":`,
+          content: `Aqui estão as notícias sobre "${news.query}":`,
           createdAt: new Date().toISOString(),
           metadata: JSON.stringify({
             type: "news_digest",
-            query: newsFetched.query,
-            items: newsFetched.items,
+            query: news.query,
+            items: news.items,
           } satisfies NewsDigestMeta),
         });
       }
