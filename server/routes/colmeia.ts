@@ -5,6 +5,7 @@ import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
 import { createDueAlarmReactivationPrompts, getAlarmReactivationReviewAt } from "../alarm-reactivation";
 import { db } from "../db";
+import { decryptTokenSafe, encryptToken } from "../encryption";
 import { requireAuth } from "../middleware/requireAuth";
 import { sendPushToUser } from "../push";
 import {
@@ -89,7 +90,8 @@ function getRedirectUri(req: any): string {
 }
 
 async function refreshGoogleToken(integration: { refreshToken: string | null }): Promise<{ accessToken: string; expiresAt: Date } | null> {
-  if (!integration.refreshToken) return null;
+  const decryptedRefresh = decryptTokenSafe(integration.refreshToken);
+  if (!decryptedRefresh) return null;
   try {
     const res = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -97,7 +99,7 @@ async function refreshGoogleToken(integration: { refreshToken: string | null }):
       body: new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: integration.refreshToken,
+        refresh_token: decryptedRefresh,
         grant_type: "refresh_token",
       }),
     });
@@ -123,7 +125,7 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
 
   const now = new Date();
   if (integration.tokenExpiresAt && integration.tokenExpiresAt > now) {
-    return integration.accessToken;
+    return decryptTokenSafe(integration.accessToken);
   }
 
   const refreshed = await refreshGoogleToken(integration);
@@ -131,7 +133,11 @@ async function getValidAccessToken(userId: string): Promise<string | null> {
 
   await db
     .update(userIntegrations)
-    .set({ accessToken: refreshed.accessToken, tokenExpiresAt: refreshed.expiresAt, updatedAt: new Date() })
+    .set({
+      accessToken: encryptToken(refreshed.accessToken),
+      tokenExpiresAt: refreshed.expiresAt,
+      updatedAt: new Date(),
+    })
     .where(eq(userIntegrations.id, integration.id));
 
   return refreshed.accessToken;
@@ -264,12 +270,17 @@ export function createColmeiaRouter(): Router {
       .where(and(eq(userIntegrations.userId, userId), eq(userIntegrations.provider, "google_calendar")))
       .limit(1);
 
+    const encryptedAccess = encryptToken(tokenData.access_token);
+    const encryptedRefresh = tokenData.refresh_token
+      ? encryptToken(tokenData.refresh_token)
+      : existing[0]?.refreshToken ?? null; // mantém o anterior (que pode já ser cifrado)
+
     if (existing.length > 0) {
       await db
         .update(userIntegrations)
         .set({
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token ?? existing[0].refreshToken ?? null,
+          accessToken: encryptedAccess,
+          refreshToken: encryptedRefresh,
           tokenExpiresAt: expiresAt,
           updatedAt: new Date(),
         })
@@ -278,8 +289,8 @@ export function createColmeiaRouter(): Router {
       await db.insert(userIntegrations).values({
         userId,
         provider: "google_calendar",
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token ?? null,
+        accessToken: encryptedAccess,
+        refreshToken: encryptedRefresh,
         tokenExpiresAt: expiresAt,
       });
     }

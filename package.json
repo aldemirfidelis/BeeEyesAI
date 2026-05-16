@@ -11,6 +11,7 @@
     "test": "tsx --test tests/**/*.test.ts",
     "audit:bee-contexts": "tsx scripts/audit-bee-contexts.ts",
     "migrate:post-images": "tsx scripts/migrate-post-images-to-files.ts",
+    "encrypt:google-tokens": "tsx scripts/encrypt-legacy-google-tokens.ts",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "e2e": "playwright test",

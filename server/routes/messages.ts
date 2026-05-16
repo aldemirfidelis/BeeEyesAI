@@ -923,12 +923,18 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     }
 
     // ── Stream AI response (with research + health context injected) ─────────
-    const combinedContext = [beePersonalizationContext, replyRuntimeContext, routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
+    // Honra opt-out de PII (Settings → personalização desativada): se o user
+    // desativou, omitimos contexto personalizado E injetamos prompt enxuto no
+    // streamChat para que a IA não receba nome/memórias/interesses.
+    const personalizationEnabled = beeConversationContext?.personalizationEnabled ?? true;
+    const combinedContext = personalizationEnabled
+      ? [beePersonalizationContext, replyRuntimeContext, routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n")
+      : [replyRuntimeContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
     let fullResponse = "";
     try {
       fullResponse = await streamChat(user, personality, chatHistory, content, (chunk) => {
         res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
-      }, combinedContext);
+      }, combinedContext, { personalizationEnabled });
     } catch {
       res.write(`data: ${JSON.stringify({ type: "error", message: "Erro ao gerar resposta" })}\n\n`);
       res.end();

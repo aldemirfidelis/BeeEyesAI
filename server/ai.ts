@@ -101,7 +101,52 @@ function buildModeOverlay(mode: AiMode): string {
 
 // ── System Prompt ─────────────────────────────────────────────────────────────
 
-export function buildSystemPrompt(user: User, personality: UserPersonality): string {
+export interface SystemPromptOptions {
+  /**
+   * Quando false, o prompt omite dados pessoais (nome, gênero, interesses,
+   * tópicos, memórias, nível/XP/streak). Usuário pode desativar em
+   * Settings → "Permitir personalização" (`PATCH /api/bee/context`).
+   *
+   * Default: true (comportamento legado).
+   */
+  personalizationEnabled?: boolean;
+}
+
+export function buildSystemPrompt(
+  user: User,
+  personality: UserPersonality,
+  options: SystemPromptOptions = {},
+): string {
+  const personalizationEnabled = options.personalizationEnabled ?? true;
+
+  // Prompt enxuto quando opt-out: só persona + regras operacionais + ferramentas.
+  // Sem nome, sem gênero, sem interesses, sem memórias, sem progresso.
+  if (!personalizationEnabled) {
+    return `Você é a Bee, assistente pessoal digital do BeeEyes. Você tem personalidade acolhedora, inteligente, clara e próxima. Você não finge ser humana: seja transparente como assistente digital, com presença, cuidado e profissionalismo.
+
+Você se refere a si mesma no feminino. Seja curiosa, útil e confiante; carinhosa sem exagero; moderna sem infantilizar; objetiva quando a pessoa precisa resolver algo rápido. Evite respostas genéricas como "Como posso ajudar?", "Entendi", "Certo" ou "Aqui está" quando puder oferecer um próximo passo contextual.
+
+## Modo privacidade ativo
+O usuário desativou a personalização. Você NÃO tem acesso ao perfil, memórias ou interesses dele. Trate cada conversa como nova; não invente histórico nem dados pessoais. Você pode oferecer organização e sugestões com base apenas no que ele te disser na conversa atual.
+
+## Regras operacionais:
+1. Responda sempre em português do Brasil.
+2. Seja breve por padrão, mas não sacrifique clareza quando o usuário pedir explicação, plano ou análise.
+3. Não invente nome, idade, profissão, interesses ou histórico do usuário.
+4. Não transforme toda resposta em pergunta. Quando possível, ofereça uma sugestão ou ação concreta.
+5. Quando o usuário pedir notícias sobre qualquer assunto, responda normalmente E inclua ao FINAL:
+   {"fetch_news": {"query": "termo de busca em português"}}
+6. COLMEIA — Ferramentas integradas ao app. REGRA CRÍTICA: SEMPRE que o usuário pedir uma dessas ações — mesmo que já tenha pedido antes nesta conversa — inclua OBRIGATORIAMENTE o JSON correspondente ao FINAL da resposta.
+   - Marcar/agendar/criar reunião, compromisso, evento, alarme ou lembrete → inclua ao FINAL:
+     {"create_event": {"title": "Título claro do evento", "startAt": "ISO 8601 datetime", "endAt": "ISO 8601 datetime ou null", "description": "opcional", "location": "opcional"}}
+     Data atual: ${new Date().toISOString().split("T")[0]}.
+   - Registrar gasto/despesa/compra ou receita/renda/salário → inclua ao FINAL:
+     {"log_finance": {"type": "expense|income", "amount": 0.00, "category": "categoria", "description": "descrição opcional"}}
+   - Salvar/anotar/guardar nota, ideia, lembrete de texto ou recado → inclua ao FINAL:
+     {"save_note": {"content": "texto completo da nota", "title": "título curto opcional"}}
+   Nunca mencione esses JSONs ao usuário.`.trim();
+  }
+
   const interests = JSON.parse(personality.interests || "[]") as string[];
   const recentTopics = JSON.parse(personality.recentTopics || "[]") as string[];
   const facts = parseFacts(personality.traits);
@@ -191,7 +236,8 @@ function buildChatSystemPrompt(
   personality: UserPersonality,
   history: ChatMessage[],
   userMessage: string,
-  runtimeContext = ""
+  runtimeContext = "",
+  options: SystemPromptOptions = {},
 ): string {
   const mode = selectAiMode(user, userMessage);
   const recentUserMessages = history
@@ -200,7 +246,7 @@ function buildChatSystemPrompt(
     .map((message) => `- ${message.content}`)
     .join("\n");
 
-  return `${buildSystemPrompt(user, personality)}
+  return `${buildSystemPrompt(user, personality, options)}
 
 ## Camada BeeEyes
 Você não é apenas um chat. Você é a consciência digital do usuário: observa padrões, cobra consistência, reconhece progresso e ajuda a transformar intenção em ação.
@@ -496,10 +542,11 @@ async function streamChatOpenAI(
   history: ChatMessage[],
   userMessage: string,
   onChunk: (chunk: string) => void,
-  runtimeContext = ""
+  runtimeContext = "",
+  options: SystemPromptOptions = {},
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext, options);
   let fullResponse = "";
 
   const stream = await openai.chat.completions.create({
@@ -529,10 +576,11 @@ async function streamChatGroq(
   history: ChatMessage[],
   userMessage: string,
   onChunk: (chunk: string) => void,
-  runtimeContext = ""
+  runtimeContext = "",
+  options: SystemPromptOptions = {},
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext, options);
   let fullResponse = "";
 
   const stream = await groq.chat.completions.create({
@@ -562,9 +610,10 @@ async function streamChatGemini(
   history: ChatMessage[],
   userMessage: string,
   onChunk: (chunk: string) => void,
-  runtimeContext = ""
+  runtimeContext = "",
+  options: SystemPromptOptions = {},
 ): Promise<string> {
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext, options);
   const model = geminiAI.getGenerativeModel({
     model: "gemini-2.0-flash",
     systemInstruction: systemPrompt,
@@ -596,10 +645,11 @@ async function streamChatCerebras(
   history: ChatMessage[],
   userMessage: string,
   onChunk: (chunk: string) => void,
-  runtimeContext = ""
+  runtimeContext = "",
+  options: SystemPromptOptions = {},
 ): Promise<string> {
   const allMessages: ChatMessage[] = [...history, { role: "user", content: userMessage }];
-  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext);
+  const systemPrompt = buildChatSystemPrompt(user, personality, history, userMessage, runtimeContext, options);
   let fullResponse = "";
 
   const stream = await cerebras.chat.completions.create({
@@ -629,27 +679,28 @@ export async function streamChat(
   history: ChatMessage[],
   userMessage: string,
   onChunk: (chunk: string) => void,
-  runtimeContext = ""
+  runtimeContext = "",
+  options: SystemPromptOptions = {},
 ): Promise<string> {
   try {
-    return await streamChatOpenAI(user, personality, history, userMessage, onChunk, runtimeContext);
+    return await streamChatOpenAI(user, personality, history, userMessage, onChunk, runtimeContext, options);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] OpenAI rate limited (streamChat) → usando Groq");
   }
   try {
-    return await streamChatGroq(user, personality, history, userMessage, onChunk, runtimeContext);
+    return await streamChatGroq(user, personality, history, userMessage, onChunk, runtimeContext, options);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] Groq rate limited (streamChat) → usando Gemini");
   }
   try {
-    return await streamChatGemini(user, personality, history, userMessage, onChunk, runtimeContext);
+    return await streamChatGemini(user, personality, history, userMessage, onChunk, runtimeContext, options);
   } catch (error) {
     if (!isRateLimitError(error)) throw error;
     console.warn("[AI] Gemini rate limited (streamChat) → usando Cerebras");
   }
-  return await streamChatCerebras(user, personality, history, userMessage, onChunk, runtimeContext);
+  return await streamChatCerebras(user, personality, history, userMessage, onChunk, runtimeContext, options);
 }
 
 // ── Post Analysis ─────────────────────────────────────────────────────────────
