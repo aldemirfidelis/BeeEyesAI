@@ -4,6 +4,7 @@ import { createAdminRouter } from "./admin";
 import { createAdImpressionsRouter } from "./ad-impressions";
 import { createAuthRouter } from "./auth";
 import { createBeeContextRouter } from "./bee-context";
+import { createBeeHouseRouter } from "./bee-house";
 import { createColmeiaRouter, startAlarmReminderScheduler } from "./colmeia";
 import { createCommunitiesRouter } from "./communities";
 import { createDailyBriefingRouter } from "./daily-briefing";
@@ -23,6 +24,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(createAdImpressionsRouter());
   app.use(createAuthRouter());
   app.use(createBeeContextRouter());
+  app.use(createBeeHouseRouter());
   app.use(createColmeiaRouter());
   app.use(createDailyBriefingRouter());
   app.use(createMessagesRouter());

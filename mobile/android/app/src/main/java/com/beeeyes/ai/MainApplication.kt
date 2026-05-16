@@ -9,6 +9,7 @@ import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.ReactPackage
 import com.facebook.react.ReactHost
 
+import com.beeeyes.ai.bee.house.BeeHouseUnityPackage
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ExpoReactHostFactory
 
@@ -20,7 +21,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           // Packages that cannot be autolinked yet can be added manually here, for example:
-          // add(MyReactNativePackage())
+          add(BeeHouseUnityPackage())
         }
     )
   }

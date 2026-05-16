@@ -14,7 +14,7 @@ import {
   Platform,
   Share,
 } from "react-native";
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
@@ -25,8 +25,36 @@ import { FeedPost, ConnectionSuggestion, displayNameOf, timeAgo } from "@mobile/
 import { FONTS, getThemeColors } from "@mobile/lib/theme";
 import { UserAvatar } from "@mobile/components/UserAvatar";
 import { UserProfileModal } from "@mobile/components/UserProfileModal";
+import { SponsoredFeedCard } from "@mobile/components/SponsoredFeedCard";
+import { getEligibleFeedAds } from "@mobile/lib/adService";
+import type { AdCampaign } from "@mobile/lib/ads";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
+
+const FEED_AD_INTERVAL = 8;
+const FEED_AD_FIRST_SLOT = 4;
+
+type FeedItem =
+  | { kind: "post"; post: FeedPost }
+  | { kind: "ad"; ad: AdCampaign; key: string };
+
+function interleaveAds(posts: FeedPost[], ads: AdCampaign[]): FeedItem[] {
+  if (ads.length === 0 || posts.length === 0) {
+    return posts.map<FeedItem>((post) => ({ kind: "post", post }));
+  }
+  const items: FeedItem[] = [];
+  let adCursor = 0;
+  for (let i = 0; i < posts.length; i += 1) {
+    items.push({ kind: "post", post: posts[i] });
+    const position = i + 1;
+    if (position >= FEED_AD_FIRST_SLOT && (position - FEED_AD_FIRST_SLOT) % FEED_AD_INTERVAL === 0) {
+      const ad = ads[adCursor % ads.length];
+      adCursor += 1;
+      items.push({ kind: "ad", ad, key: `ad-${position}-${ad.id}` });
+    }
+  }
+  return items;
+}
 
 interface FeedComment {
   id: string;
@@ -176,6 +204,24 @@ export default function FeedScreen() {
     () => feedPages?.pages.flatMap((page) => page.items) ?? [],
     [feedPages],
   );
+
+  const [feedAds, setFeedAds] = useState<AdCampaign[]>([]);
+  useEffect(() => {
+    if (!user) {
+      setFeedAds([]);
+      return;
+    }
+    let cancelled = false;
+    void getEligibleFeedAds({
+      level: user.level,
+      xp: user.xp,
+    }).then((ads) => {
+      if (!cancelled) setFeedAds(ads);
+    });
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const feedItems = useMemo(() => interleaveAds(feed, feedAds), [feed, feedAds]);
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
@@ -438,9 +484,9 @@ export default function FeedScreen() {
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={feed}
-          keyExtractor={(item) => item.id}
+        <FlatList<FeedItem>
+          data={feedItems}
+          keyExtractor={(item) => (item.kind === "ad" ? item.key : item.post.id)}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -538,16 +584,22 @@ export default function FeedScreen() {
               </View>
             )
           }
-          renderItem={({ item: post }) => (
-            <PostCard
-              post={{ ...post, commentsCount: post.commentsCount ?? 0 }}
-              onLike={() => likePost.mutate(post.id)}
-              isLiking={likePost.isPending}
-              colors={colors}
-              currentUserId={user?.id}
-              onOpenProfile={setProfileUserId}
-            />
-          )}
+          renderItem={({ item }) => {
+            if (item.kind === "ad") {
+              return <SponsoredFeedCard ad={item.ad} />;
+            }
+            const post = item.post;
+            return (
+              <PostCard
+                post={{ ...post, commentsCount: post.commentsCount ?? 0 }}
+                onLike={() => likePost.mutate(post.id)}
+                isLiking={likePost.isPending}
+                colors={colors}
+                currentUserId={user?.id}
+                onOpenProfile={setProfileUserId}
+              />
+            );
+          }}
         />
       </View>
     </View>

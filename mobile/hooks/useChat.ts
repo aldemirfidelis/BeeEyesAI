@@ -4,6 +4,7 @@ import { useUIStore } from "../stores/uiStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_URL_RAW, getApiErrorMessage } from "../lib/api";
 import { NewsDigestMeta } from "../lib/social";
+import { createBeeHouseTask, updateBeeHouseTask } from "../services/beeHouseService";
 import type { ResearchResult } from "../components/ResearchResultCard";
 import type { Message } from "../stores/chatStore";
 
@@ -47,8 +48,24 @@ export function useChat() {
     setEyeExpression("curious");
 
     const token = await SecureStore.getItemAsync("bee_token");
+    let beeHouseTaskId: string | null = null;
+    const syncBeeHouseTask = (patch: Parameters<typeof updateBeeHouseTask>[1]) => {
+      if (!beeHouseTaskId) return;
+      updateBeeHouseTask(beeHouseTaskId, patch)
+        .then(() => queryClient.invalidateQueries({ queryKey: ["bee-house-bootstrap"] }))
+        .catch(() => {});
+    };
 
     try {
+      if (token) {
+        const task = await createBeeHouseTask({
+          content,
+          payload: { origin: "chat" },
+        }).catch(() => null);
+        beeHouseTaskId = task?.id ?? null;
+        if (beeHouseTaskId) queryClient.invalidateQueries({ queryKey: ["bee-house-bootstrap"] });
+      }
+
       const controller = new AbortController();
       // 60s para o stream de IA — pode demorar em 5G/dados móveis
       const chatTimeout = setTimeout(() => controller.abort(), 60000);
@@ -111,17 +128,21 @@ export function useChat() {
             }
           } else if (event.type === "research_start") {
             setEyeExpression("curious");
+            syncBeeHouseTask({ status: "searching", progress: 35 });
           } else if (event.type === "research_results") {
             if (event.results?.length > 0) {
               pendingResearch = { intent: event.intent, results: event.results };
             }
             setEyeExpression("excited");
+            syncBeeHouseTask({ status: "generating", progress: 75, payload: { intent: event.intent } });
           } else if (event.type === "workout_suggestion") {
             pendingWorkout = event.plan;
             setEyeExpression("excited");
+            syncBeeHouseTask({ status: "generating", taskType: "fitness", progress: 80 });
           } else if (event.type === "news_fetched") {
             newsFetched = { query: event.query, items: event.items };
             setEyeExpression("excited");
+            syncBeeHouseTask({ status: "generating", taskType: "research", progress: 80, payload: { query: event.query } });
           } else if (event.type === "note_saved") {
             queryClient.invalidateQueries({ queryKey: ["colmeia-notes"] });
             showAchievement({ id: "note_saved", type: "note_saved", title: "Nota salva!", description: event.note?.title || event.note?.content?.slice(0, 50) || "Adicionada à Colmeia" });
@@ -151,6 +172,12 @@ export function useChat() {
 
       finalizeStream(cleanAIText(fullText) || "Desculpe, não consegui gerar uma resposta.", doneMetadata, doneId);
       setEyeExpression("happy");
+      syncBeeHouseTask({
+        status: "completed",
+        progress: 100,
+        sourceMessageId: doneId ?? null,
+        resultSummary: cleanAIText(fullText).slice(0, 800),
+      });
 
       // Injetar card de sugestão de treino após a mensagem da IA
       if (pendingWorkout) {
@@ -189,6 +216,11 @@ export function useChat() {
         : getApiErrorMessage(err, "Não consegui me conectar agora. Verifique sua conexão e tente novamente!");
       finalizeStream(msg);
       setEyeExpression("neutral");
+      syncBeeHouseTask({
+        status: "failed",
+        progress: 100,
+        errorMessage: msg,
+      });
     }
   }
 

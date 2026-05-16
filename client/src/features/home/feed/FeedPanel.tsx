@@ -1,10 +1,38 @@
 import { Camera, Image, Plus, RefreshCw, UserPlus, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/UserAvatar";
 import type { ConnectionSuggestion, FeedPost, User } from "@/features/home/types";
 import FeedPostCard from "@/components/FeedPostCard";
+import { SponsoredFeedCard } from "@/components/SponsoredFeedCard";
+import { getEligibleFeedAds } from "@/lib/adService";
+import type { AdCampaign } from "@/lib/ads";
+
+const FEED_AD_INTERVAL = 8;
+const FEED_AD_FIRST_SLOT = 4;
+
+type FeedItem =
+  | { kind: "post"; post: FeedPost }
+  | { kind: "ad"; ad: AdCampaign; key: string };
+
+function interleaveAds(posts: FeedPost[], ads: AdCampaign[]): FeedItem[] {
+  if (ads.length === 0 || posts.length === 0) {
+    return posts.map<FeedItem>((post) => ({ kind: "post", post }));
+  }
+  const items: FeedItem[] = [];
+  let adCursor = 0;
+  for (let i = 0; i < posts.length; i += 1) {
+    items.push({ kind: "post", post: posts[i] });
+    const position = i + 1;
+    if (position >= FEED_AD_FIRST_SLOT && (position - FEED_AD_FIRST_SLOT) % FEED_AD_INTERVAL === 0) {
+      const ad = ads[adCursor % ads.length];
+      adCursor += 1;
+      items.push({ kind: "ad", ad, key: `ad-${position}-${ad.id}` });
+    }
+  }
+  return items;
+}
 
 export const SENTIMENT_EMOJI: Record<string, string> = {
   happy: "😊",
@@ -109,6 +137,15 @@ export function FeedPanel(props: FeedPanelProps) {
   } = props;
 
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const feedAds = useMemo(() => {
+    if (!currentUser) return [] as AdCampaign[];
+    return getEligibleFeedAds({ level: currentUser.level, xp: currentUser.xp });
+    // recompute when user identity changes; ad selection is otherwise stable enough for a session
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  const feedItems = useMemo(() => interleaveAds(feed, feedAds), [feed, feedAds]);
 
   useEffect(() => {
     const node = loadMoreSentinelRef.current;
@@ -272,7 +309,11 @@ export function FeedPanel(props: FeedPanelProps) {
           </div>
         )}
 
-        {feed.map((post) => {
+        {feedItems.map((item) => {
+          if (item.kind === "ad") {
+            return <SponsoredFeedCard key={item.key} ad={item.ad} />;
+          }
+          const post = item.post;
           const isOwner = currentUser?.id === post.author.id;
           return (
             <FeedPostCard

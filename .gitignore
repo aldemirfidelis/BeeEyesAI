@@ -9,3 +9,10 @@ vite.config.ts.*
 .local/
 .agents/
 skills-lock.json
+unity/**/Library/
+unity/**/Temp/
+unity/**/Obj/
+unity/**/Build/
+unity/**/Builds/
+unity/**/Logs/
+unity/**/UserSettings/

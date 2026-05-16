@@ -8,6 +8,7 @@ import { DrumRollDatePicker } from "@mobile/components/DrumRollDatePicker";
 import * as Notifications from "expo-notifications";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { api } from "@mobile/lib/api";
 import { CHANNEL, requestNotificationPermission } from "@mobile/lib/notifications";
 import {
@@ -80,7 +81,7 @@ interface AlarmReminder {
 
 // ── Colmeia Hub types ─────────────────────────────────────────────────────────
 
-type ToolId = "calendar" | "finance" | "clock" | "notes" | "health" | "wishlist";
+type ToolId = "calendar" | "finance" | "clock" | "notes" | "health" | "wishlist" | "house";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ const COLMEIA_TOOLS: ColmeiaTool[] = [
   { id: "clock",    label: "Alarmes",    img: require("../../../assets/icons-colmeia/alarmes.png"),     color: "#F97316" },
   { id: "health",   label: "Saúde",      img: require("../../../assets/icons-colmeia/saude.png"),       color: "#EF4444" },
   { id: "wishlist", label: "Lista de Desejos", img: require("../../../assets/icons-colmeia/lista-desejos.png"), color: "#EC4899" },
+  { id: "house",    label: "Casa da Bee", iconName: "home", color: "#F5A623" },
 ];
 
 // 6 positions around center (degrees, clockwise from top).
@@ -1912,7 +1914,7 @@ export default function ColmeiaScreen() {
           </View>
           <View style={styles.toolsGrid}>
             {COLMEIA_TOOLS.map((tool) => (
-              <TouchableOpacity key={tool.id} activeOpacity={0.78} onPress={() => setActiveSection(tool.id)} style={styles.toolCard}>
+              <TouchableOpacity key={tool.id} activeOpacity={0.78} onPress={() => tool.id === "house" ? router.push("/casa-da-bee" as never) : setActiveSection(tool.id)} style={styles.toolCard}>
                 {tool.img ? (
                   <Image source={tool.img} style={styles.toolCardImage} resizeMode="contain" />
                 ) : (

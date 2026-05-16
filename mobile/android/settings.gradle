@@ -37,3 +37,9 @@ expoAutolinking.useExpoVersionCatalog()
 
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
+
+def beeHouseUnityLibraryDir = file("unity-export/unityLibrary")
+if (beeHouseUnityLibraryDir.exists()) {
+  include ':unityLibrary'
+  project(':unityLibrary').projectDir = beeHouseUnityLibraryDir
+}

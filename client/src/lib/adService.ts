@@ -227,3 +227,16 @@ export function getEligibleAds(
   const allowedMax = prefs.preferredAdFrequency === "high" ? Math.min(3, maxItems) : Math.min(2, maxItems);
   return selectBestAds(prefs, state, contextTopics, user, MOCK_AD_CAMPAIGNS, allowedMax);
 }
+
+// Feed ads: skip the chat-pacing caps (messagesSinceLastAd, minMinutesBetweenAds)
+// because cadence is enforced by the FEED_AD_INTERVAL spacing in the UI.
+// Still respects: subscription, adsDisabled, level/xp gate, blocked categories,
+// hidden advertisers, hidden ad ids, and 18+ age rating.
+export function getEligibleFeedAds(user: UserForAds): AdCampaign[] {
+  const prefs = loadAdPreferences();
+  const state = loadAdEngineState();
+  if (user.subscriptionStatus === "premium") return [];
+  if (user.adsDisabled) return [];
+  if (user.level < MIN_LEVEL_BEFORE_ADS && user.xp < MIN_XP_BEFORE_ADS) return [];
+  return selectBestAds(prefs, state, [], user, MOCK_AD_CAMPAIGNS, 3);
+}

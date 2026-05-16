@@ -16,7 +16,14 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pool } from "../server/db";
+import { Pool, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL é obrigatório para rodar a migração");
+}
+neonConfig.webSocketConstructor = ws;
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const UPLOADS_DIR = join(process.cwd(), "uploads");
 const DATA_URL_RX = /^data:image\/(\w+);base64,(.+)$/s;

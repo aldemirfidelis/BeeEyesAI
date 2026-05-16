@@ -109,6 +109,213 @@ export const beeConversationContexts = pgTable("bee_conversation_contexts", {
   index("bee_conversation_contexts_user_idx").on(table.userId),
 ]);
 
+export const beeProfiles = pgTable("bee_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  displayName: text("display_name").notNull().default("Bee"),
+  currentState: varchar("current_state", { length: 30 }).notNull().default("idle"),
+  activeRoomId: varchar("active_room_id"),
+  equippedOutfitId: varchar("equipped_outfit_id").notNull().default("casual_honey"),
+  pollen: integer("pollen").notNull().default(250),
+  premiumHoney: integer("premium_honey").notNull().default(0),
+  xp: integer("xp").notNull().default(0),
+  level: integer("level").notNull().default(1),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_profiles_user_idx").on(table.userId),
+  index("bee_profiles_active_room_idx").on(table.activeRoomId),
+]);
+
+export const beeRooms = pgTable("bee_rooms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  roomKey: varchar("room_key", { length: 60 }).notNull().default("main_room"),
+  name: text("name").notNull().default("Sala principal"),
+  roomKind: varchar("room_kind", { length: 30 }).notNull().default("main"),
+  width: integer("width").notNull().default(8),
+  height: integer("height").notNull().default(8),
+  wallpaperItemId: varchar("wallpaper_item_id").default("honeycomb_wallpaper"),
+  floorItemId: varchar("floor_item_id").default("warm_wood_floor"),
+  isUnlocked: boolean("is_unlocked").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_rooms_user_idx").on(table.userId),
+  uniqueIndex("bee_rooms_user_room_key_uidx").on(table.userId, table.roomKey),
+]);
+
+export const beeItems = pgTable("bee_items", {
+  id: varchar("id", { length: 80 }).primaryKey(),
+  name: text("name").notNull(),
+  itemType: varchar("item_type", { length: 30 }).notNull(),
+  rarity: varchar("rarity", { length: 30 }).notNull().default("common"),
+  pricePollen: integer("price_pollen").notNull().default(0),
+  priceHoney: integer("price_honey").notNull().default(0),
+  assetKey: text("asset_key").notNull(),
+  gridWidth: integer("grid_width").notNull().default(1),
+  gridHeight: integer("grid_height").notNull().default(1),
+  allowedRooms: jsonb("allowed_rooms").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  interactive: boolean("interactive").notNull().default(false),
+  interactionTarget: varchar("interaction_target", { length: 60 }),
+  active: boolean("active").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_items_type_idx").on(table.itemType),
+  index("bee_items_active_idx").on(table.active),
+]);
+
+export const beeUserInventory = pgTable("bee_user_inventory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  itemId: varchar("item_id", { length: 80 }).notNull().references(() => beeItems.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").notNull().default(1),
+  source: varchar("source", { length: 40 }).notNull().default("starter"),
+  acquiredAt: timestamp("acquired_at").notNull().defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+}, (table) => [
+  index("bee_user_inventory_user_idx").on(table.userId),
+  index("bee_user_inventory_item_idx").on(table.itemId),
+  uniqueIndex("bee_user_inventory_user_item_uidx").on(table.userId, table.itemId),
+]);
+
+export const beeRoomLayouts = pgTable("bee_room_layouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  roomId: varchar("room_id").notNull().references(() => beeRooms.id, { onDelete: "cascade" }),
+  inventoryId: varchar("inventory_id").references(() => beeUserInventory.id, { onDelete: "set null" }),
+  itemId: varchar("item_id", { length: 80 }).notNull().references(() => beeItems.id, { onDelete: "cascade" }),
+  gridX: integer("grid_x").notNull(),
+  gridY: integer("grid_y").notNull(),
+  rotation: integer("rotation").notNull().default(0),
+  layer: integer("layer").notNull().default(0),
+  state: varchar("state", { length: 30 }).notNull().default("placed"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_room_layouts_user_room_idx").on(table.userId, table.roomId),
+  index("bee_room_layouts_item_idx").on(table.itemId),
+]);
+
+export const beeOutfits = pgTable("bee_outfits", {
+  id: varchar("id", { length: 80 }).primaryKey(),
+  name: text("name").notNull(),
+  category: varchar("category", { length: 30 }).notNull(),
+  rarity: varchar("rarity", { length: 30 }).notNull().default("common"),
+  pricePollen: integer("price_pollen").notNull().default(0),
+  priceHoney: integer("price_honey").notNull().default(0),
+  assetKey: text("asset_key").notNull(),
+  active: boolean("active").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_outfits_category_idx").on(table.category),
+  index("bee_outfits_active_idx").on(table.active),
+]);
+
+export const beeUserOutfits = pgTable("bee_user_outfits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  outfitId: varchar("outfit_id", { length: 80 }).notNull().references(() => beeOutfits.id, { onDelete: "cascade" }),
+  equipped: boolean("equipped").notNull().default(false),
+  source: varchar("source", { length: 40 }).notNull().default("starter"),
+  acquiredAt: timestamp("acquired_at").notNull().defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+}, (table) => [
+  index("bee_user_outfits_user_idx").on(table.userId),
+  uniqueIndex("bee_user_outfits_user_outfit_uidx").on(table.userId, table.outfitId),
+]);
+
+export const beeCurrencyTransactions = pgTable("bee_currency_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  currency: varchar("currency", { length: 30 }).notNull(),
+  amount: integer("amount").notNull(),
+  reason: varchar("reason", { length: 80 }).notNull(),
+  referenceType: varchar("reference_type", { length: 60 }),
+  referenceId: varchar("reference_id", { length: 120 }),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_currency_transactions_user_created_idx").on(table.userId, table.createdAt),
+  index("bee_currency_transactions_reference_idx").on(table.referenceType, table.referenceId),
+]);
+
+export const beeMissions = pgTable("bee_missions", {
+  id: varchar("id", { length: 80 }).primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  missionType: varchar("mission_type", { length: 40 }).notNull().default("daily"),
+  rewardPollen: integer("reward_pollen").notNull().default(0),
+  rewardXp: integer("reward_xp").notNull().default(0),
+  target: integer("target").notNull().default(1),
+  active: boolean("active").notNull().default(true),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_missions_active_idx").on(table.active),
+]);
+
+export const beeUserMissions = pgTable("bee_user_missions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  missionId: varchar("mission_id", { length: 80 }).notNull().references(() => beeMissions.id, { onDelete: "cascade" }),
+  progress: integer("progress").notNull().default(0),
+  completed: boolean("completed").notNull().default(false),
+  claimedAt: timestamp("claimed_at"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_user_missions_user_idx").on(table.userId),
+  uniqueIndex("bee_user_missions_user_mission_uidx").on(table.userId, table.missionId),
+]);
+
+export const beeAiTasks = pgTable("bee_ai_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sourceMessageId: varchar("source_message_id"),
+  taskType: varchar("task_type", { length: 40 }).notNull().default("general"),
+  status: varchar("status", { length: 30 }).notNull().default("processing"),
+  beeState: varchar("bee_state", { length: 30 }).notNull().default("thinking"),
+  targetStation: varchar("target_station", { length: 60 }).notNull().default("desk"),
+  speechText: text("speech_text"),
+  progress: integer("progress").notNull().default(0),
+  promptSnippet: text("prompt_snippet"),
+  resultSummary: text("result_summary"),
+  errorMessage: text("error_message"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_ai_tasks_user_status_idx").on(table.userId, table.status, table.updatedAt),
+  index("bee_ai_tasks_source_message_idx").on(table.sourceMessageId),
+]);
+
+export const beeHouseVisits = pgTable("bee_house_visits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  houseOwnerUserId: varchar("house_owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  visitorUserId: varchar("visitor_user_id").references(() => users.id, { onDelete: "set null" }),
+  liked: boolean("liked").notNull().default(false),
+  giftItemId: varchar("gift_item_id", { length: 80 }).references(() => beeItems.id, { onDelete: "set null" }),
+  snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("bee_house_visits_owner_created_idx").on(table.houseOwnerUserId, table.createdAt),
+  index("bee_house_visits_visitor_idx").on(table.visitorUserId),
+]);
+
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -483,6 +690,73 @@ export const insertBeeConversationContextSchema = createInsertSchema(beeConversa
   updatedAt: true,
 });
 
+export const insertBeeProfileSchema = createInsertSchema(beeProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeRoomSchema = createInsertSchema(beeRooms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeItemSchema = createInsertSchema(beeItems).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeUserInventorySchema = createInsertSchema(beeUserInventory).omit({
+  id: true,
+  acquiredAt: true,
+});
+
+export const insertBeeRoomLayoutSchema = createInsertSchema(beeRoomLayouts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeOutfitSchema = createInsertSchema(beeOutfits).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeUserOutfitSchema = createInsertSchema(beeUserOutfits).omit({
+  id: true,
+  acquiredAt: true,
+});
+
+export const insertBeeCurrencyTransactionSchema = createInsertSchema(beeCurrencyTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertBeeMissionSchema = createInsertSchema(beeMissions).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeUserMissionSchema = createInsertSchema(beeUserMissions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeAiTaskSchema = createInsertSchema(beeAiTasks).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBeeHouseVisitSchema = createInsertSchema(beeHouseVisits).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertPostSchema = createInsertSchema(posts).omit({
   id: true,
   createdAt: true,
@@ -847,6 +1121,30 @@ export type UserPreference = typeof userPreferences.$inferSelect;
 export type InsertUserPreference = z.infer<typeof insertUserPreferenceSchema>;
 export type BeeConversationContext = typeof beeConversationContexts.$inferSelect;
 export type InsertBeeConversationContext = z.infer<typeof insertBeeConversationContextSchema>;
+export type BeeProfile = typeof beeProfiles.$inferSelect;
+export type InsertBeeProfile = z.infer<typeof insertBeeProfileSchema>;
+export type BeeRoom = typeof beeRooms.$inferSelect;
+export type InsertBeeRoom = z.infer<typeof insertBeeRoomSchema>;
+export type BeeItem = typeof beeItems.$inferSelect;
+export type InsertBeeItem = z.infer<typeof insertBeeItemSchema>;
+export type BeeUserInventory = typeof beeUserInventory.$inferSelect;
+export type InsertBeeUserInventory = z.infer<typeof insertBeeUserInventorySchema>;
+export type BeeRoomLayout = typeof beeRoomLayouts.$inferSelect;
+export type InsertBeeRoomLayout = z.infer<typeof insertBeeRoomLayoutSchema>;
+export type BeeOutfit = typeof beeOutfits.$inferSelect;
+export type InsertBeeOutfit = z.infer<typeof insertBeeOutfitSchema>;
+export type BeeUserOutfit = typeof beeUserOutfits.$inferSelect;
+export type InsertBeeUserOutfit = z.infer<typeof insertBeeUserOutfitSchema>;
+export type BeeCurrencyTransaction = typeof beeCurrencyTransactions.$inferSelect;
+export type InsertBeeCurrencyTransaction = z.infer<typeof insertBeeCurrencyTransactionSchema>;
+export type BeeMission = typeof beeMissions.$inferSelect;
+export type InsertBeeMission = z.infer<typeof insertBeeMissionSchema>;
+export type BeeUserMission = typeof beeUserMissions.$inferSelect;
+export type InsertBeeUserMission = z.infer<typeof insertBeeUserMissionSchema>;
+export type BeeAiTask = typeof beeAiTasks.$inferSelect;
+export type InsertBeeAiTask = z.infer<typeof insertBeeAiTaskSchema>;
+export type BeeHouseVisit = typeof beeHouseVisits.$inferSelect;
+export type InsertBeeHouseVisit = z.infer<typeof insertBeeHouseVisitSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type AdImpression = typeof adImpressions.$inferSelect;

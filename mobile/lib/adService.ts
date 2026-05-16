@@ -348,3 +348,19 @@ export async function getEligibleAds(
   const allowedMax = prefs.preferredAdFrequency === "high" ? Math.min(3, maxItems) : Math.min(2, maxItems);
   return selectBestAds(prefs, state, context, MOCK_ADS, allowedMax);
 }
+
+// Feed ads: skip the chat-pacing caps (messagesSinceLastAd, minMinutesBetweenAds)
+// because cadence is enforced by spacing in the FlatList. Still respects: subscription,
+// adsDisabled, level/xp gate, blocked categories, hidden advertisers, hidden ad ids.
+export async function getEligibleFeedAds(user: UserForAds): Promise<AdCampaign[]> {
+  const prefs = await loadAdPreferences();
+  const state = await loadAdEngineState();
+  if (user.subscriptionStatus === "premium") return [];
+  if (user.adsDisabled) return [];
+  const isActiveEnough =
+    (user.level ?? 1) >= MIN_LEVEL_BEFORE_ADS ||
+    (user.xp ?? 0) >= MIN_XP_BEFORE_ADS;
+  if (!isActiveEnough) return [];
+  const context: AdContext = { screen: "feed", recentTopics: [], isSensitiveContext: false };
+  return selectBestAds(prefs, state, context, MOCK_ADS, 3);
+}

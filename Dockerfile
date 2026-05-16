@@ -15,6 +15,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY --from=builder /app/dist ./dist
+# scripts/ é necessário em runtime para migrações pontuais (ex: migrate:post-images)
+COPY scripts ./scripts
+COPY shared ./shared
 EXPOSE 5000
 ENV NODE_ENV=production
 CMD ["node", "dist/index.js"]
