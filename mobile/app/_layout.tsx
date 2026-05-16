@@ -1,6 +1,10 @@
 import "@mobile/lib/i18n";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
+
+// Root ErrorBoundary do Expo Router — captura erros não tratados em qualquer
+// rota/componente filho e mostra UI amigável em vez de crashar a app.
+export { default as ErrorBoundary } from "@mobile/components/RouteErrorBoundary";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";

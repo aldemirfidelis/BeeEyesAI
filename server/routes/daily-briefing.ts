@@ -4,6 +4,7 @@ import { sendOk } from "../api/response";
 import { requireAuth } from "../middleware/requireAuth";
 import { storage } from "../storage";
 import { generateDailyBriefing } from "../ai";
+import { clearCachedBriefing, getCachedBriefing, setCachedBriefing } from "../cacheDailyBriefing";
 
 interface GeoResult {
   results?: Array<{ latitude: number; longitude: number; name: string }>;
@@ -123,6 +124,22 @@ export function createDailyBriefingRouter() {
       return sendOk(res, { shouldShow: false });
     }
 
+    // Cache em memória (userId, dia): se o user já chamou hoje e ainda não
+    // dismissou, devolve o texto sem custo de IA.
+    const cached = getCachedBriefing(userId, today);
+    if (cached) {
+      return sendOk(res, {
+        shouldShow: true,
+        briefing: {
+          text: cached.text,
+          weather: cached.weather,
+          city: cached.city,
+          date: cached.date,
+          dayOfWeek: cached.dayOfWeek,
+        },
+      });
+    }
+
     const lat = req.query.lat ? parseFloat(req.query.lat as string) : null;
     const lon = req.query.lon ? parseFloat(req.query.lon as string) : null;
     const queryCity = typeof req.query.city === "string" && req.query.city.trim()
@@ -163,22 +180,23 @@ export function createDailyBriefingRouter() {
       facts,
     });
 
-    return sendOk(res, {
-      shouldShow: true,
-      briefing: {
-        text: briefingText,
-        weather,
-        city: resolvedCity,
-        date: getFormattedDate(),
-        dayOfWeek: getDayOfWeek(),
-      },
-    });
+    const briefing = {
+      text: briefingText,
+      weather,
+      city: resolvedCity,
+      date: getFormattedDate(),
+      dayOfWeek: getDayOfWeek(),
+    };
+    setCachedBriefing(userId, today, briefing);
+
+    return sendOk(res, { shouldShow: true, briefing });
   }));
 
   router.post("/api/daily-briefing/dismiss", requireAuth, asyncHandler(async (req, res) => {
     const userId = req.userId!;
     const today = getTodayDateStr();
     await storage.updateLastDailyBriefingDate(userId, today);
+    clearCachedBriefing(userId, today); // libera memória — não vai mais aparecer hoje
     return sendOk(res, { dismissed: true });
   }));
 

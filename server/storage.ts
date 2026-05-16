@@ -1025,57 +1025,81 @@ export class DrizzleStorage implements IStorage {
     lastMessageFromMe: boolean;
     unreadCount: number;
   }>> {
-    const all = await db
-      .select()
-      .from(directMessages)
-      .where(or(eq(directMessages.senderId, userId), eq(directMessages.recipientId, userId)))
-      .orderBy(desc(directMessages.createdAt));
+    // SQL puro com DISTINCT ON + LEFT JOIN unread aggregate + JOIN users.
+    // Substitui o algoritmo legado que carregava TODAS as DMs em memória e
+    // agrupava em JS — não escalava com histórico longo.
+    // Usa os índices direct_messages_sender_recipient_created_idx e
+    // direct_messages_recipient_created_idx adicionados na migration 0014.
+    const rows = await db.execute<{
+      partner_id: string;
+      last_message: string;
+      last_message_at: Date;
+      last_message_from_me: boolean;
+      unread_count: number;
+      username: string;
+      display_name: string | null;
+      level: number;
+      avatar_url: string | null;
+    }>(sql`
+      WITH partner_messages AS (
+        SELECT
+          CASE WHEN sender_id = ${userId} THEN recipient_id ELSE sender_id END AS partner_id,
+          content,
+          created_at,
+          sender_id,
+          recipient_id,
+          read_at
+        FROM direct_messages
+        WHERE sender_id = ${userId} OR recipient_id = ${userId}
+      ),
+      latest AS (
+        SELECT DISTINCT ON (partner_id)
+          partner_id,
+          content,
+          created_at,
+          sender_id
+        FROM partner_messages
+        ORDER BY partner_id, created_at DESC
+      ),
+      unread AS (
+        SELECT partner_id, COUNT(*)::int AS unread_count
+        FROM partner_messages
+        WHERE recipient_id = ${userId} AND read_at IS NULL
+        GROUP BY partner_id
+      )
+      SELECT
+        l.partner_id,
+        l.content AS last_message,
+        l.created_at AS last_message_at,
+        (l.sender_id = ${userId}) AS last_message_from_me,
+        COALESCE(u.unread_count, 0)::int AS unread_count,
+        users.username,
+        users.display_name,
+        users.level,
+        users.avatar_url
+      FROM latest l
+      LEFT JOIN unread u ON u.partner_id = l.partner_id
+      INNER JOIN users ON users.id = l.partner_id
+      ORDER BY l.created_at DESC
+    `);
 
-    if (all.length === 0) return [];
+    // db.execute retorna { rows: ... } em alguns drivers e Array em outros.
+    // Normaliza para Array.
+    const list = Array.isArray(rows) ? rows : ((rows as any).rows ?? []);
 
-    const latestByPartner = new Map<string, DirectMessage>();
-    const unreadByPartner = new Map<string, number>();
-
-    for (const msg of all) {
-      const partnerId = msg.senderId === userId ? msg.recipientId : msg.senderId;
-      if (!latestByPartner.has(partnerId)) latestByPartner.set(partnerId, msg);
-      if (msg.recipientId === userId && msg.senderId === partnerId && !msg.readAt) {
-        unreadByPartner.set(partnerId, (unreadByPartner.get(partnerId) ?? 0) + 1);
-      }
-    }
-
-    const partnerIds: string[] = [];
-    latestByPartner.forEach((_value, key) => {
-      partnerIds.push(key);
-    });
-    const partnerUsers = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        displayName: users.displayName,
-        level: users.level,
-        avatarUrl: users.avatarUrl,
-      })
-      .from(users)
-      .where(inArray(users.id, partnerIds));
-
-    const partnerMap = new Map(partnerUsers.map((u) => [u.id, u]));
-
-    return partnerIds
-      .map((partnerId) => {
-        const user = partnerMap.get(partnerId);
-        const latest = latestByPartner.get(partnerId);
-        if (!user || !latest) return null;
-        return {
-          user,
-          lastMessage: latest.content,
-          lastMessageAt: latest.createdAt,
-          lastMessageFromMe: latest.senderId === userId,
-          unreadCount: unreadByPartner.get(partnerId) ?? 0,
-        };
-      })
-      .filter((c): c is NonNullable<typeof c> => c !== null)
-      .sort((a, b) => +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt));
+    return list.map((row: any) => ({
+      user: {
+        id: row.partner_id,
+        username: row.username,
+        displayName: row.display_name,
+        level: row.level,
+        avatarUrl: row.avatar_url,
+      },
+      lastMessage: row.last_message,
+      lastMessageAt: row.last_message_at instanceof Date ? row.last_message_at : new Date(row.last_message_at),
+      lastMessageFromMe: !!row.last_message_from_me,
+      unreadCount: Number(row.unread_count) || 0,
+    }));
   }
   // ── Communities ───────────────────────────────────────────────────────────
 
