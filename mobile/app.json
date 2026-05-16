@@ -40,6 +40,9 @@
     "android": {
       "package": "com.beeeyes.ai",
       "softwareKeyboardLayoutMode": "resize",
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFD940",
         "foregroundImage": "./assets/android-icon-foreground.png",
