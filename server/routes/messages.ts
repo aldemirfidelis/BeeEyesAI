@@ -5,6 +5,8 @@ import { badRequest, notFound } from "../api/errors";
 import { sendError, sendOk } from "../api/response";
 import { createDueAlarmReactivationPrompts, findOpenAlarmReactivationPrompt } from "../alarm-reactivation";
 import { inferExplicitToolActions } from "../ai-actions";
+import { buildCrisisResponse, detectCrisisSignals } from "../ai-crisis";
+import { checkBudget, estimateTokens, recordCost } from "../aiBudget";
 import { parseBeeCommand, type BeeCommandAction } from "../bee-command-parser";
 import { db } from "../db";
 import { getBrazilNationalHoliday } from "../holidays";
@@ -599,6 +601,54 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
           `Você enviou muitas mensagens. Aguarde ${minutes} minuto${minutes > 1 ? "s" : ""} para continuar. 🐝`,
         );
       }
+
+      // Cap de custo mensal de IA (mitiga abuso/viral surpresa).
+      const budget = checkBudget(userId);
+      if (!budget.allowed) {
+        const resetDate = new Date(budget.resetAt).toLocaleDateString("pt-BR");
+        return sendError(
+          res,
+          429,
+          "AI_BUDGET_EXCEEDED",
+          `Você atingiu o limite mensal de uso da Bee. O limite renova em ${resetDate}. 🐝`,
+        );
+      }
+    }
+
+    // Detecção de crise emocional — redireciona ANTES de chamar o LLM.
+    // Não é diagnóstico; é safeguard pra app que lida com mood/saúde mental.
+    if (!isSystem && detectCrisisSignals(content)) {
+      const user = await storage.getUser(userId);
+      req.logger?.warn?.("bee.crisis_detected", { userId, contentLength: content.length });
+
+      const userMsg = await storage.createMessage({
+        userId,
+        role: "user",
+        content,
+      });
+
+      const crisisText = buildCrisisResponse(user?.city);
+      const botMsg = await storage.createMessage({
+        userId,
+        role: "assistant",
+        content: crisisText,
+        metadata: JSON.stringify({ type: "crisis_redirect", source: "ai-crisis.ts" }),
+      });
+
+      // Stream SSE: emite chunk único + done, mantendo contrato com mobile/web
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.write(`data: ${JSON.stringify({ type: "chunk", text: crisisText })}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        type: "done",
+        cleanText: crisisText,
+        id: botMsg.id,
+        userMessageId: userMsg.id,
+        metadata: { type: "crisis_redirect" },
+      })}\n\n`);
+      res.end();
+      return;
     }
 
     const now = new Date();
@@ -873,9 +923,9 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
     }
 
     // ── Stream AI response (with research + health context injected) ─────────
+    const combinedContext = [beePersonalizationContext, replyRuntimeContext, routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
     let fullResponse = "";
     try {
-      const combinedContext = [beePersonalizationContext, replyRuntimeContext, routineContext, calendarContext, researchContext, healthContext].filter(Boolean).join("\n\n");
       fullResponse = await streamChat(user, personality, chatHistory, content, (chunk) => {
         res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
       }, combinedContext);
@@ -883,6 +933,16 @@ Estou pronta para voar com você nessa jornada 🐝💛`;
       res.write(`data: ${JSON.stringify({ type: "error", message: "Erro ao gerar resposta" })}\n\n`);
       res.end();
       return;
+    }
+
+    // Registra custo estimado (input = combinedContext + history + msg; output = fullResponse)
+    if (!isSystem) {
+      const inputTokens =
+        estimateTokens(content) +
+        estimateTokens(combinedContext) +
+        chatHistory.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+      const outputTokens = estimateTokens(fullResponse);
+      recordCost(userId, inputTokens, outputTokens);
     }
 
     let { cleanText, fetchNews, createEvent, logFinance, saveNote } = parseAIActions(fullResponse);
