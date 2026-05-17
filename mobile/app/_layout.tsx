@@ -22,6 +22,11 @@ import { useAuthStore } from "../stores/authStore";
 import { useUIStore } from "../stores/uiStore";
 import { getThemeColors } from "../lib/theme";
 import { applyAppLanguage } from "../lib/i18n";
+import { initSentry, identifySentryUser } from "../lib/sentry";
+
+// Inicializa Sentry o mais cedo possível (antes de qualquer side-effect).
+// Gate por env EXPO_PUBLIC_SENTRY_DSN — desligado quando ausente.
+initSentry();
 
 export default function RootLayout() {
   const { initialize, isLoading, token } = useAuthStore();
@@ -58,8 +63,10 @@ export default function RootLayout() {
     return unsubscribe;
   }, []);
 
-  // Após login: agenda notificações diárias + registra push token
+  // Após login: agenda notificações diárias + registra push token + identifica no Sentry
   useEffect(() => {
+    const userId = useAuthStore.getState().user?.id ?? null;
+    identifySentryUser(userId);
     if (!token) return;
 
     registerPushToken().catch(() => {});
