@@ -162,6 +162,20 @@ export function createCommunitiesRouter() {
 
   router.get("/api/communities/:id/posts", requireAuth, asyncHandler(async (req, res) => {
     const limit = parseBoundedInt(req.query.limit, { fallback: 20, min: 1, max: 50 });
+    const cursor = typeof req.query.cursor === "string" && req.query.cursor.trim()
+      ? req.query.cursor.trim()
+      : null;
+    const useCursor = cursor !== null || req.query.useCursor === "1";
+
+    // Cursor-based é opt-in: cliente passa ?cursor=... (ou ?useCursor=1 na
+    // primeira page). Resposta com envelope { items, nextCursor }.
+    // Sem cursor → comportamento legado (array puro via OFFSET) preservado
+    // para mobile/web atuais que ainda não migraram.
+    if (useCursor) {
+      const result = await storage.getCommunityPostsCursor(req.params.id, req.userId!, limit, cursor);
+      return sendOk(res, result);
+    }
+
     const offset = parseBoundedInt(req.query.offset, { fallback: 0, min: 0, max: 1_000_000 });
     return sendOk(res, await storage.getCommunityPosts(req.params.id, req.userId!, limit, offset));
   }));

@@ -151,6 +151,10 @@ export interface IStorage {
   approveJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
   rejectJoinRequest(communityId: string, userId: string, ownerId: string): Promise<boolean>;
   getCommunityPosts(communityId: string, userId: string, limit?: number, offset?: number): Promise<(CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[]>;
+  getCommunityPostsCursor(communityId: string, userId: string, limit?: number, cursor?: string | null): Promise<{
+    items: (CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[];
+    nextCursor: string | null;
+  }>;
   createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost>;
   deleteCommunityPost(postId: string, userId: string): Promise<boolean>;
   getUserCommunities(userId: string): Promise<Community[]>;
@@ -1316,6 +1320,112 @@ export class DrizzleStorage implements IStorage {
     for (const c of allComments) commentCountMap.set(c.postId, (commentCountMap.get(c.postId) ?? 0) + 1);
 
     return rows.map((r) => ({ ...r, likesCount: likeCountMap.get(r.id) ?? 0, liked: userLikedSet.has(r.id), commentsCount: commentCountMap.get(r.id) ?? 0 }));
+  }
+
+  /**
+   * Variante cursor-based de getCommunityPosts. Substitui OFFSET por
+   * (created_at, id) < (cursorCreatedAt, cursorId) — não degrada com a
+   * profundidade da paginação. Tiebreaker por id evita perda/duplicação
+   * quando duas posts compartilham created_at.
+   *
+   * Cursor format: base64(`<ISO createdAt>|<post id>`).
+   */
+  async getCommunityPostsCursor(
+    communityId: string,
+    userId: string,
+    limit = 20,
+    cursor: string | null = null,
+  ): Promise<{
+    items: (CommunityPost & { username: string; displayName: string | null; avatarUrl: string | null; likesCount: number; liked: boolean; commentsCount: number })[];
+    nextCursor: string | null;
+  }> {
+    const safeLimit = Math.max(1, Math.min(50, limit));
+
+    let cursorCreatedAt: Date | null = null;
+    let cursorId: string | null = null;
+    if (cursor) {
+      try {
+        const decoded = Buffer.from(cursor, "base64").toString("utf8");
+        const sep = decoded.indexOf("|");
+        if (sep > 0) {
+          const tsStr = decoded.slice(0, sep);
+          const idStr = decoded.slice(sep + 1);
+          const ts = new Date(tsStr);
+          if (!Number.isNaN(ts.getTime()) && idStr) {
+            cursorCreatedAt = ts;
+            cursorId = idStr;
+          }
+        }
+      } catch {
+        // cursor inválido → ignora, começa do início
+      }
+    }
+
+    // (created_at, id) tuple compare em SQL: WHERE created_at < $ts OR (created_at = $ts AND id < $id)
+    const whereClause = cursorCreatedAt && cursorId
+      ? and(
+          eq(communityPosts.communityId, communityId),
+          sql`(${communityPosts.createdAt}, ${communityPosts.id}) < (${cursorCreatedAt.toISOString()}::timestamp, ${cursorId})`,
+        )
+      : eq(communityPosts.communityId, communityId);
+
+    const rows = await db
+      .select({
+        id: communityPosts.id,
+        communityId: communityPosts.communityId,
+        userId: communityPosts.userId,
+        content: communityPosts.content,
+        imageUrl: communityPosts.imageUrl,
+        createdAt: communityPosts.createdAt,
+        username: users.username,
+        displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(communityPosts)
+      .innerJoin(users, eq(communityPosts.userId, users.id))
+      .where(whereClause)
+      .orderBy(desc(communityPosts.createdAt), desc(communityPosts.id))
+      .limit(safeLimit + 1); // +1 para detectar nextCursor
+
+    if (rows.length === 0) return { items: [], nextCursor: null };
+
+    const hasMore = rows.length > safeLimit;
+    const pageRows = hasMore ? rows.slice(0, safeLimit) : rows;
+
+    // Enriquece com likes/comments (mesma lógica da função legada)
+    const postIds = pageRows.map((r) => r.id);
+    const [allLikes, allComments] = await Promise.all([
+      db.select({ postId: communityPostLikes.postId, userId: communityPostLikes.userId })
+        .from(communityPostLikes)
+        .where(inArray(communityPostLikes.postId, postIds)),
+      db.select({ postId: communityPostComments.postId })
+        .from(communityPostComments)
+        .where(inArray(communityPostComments.postId, postIds)),
+    ]);
+
+    const likeCountMap = new Map<string, number>();
+    const userLikedSet = new Set<string>();
+    for (const l of allLikes) {
+      likeCountMap.set(l.postId, (likeCountMap.get(l.postId) ?? 0) + 1);
+      if (l.userId === userId) userLikedSet.add(l.postId);
+    }
+    const commentCountMap = new Map<string, number>();
+    for (const c of allComments) commentCountMap.set(c.postId, (commentCountMap.get(c.postId) ?? 0) + 1);
+
+    const items = pageRows.map((r) => ({
+      ...r,
+      likesCount: likeCountMap.get(r.id) ?? 0,
+      liked: userLikedSet.has(r.id),
+      commentsCount: commentCountMap.get(r.id) ?? 0,
+    }));
+
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const last = pageRows[pageRows.length - 1];
+      nextCursor = Buffer.from(`${last.createdAt.toISOString()}|${last.id}`, "utf8").toString("base64");
+    }
+
+    return { items, nextCursor };
   }
 
   async createCommunityPost(data: InsertCommunityPost): Promise<CommunityPost> {
