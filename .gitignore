@@ -30,3 +30,8 @@ mobile/android/app/upload.keystore
 google-services.json
 GoogleService-Info.plist
 uploads/
+
+# Logs (incluindo sentry-wizard, npm debug, etc — não vão pro git)
+*.log
+sentry-wizard-installation-error-*.log
+npm-debug.log*
