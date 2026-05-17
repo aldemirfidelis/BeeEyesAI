@@ -28,7 +28,13 @@ if ($LASTEXITCODE -eq 0) {
 Write-Host ""
 Write-Host "[2/2] Atualizando servidor..."
 
-$SSH_KEY    = if ($env:SSH_KEY)       { $env:SSH_KEY }       else { "$env:USERPROFILE\.ssh\id_rsa" }
+# Tenta id_ed25519 primeiro (recomendado); cai para id_rsa se não existir.
+$DEFAULT_KEY = if (Test-Path "$env:USERPROFILE\.ssh\id_ed25519") {
+    "$env:USERPROFILE\.ssh\id_ed25519"
+} else {
+    "$env:USERPROFILE\.ssh\id_rsa"
+}
+$SSH_KEY    = if ($env:SSH_KEY)       { $env:SSH_KEY }       else { $DEFAULT_KEY }
 $DEPLOY_HOST = if ($env:DEPLOY_HOST) { $env:DEPLOY_HOST }   else { "146.190.72.195" }
 $DEPLOY_USER = if ($env:DEPLOY_USER) { $env:DEPLOY_USER }   else { "root" }
 
