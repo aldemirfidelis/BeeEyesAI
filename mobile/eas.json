@@ -10,7 +10,9 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://beeyes.net",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "576542580903-8pbiro275srp6g312l3gps7gbeffjk70.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://484a0536e1992330a4a384c354f5d555@o4511402807394304.ingest.us.sentry.io/4511402810212352",
+        "EXPO_PUBLIC_SENTRY_ENV": "development"
       }
     },
     "preview": {
@@ -18,7 +20,9 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://beeyes.net",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "576542580903-8pbiro275srp6g312l3gps7gbeffjk70.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://484a0536e1992330a4a384c354f5d555@o4511402807394304.ingest.us.sentry.io/4511402810212352",
+        "EXPO_PUBLIC_SENTRY_ENV": "preview"
       }
     },
     "production": {
@@ -26,7 +30,9 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://beeyes.net",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "576542580903-8pbiro275srp6g312l3gps7gbeffjk70.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "576542580903-2ng223mt2ramb9mhuf65hlia088q3tl0.apps.googleusercontent.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://484a0536e1992330a4a384c354f5d555@o4511402807394304.ingest.us.sentry.io/4511402810212352",
+        "EXPO_PUBLIC_SENTRY_ENV": "production"
       }
     }
   },
