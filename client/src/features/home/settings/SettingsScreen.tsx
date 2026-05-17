@@ -84,6 +84,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const [adSaved, setAdSaved] = useState(false);
   const [themePref, setThemePref] = useState<ThemePreference>(() => readPreference());
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [personalizationEnabled, setPersonalizationEnabled] = useState(true);
+  const [personalizationLoading, setPersonalizationLoading] = useState(false);
 
   function pushToast(tone: Toast["tone"], text: string) {
     const id = Date.now() + Math.random();
@@ -114,6 +116,46 @@ export function SettingsScreen(props: SettingsScreenProps) {
       setFriends(Array.isArray(friendData) ? friendData : []);
     });
   }, [show, user?.id]);
+
+  // Carrega estado inicial do opt-in PII (bee_conversation_contexts.personalizationEnabled)
+  useEffect(() => {
+    if (!show || !user) return;
+    apiFetch<{ context: { personalizationEnabled: boolean } }>(
+      "/api/bee/context",
+      { headers: authHeaders() },
+    )
+      .then((data) => {
+        setPersonalizationEnabled(data.context?.personalizationEnabled ?? true);
+      })
+      .catch(() => {
+        // Default true se a chamada falhar — comportamento legado preservado
+        setPersonalizationEnabled(true);
+      });
+  }, [show, user?.id]);
+
+  async function handlePersonalizationToggle(next: boolean) {
+    const previous = personalizationEnabled;
+    setPersonalizationEnabled(next); // optimistic
+    setPersonalizationLoading(true);
+    try {
+      await apiFetch("/api/bee/context", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ personalizationEnabled: next }),
+      });
+      pushToast(
+        "success",
+        next
+          ? "Personalização ativa. A Bee pode usar seus dados."
+          : "Modo privacidade ativo. A Bee não vai mais usar seus dados pessoais.",
+      );
+    } catch (error) {
+      setPersonalizationEnabled(previous); // rollback
+      pushToast("error", getApiErrorMessage(error, "Não foi possível atualizar agora."));
+    } finally {
+      setPersonalizationLoading(false);
+    }
+  }
 
   const earnedTypes = useMemo(() => achievements.map((a) => a.type), [achievements]);
 
@@ -305,6 +347,9 @@ export function SettingsScreen(props: SettingsScreenProps) {
                 onAnonymousToggle={onAnonymousProfileVisitsToggle}
                 allowMessagesFromStrangers={allowMessagesFromStrangers}
                 onStrangerMessagesToggle={onStrangerMessagesToggle}
+                personalizationEnabled={personalizationEnabled}
+                onPersonalizationToggle={handlePersonalizationToggle}
+                personalizationLoading={personalizationLoading}
                 currentPassword={currentPassword}
                 newPassword={newPassword}
                 setCurrentPassword={setCurrentPassword}

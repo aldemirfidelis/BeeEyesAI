@@ -10,6 +10,9 @@ interface PrivacySecurityCardProps {
   onAnonymousToggle: (next: boolean) => void;
   allowMessagesFromStrangers: boolean;
   onStrangerMessagesToggle: (next: boolean) => void;
+  personalizationEnabled: boolean;
+  onPersonalizationToggle: (next: boolean) => void;
+  personalizationLoading?: boolean;
   currentPassword: string;
   newPassword: string;
   setCurrentPassword: (v: string) => void;
@@ -25,6 +28,9 @@ export function PrivacySecurityCard(props: PrivacySecurityCardProps) {
     onAnonymousToggle,
     allowMessagesFromStrangers,
     onStrangerMessagesToggle,
+    personalizationEnabled,
+    onPersonalizationToggle,
+    personalizationLoading,
     currentPassword,
     newPassword,
     setCurrentPassword,
@@ -82,6 +88,23 @@ export function PrivacySecurityCard(props: PrivacySecurityCardProps) {
               checked={allowMessagesFromStrangers}
               onCheckedChange={onStrangerMessagesToggle}
               aria-label="Permitir mensagens de desconhecidos"
+            />
+          }
+        />
+        <div className="h-px bg-border/60 -mx-2" />
+        <SettingsRow
+          title="Personalização da Bee"
+          description={
+            personalizationEnabled
+              ? "A Bee usa seu perfil, memórias e interesses para personalizar as respostas. Desligue para conversar sem expor dados pessoais à IA."
+              : "Modo privacidade ativo. A Bee não recebe seu nome, memórias ou interesses — apenas sua mensagem atual."
+          }
+          trailing={
+            <Switch
+              checked={personalizationEnabled}
+              onCheckedChange={onPersonalizationToggle}
+              disabled={personalizationLoading}
+              aria-label="Personalização da Bee"
             />
           }
         />

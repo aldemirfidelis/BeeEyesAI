@@ -77,6 +77,37 @@ export default function SettingsScreen() {
     staleTime: 30_000,
   });
 
+  // Bee context — opt-in PII no prompt da IA (S6 da auditoria de privacidade)
+  type BeeContextResponse = {
+    context: { personalizationEnabled: boolean };
+  };
+  const { data: beeContext, isLoading: beeContextLoading } = useQuery<BeeContextResponse>({
+    queryKey: ["bee-context"],
+    queryFn: () => api.get("/api/bee/context").then((response) => response.data),
+    staleTime: 30_000,
+  });
+  const personalizationEnabled = beeContext?.context?.personalizationEnabled ?? true;
+  const updateBeeContext = useMutation({
+    mutationFn: (payload: { personalizationEnabled: boolean }) =>
+      api.patch("/api/bee/context", payload).then((response) => response.data),
+    onMutate: async (payload) => {
+      // Optimistic update — toggle responde imediato
+      queryClient.setQueryData<BeeContextResponse | undefined>(["bee-context"], (prev) =>
+        prev
+          ? { ...prev, context: { ...prev.context, personalizationEnabled: payload.personalizationEnabled } }
+          : { context: { personalizationEnabled: payload.personalizationEnabled } },
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bee-context"] });
+      setFeedback({ tone: "success", text: t("settings_preferences_updated") });
+    },
+    onError: (error: unknown) => {
+      setFeedback({ tone: "error", text: getApiErrorMessage(error, t("settings_update_error")) });
+      queryClient.invalidateQueries({ queryKey: ["bee-context"] });
+    },
+  });
+
   useEffect(() => {
     if (!me) return;
     setDisplayName(me.displayName ?? "");
@@ -202,6 +233,10 @@ export default function SettingsScreen() {
       prev ? { ...prev, allowMessagesFromStrangers: value } : prev,
     );
     updatePreferences.mutate({ allowMessagesFromStrangers: value });
+  }
+
+  function handleTogglePersonalization(value: boolean) {
+    updateBeeContext.mutate({ personalizationEnabled: value });
   }
 
   function handleLanguageSelect(nextLanguage: string) {
@@ -459,6 +494,29 @@ export default function SettingsScreen() {
                 trackColor={{ false: colors.border, true: colors.primary }}
                 accessibilityLabel="Mensagens de desconhecidos"
               />
+            </View>
+            <View style={styles.separator} />
+            <View style={styles.settingHeader}>
+              <View style={styles.settingHeaderCopy}>
+                <Text style={styles.rowTitle}>Personalização da Bee</Text>
+                <Text style={styles.smallText}>
+                  {personalizationEnabled
+                    ? "A Bee usa seu perfil, memórias e interesses para personalizar as respostas. Desligue para conversar sem expor dados pessoais à IA."
+                    : "Modo privacidade ativo. A Bee não recebe seu nome, memórias ou interesses — apenas sua mensagem atual."}
+                </Text>
+              </View>
+              {beeContextLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Switch
+                  value={personalizationEnabled}
+                  onValueChange={handleTogglePersonalization}
+                  disabled={updateBeeContext.isPending}
+                  thumbColor={personalizationEnabled ? "#111827" : "#f4f4f5"}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  accessibilityLabel="Personalização da Bee"
+                />
+              )}
             </View>
             <View style={styles.separator} />
             <FutureRow styles={styles} title="Conta privada" desc="Em breve · só amigos verão seu perfil" />
