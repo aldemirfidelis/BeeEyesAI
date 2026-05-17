@@ -1,8 +1,8 @@
 # Auditoria Final — Bee (BeeEyesAI) antes da Play Store
 
 Data: 2026-05-16
-Última atualização: 2026-05-16 (pós F3+F4)
-Status do projeto: **🟢 PRONTO PARA TESTE INTERNO** — testes 82/82 ✓, tsc limpo ✓, 12 commits aplicados
+Última atualização: 2026-05-16 (pós F5 — pendências finais)
+Status do projeto: **🟢 PRONTO PARA TESTE INTERNO** — testes 82/82 ✓, tsc limpo ✓, 17 commits aplicados
 Bloqueadores Play Store remanescentes: **3 ações humanas** (rotacionar Firebase key, rodar EAS Build, apontar URL no Console)
 
 > **Resumo das correções já aplicadas (12 commits, ~37 arquivos novos/modificados):**
@@ -26,6 +26,17 @@ Bloqueadores Play Store remanescentes: **3 ações humanas** (rotacionar Firebas
 > **F4 — IA robusta + streaming real (commits 11-12):**
 > 11. `feat(bee): parser balanceado + Zod em ações IA + streaming SSE real no mobile`
 > 12. (docs deste update)
+>
+> **F5 — Pendências finais (commits 13-17):**
+> 13. `chore: remove pastas legacy (deploy/hostgator, unity, beeyes-design, icons-colmeia)` — 130 arquivos
+> 14. `feat(privacy): UI do toggle de personalização da Bee em Settings (mobile + web)` — fecha S6
+> 15. `feat(mobile): integração Sentry com gate por EXPO_PUBLIC_SENTRY_DSN` — observabilidade pós-launch
+> 16. `perf(communities): paginação cursor opt-in em GET /api/communities/:id/posts` — opt-in, retrocompat preservada
+> 17. (docs deste update final)
+>
+> **Falsos positivos da auditoria (verificados e descartados):**
+> - **U2** Health Coach mobile: já existe em `mobile/features/colmeia/screens/HealthCoachSection.tsx`, importado e renderizado por `ColmeiaScreen.tsx:1941`.
+> - **U3** Onboarding obrigatório web: já existe em `client/src/pages/Home.tsx:1941` — bloqueia o app quando `user.onboardingCompleted === false`.
 
 Ver [`PLAY_STORE_CHECKLIST.md`](PLAY_STORE_CHECKLIST.md) para a checklist completa de submissão com Data Safety mapeado.
 
@@ -310,15 +321,16 @@ Resolvidas:
 - ✅ **A3** Cap mensal de custo IA em `server/aiBudget.ts` ($5/user/mês default, configurável); estimativa gpt-4o-mini; exemption list; 7 testes (commit `17228d9`)
 - ✅ **Dead code parcial** (commit anterior): 5 deps NPM zombies removidas, `client/src/{components,pages}/examples`, `mobile/features/auth/screens/{Login,Register}Screen.tsx`, `mobile/hooks/useMissions.ts` deletados
 
-Pendentes (decisão tua):
-- ✅ **S6** Toggle "Bee pode usar dados pessoais nas conversas" — **backend pronto** (commit 9: opt-in honrado em `buildSystemPrompt` quando `bee_conversation_contexts.personalizationEnabled === false`). UI em Settings (mobile + web) ainda pendente — endpoint `PATCH /api/bee/context` já aceita a flag.
-- ✅ **S4** Criptografia AES-256-GCM para `user_integrations.accessToken`/`refreshToken` — **aplicado** (commit 9: `server/encryption.ts`, hooks em colmeia.ts, script `npm run encrypt:google-tokens` para backfill, formato `enc:v1:` com coexistência legacy plaintext).
-- ✅ **A1** `parseAIActions` — **substituído** (commit 11: parser balanceado em `server/ai-actions-parser.ts` + 5 schemas Zod, lida com JSON aninhado e rejeita payloads inválidos antes do INSERT; function calling nativo fica como recomendação futura para apenas OpenAI primário).
-- ⚠️ **U2** Health Coach já existe na web; precisa criar paridade mobile OU remover do web. Decisão de produto.
-- ⚠️ **U3** Onboarding obrigatório no web (mobile já tem). Decisão de produto.
-- ⚠️ **Dead code restante**: `deploy/hostgator/`, `unity/`, `beeyes-design/`, `icons-colmeia/` — não tocado (sem autorização para mover, e usuário pode usar `beeyes-design/`).
-- ⚠️ **Sentry / Crashlytics** — não integrado. Bom adicionar antes do release.
-- ✅ **ErrorBoundary mobile** — **aplicado** (commit 10: re-export de `RouteErrorBoundary` como root `ErrorBoundary` do Expo Router).
+Tudo aplicado:
+- ✅ **S6** Toggle "Bee pode usar dados pessoais nas conversas" — **backend + UI** (commits 9 + 14)
+- ✅ **S4** Criptografia AES-256-GCM Google Calendar tokens (commit 9)
+- ✅ **A1** `parseAIActions` com parser balanceado + Zod (commit 11)
+- ✅ **U2** Health Coach mobile — verificado, já existia (falso positivo)
+- ✅ **U3** Onboarding obrigatório web — verificado, já existia (falso positivo)
+- ✅ **Dead code legacy folders** removidas (commit 13: 130 arquivos)
+- ✅ **Sentry / Crashlytics mobile** integrado com gate por DSN (commit 15)
+- ✅ **ErrorBoundary mobile** (commit 10)
+- ✅ **Paginação cursor `getCommunityPosts`** opt-in retrocompatível (commit 16)
 
 ### Fase 3 — Performance e escalabilidade (2-3 dias)
 - Indices restantes (D)

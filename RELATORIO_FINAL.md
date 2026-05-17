@@ -5,6 +5,21 @@
 **Branch:** main
 **Status:** 🟢 **Pronto para teste interno na Play Store** — 3 ações humanas finais pendentes
 
+## Atualização final — F5 (commits 13-17)
+
+Limpeza de pendências:
+
+- `chore: remove pastas legacy` (deploy/hostgator + unity + beeyes-design + icons-colmeia + atualizacoes-planilha) → 130 arquivos
+- `feat(privacy): UI do toggle de personalização da Bee em Settings` (mobile + web) — fecha S6 com UX completa
+- `feat(mobile): integração Sentry` (`@sentry/react-native`) com gate por `EXPO_PUBLIC_SENTRY_DSN`, redação de PII em `beforeSend`, identifySentryUser sem PII
+- `perf(communities): paginação cursor opt-in` em `GET /api/communities/:id/posts` (mantém retrocompat com clientes existentes)
+
+Falsos positivos da auditoria descartados após verificação no código atual:
+- **U2** Health Coach mobile: `mobile/features/colmeia/screens/HealthCoachSection.tsx` já existe e é renderizado em `ColmeiaScreen.tsx`.
+- **U3** Onboarding obrigatório web: `client/src/pages/Home.tsx:1941` já bloqueia o app com `OnboardingScreen` quando `user.onboardingCompleted === false`.
+
+**Total final:** 17 commits, 82/82 testes ✓, tsc limpo ✓.
+
 ## Atualização pós-F3+F4 (1cdff87 e anteriores)
 
 Após o relatório original (F1+F2), foram aplicadas duas fases adicionais:
