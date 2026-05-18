@@ -55,6 +55,7 @@ const PWA_HEAD = `
     }
     body { position: fixed; width: 100%; }
   </style>
+  <script src="${BASE}/boot-debug.js"></script>
   <script src="${BASE}/register-sw.js" defer></script>
 `;
 
