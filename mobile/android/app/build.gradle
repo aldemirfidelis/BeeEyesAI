@@ -82,7 +82,10 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
-    ndkVersion rootProject.ext.ndkVersion
+    // Pin NDK 26.1.10909125 — NDK 27.1.12297006 (default RN 0.83) tem cache
+    // corrompido nos workers EAS e falha com "did not contain a valid NDK".
+    // Issue conhecida: github.com/expo/expo/issues/38641
+    ndkVersion "26.1.10909125"
 
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
