@@ -79,10 +79,12 @@ app.use(express.urlencoded({ extended: false, limit: "25mb" }));
     return sendError(res, 500, "INTERNAL_ERROR", "Erro interno do servidor");
   });
 
-  if (app.get("env") === "development") {
+  // PWA agora é servida pela createPwaRouter() (montado em registerRoutes).
+  // Em desenvolvimento, Vite HMR fica disponível apenas se rodar `npm run dev:vite`
+  // separadamente — o servidor padrão serve a PWA buildada (mobile/dist).
+  // Pra rodar a PWA com HMR durante dev: `cd mobile && npm run web` (porta 8081).
+  if (app.get("env") === "development" && process.env.ENABLE_VITE === "1") {
     await setupVite(app, server);
-  } else {
-    serveStatic(app);
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);

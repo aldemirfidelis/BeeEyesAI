@@ -18,8 +18,8 @@ if (!existsSync(htmlPath)) {
 
 const original = readFileSync(htmlPath, "utf-8");
 
-// baseUrl /app — todos os assets do PWA ficam sob /app/
-const BASE = "/app";
+// PWA servida na raiz (subistitui o Vite antigo)
+const BASE = "";
 const PWA_HEAD = `
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />

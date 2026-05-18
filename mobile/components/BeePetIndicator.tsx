@@ -66,8 +66,9 @@ export function BeePetIndicator() {
     }
   }, [isWorking, ring]);
 
-  // Esconder na propria tela da casa
+  // Esconder na propria tela da casa E na tela do chat (drawer ja tem handle proprio)
   const hideOnCasa = pathname?.includes("casa-da-bee");
+  const hideOnChat = pathname === "/" || pathname === "/(tabs)" || pathname === "/(tabs)/" || pathname?.endsWith("/(tabs)/index");
 
   const beeStyle = useAnimatedStyle(() => {
     const amp = isWorking ? 6 : 3;
@@ -94,7 +95,7 @@ export function BeePetIndicator() {
     };
   });
 
-  if (hideOnCasa) return null;
+  if (hideOnCasa || hideOnChat) return null;
 
   const ringColor = colorForState(state);
 

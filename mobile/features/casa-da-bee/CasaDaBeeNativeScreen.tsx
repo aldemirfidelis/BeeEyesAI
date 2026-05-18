@@ -35,7 +35,16 @@ import { getTimeOfDay, DAY_NIGHT_PRESETS } from "./engine/dayNight";
 import { pickRandomMission } from "./engine/missions";
 import { useBeePetStore } from "@mobile/stores/beePetStore";
 
-export default function CasaDaBeeNativeScreen() {
+interface CasaDaBeeNativeScreenProps {
+  /**
+   * Callback opcional para fechar a tela. Quando fornecido, o botão de voltar
+   * chama esta função em vez de `router.back()`. Usado pelo BeeHouseDrawer
+   * quando a casa é renderizada como gaveta sobre o chat.
+   */
+  onClose?: () => void;
+}
+
+export default function CasaDaBeeNativeScreen({ onClose }: CasaDaBeeNativeScreenProps = {}) {
   const themeMode = useUIStore((state) => state.themeMode);
   const colors = getThemeColors(themeMode);
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -258,8 +267,12 @@ export default function CasaDaBeeNativeScreen() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaView style={styles.container}>
         <View style={[styles.header, { height: headerHeight }]}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => router.back()} activeOpacity={0.75}>
-            <Feather name="arrow-left" size={20} color={colors.foreground} />
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => (onClose ? onClose() : router.back())}
+            activeOpacity={0.75}
+          >
+            <Feather name={onClose ? "chevron-right" : "arrow-left"} size={20} color={colors.foreground} />
           </TouchableOpacity>
           <View style={styles.headerCopy}>
             <Text style={styles.title}>Casa da Bee</Text>

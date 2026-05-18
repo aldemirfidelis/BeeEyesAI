@@ -61,8 +61,7 @@
       "backgroundColor": "#FFF8D6"
     },
     "experiments": {
-      "typedRoutes": true,
-      "baseUrl": "/app"
+      "typedRoutes": true
     },
     "extra": {
       "router": {},
