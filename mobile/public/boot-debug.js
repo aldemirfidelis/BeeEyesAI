@@ -1,8 +1,7 @@
-// Boot debugger agressivo — captura tudo que possa indicar por que o React não monta.
+// Boot debugger + nuke button — mata SWs antigos e limpa todas as caches.
 (function () {
   if (typeof window === "undefined") return;
   var startTs = Date.now();
-  var logs = [];
 
   function ts() { return ((Date.now() - startTs) / 1000).toFixed(2) + "s"; }
 
@@ -12,26 +11,30 @@
     box.style.cssText = [
       "position:fixed",
       "left:8px","right:8px","bottom:8px",
-      "max-height:65vh","overflow:auto","z-index:99999",
+      "max-height:70vh","overflow:auto","z-index:99999",
       "background:#22150b","color:#fff","font:11px/1.35 monospace",
       "padding:10px","border-radius:10px","border:2px solid #ec5c5c",
       "box-shadow:0 6px 24px rgba(0,0,0,0.5)",
     ].join(";");
     var title = document.createElement("div");
-    title.style.cssText = "color:#fbcb45;font-weight:900;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between";
-    title.innerHTML = "🐝 BEE DEBUG <span style='color:#fff;font-size:10px;font-weight:600'>tap pra fechar</span>";
+    title.style.cssText = "color:#fbcb45;font-weight:900;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;align-items:center";
+    title.innerHTML = "🐝 BEE DEBUG";
+
+    var nukeBtn = document.createElement("button");
+    nukeBtn.textContent = "🔥 LIMPAR TUDO + RECARREGAR";
+    nukeBtn.style.cssText = "background:#ec5c5c;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-weight:900;font-size:11px;margin-bottom:8px;width:100%;cursor:pointer";
+    nukeBtn.onclick = nukeEverything;
+
     box.appendChild(title);
+    box.appendChild(nukeBtn);
+
     var log = document.createElement("div");
     log.id = "bee-boot-debug-log";
     box.appendChild(log);
-    box.addEventListener("click", function (e) {
-      if (e.target === box || e.target === title) box.style.display = "none";
-    });
     return box;
   }
 
   function append(text, color) {
-    logs.push(text);
     var box = document.getElementById("bee-boot-debug");
     if (!box) { box = makeBox(); (document.body || document.documentElement).appendChild(box); }
     box.style.display = "block";
@@ -44,7 +47,38 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  // Intercepta console.error/warn/log para registrar no overlay também
+  async function nukeEverything() {
+    append("🔥 INICIANDO LIMPEZA TOTAL...", "#fbcb45");
+    try {
+      // 1. Unregister TODOS os SWs
+      if ("serviceWorker" in navigator) {
+        var regs = await navigator.serviceWorker.getRegistrations();
+        append("SWs ativos: " + regs.length, "#fbcb45");
+        for (var i = 0; i < regs.length; i++) {
+          var ok = await regs[i].unregister();
+          append("Unregister " + regs[i].scope + ": " + (ok ? "OK" : "FAIL"));
+        }
+      }
+      // 2. Apaga TODAS as caches
+      if ("caches" in window) {
+        var keys = await caches.keys();
+        append("Caches: " + keys.join(", "), "#fbcb45");
+        for (var k of keys) {
+          await caches.delete(k);
+          append("Delete cache " + k + ": OK");
+        }
+      }
+      // 3. Limpa localStorage + sessionStorage
+      try { localStorage.clear(); append("localStorage clear: OK"); } catch (e) {}
+      try { sessionStorage.clear(); append("sessionStorage clear: OK"); } catch (e) {}
+      append("✓ Limpeza completa. Recarregando em 1s...", "#5fc775");
+      setTimeout(function () { location.reload(); }, 1000);
+    } catch (err) {
+      append("ERRO na limpeza: " + (err && err.message || err), "#ff5a5a");
+    }
+  }
+
+  // Intercepta console
   var origErr = console.error.bind(console);
   console.error = function () {
     try {
@@ -60,7 +94,7 @@
   console.warn = function () {
     try {
       var args = Array.prototype.slice.call(arguments).map(function (a) {
-        try { return typeof a === "string" ? a : JSON.stringify(a).slice(0, 300); } catch (_) { return String(a); }
+        try { return typeof a === "string" ? a : JSON.stringify(a).slice(0, 200); } catch (_) { return String(a); }
       }).join(" ");
       append("console.warn: " + args, "#ffd95b");
     } catch (_) {}
@@ -79,42 +113,62 @@
     append("PROMISE REJEITADA: " + String(msg).slice(0, 400), "#ff8a4a");
   });
 
-  // Detecta start do bundle JS
-  append("Boot debug ativo. UA: " + navigator.userAgent.slice(0, 80), "#9ccaff");
-  append("Aguardando bundle entry... (ate 12s)", "#9ccaff");
+  // Boot
+  append("Boot ativo. " + navigator.userAgent.split(") ")[1] || navigator.userAgent.slice(0, 50), "#9ccaff");
 
-  // Verifica se entry script carregou
+  // Lista SWs ja registrados (provavel suspeito)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      if (regs.length === 0) {
+        append("✓ Nenhum SW registrado.", "#5fc775");
+      } else {
+        regs.forEach(function (r) {
+          append("⚠ SW ativo: " + r.scope + " (state: " + (r.active && r.active.state || "?") + ")", "#ff8a4a");
+        });
+      }
+      // Tambem lista caches
+      if ("caches" in window) {
+        caches.keys().then(function (keys) {
+          if (keys.length) append("⚠ Caches: " + keys.join(", "), "#ff8a4a");
+          else append("✓ Sem caches.", "#5fc775");
+        });
+      }
+    });
+  }
+
+  // Verifica entry script
   setTimeout(function () {
     var entryScript = document.querySelector('script[src*="entry-"]');
     if (entryScript) {
-      append("entry script TAG presente: " + entryScript.src.split("/").pop().slice(0, 60), "#9ccaff");
+      append("entry tag: " + entryScript.src.split("/").pop().slice(0, 50), "#9ccaff");
     } else {
-      append("entry script TAG ausente!", "#ff5a5a");
+      append("⚠ entry script TAG AUSENTE no HTML!", "#ff5a5a");
     }
-  }, 500);
+  }, 300);
 
-  // Estado periodico
+  // Monitor periodico
   var lastReport = 0;
   var interval = setInterval(function () {
     var root = document.getElementById("root");
     var mounted = root && root.children.length > 0;
+    var bundleStarted = typeof __BUNDLE_START_TIME__ !== "undefined";
     if (mounted) {
-      append("✓ React montou! (" + ts() + ")", "#5fc775");
+      append("✓ React montou (" + ts() + ")", "#5fc775");
       clearInterval(interval);
-      // App OK — esconde overlay 2s depois
       setTimeout(function () {
         var box = document.getElementById("bee-boot-debug");
         if (box) box.style.display = "none";
-      }, 2000);
-    } else {
-      // Reporta status a cada 4s ate 16s
-      if (Date.now() - startTs - lastReport > 4000) {
-        lastReport = Date.now() - startTs;
-        append("Aguardando... root.children=" + (root ? root.children.length : "0") + " bundle=" + (typeof __BUNDLE_START_TIME__ !== "undefined" ? "exec" : "?"));
-        if (Date.now() - startTs > 16000) {
-          append("Timeout 16s. Bundle nao executou ou travou.", "#ff5a5a");
-          clearInterval(interval);
+      }, 2500);
+    } else if (Date.now() - startTs - lastReport > 3500) {
+      lastReport = Date.now() - startTs;
+      append("status: bundle=" + (bundleStarted ? "EXEC" : "NAO RODOU") + " root.children=" + (root ? root.children.length : "0"));
+      if (Date.now() - startTs > 15000) {
+        if (!bundleStarted) {
+          append("⚠ BUNDLE NUNCA EXECUTOU. Toca em 🔥 LIMPAR TUDO acima.", "#ff5a5a");
+        } else {
+          append("⚠ Bundle exec mas React nao montou. Algum erro silencioso.", "#ff5a5a");
         }
+        clearInterval(interval);
       }
     }
   }, 1000);
