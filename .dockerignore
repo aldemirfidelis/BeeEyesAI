@@ -2,7 +2,15 @@ node_modules
 dist
 .env
 .env.local
-mobile
 deploy
 .git
 *.md
+
+# Mobile: incluir o codigo (precisa pro stage pwa-builder + COPY casa da bee)
+# mas excluir build artifacts pesados
+mobile/node_modules
+mobile/dist
+mobile/.expo
+mobile/android
+mobile/ios
+mobile/web-build
