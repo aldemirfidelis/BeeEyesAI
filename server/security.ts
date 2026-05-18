@@ -4,7 +4,8 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
+  // PWA usa camera (compositor de posts), geolocation (clima), haptics
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
 
   if (process.env.NODE_ENV === "production") {
     res.setHeader(
@@ -13,7 +14,24 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
     );
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://accounts.google.com/gsi/client; connect-src 'self' https: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-src https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      [
+        "default-src 'self'",
+        "img-src 'self' data: blob: https:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        // 'wasm-unsafe-eval' eh requerido pro canvaskit.wasm (Skia) carregar.
+        // 'unsafe-eval' tambem necessario pra Reanimated/Hermes em alguns paths.
+        "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' https://accounts.google.com/gsi/client",
+        // worker-src + child-src pro service worker funcionar
+        "worker-src 'self' blob:",
+        "connect-src 'self' https: wss: blob:",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "media-src 'self' blob: data:",
+        "frame-src https://accounts.google.com",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "manifest-src 'self'",
+      ].join("; "),
     );
   }
 

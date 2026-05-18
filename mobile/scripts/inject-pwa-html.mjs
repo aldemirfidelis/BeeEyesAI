@@ -55,15 +55,7 @@ const PWA_HEAD = `
     }
     body { position: fixed; width: 100%; }
   </style>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('${BASE}/sw.js', { scope: '${BASE}/' }).catch(function (err) {
-          console.warn('[Bee] sw register fail', err);
-        });
-      });
-    }
-  </script>
+  <script src="${BASE}/register-sw.js" defer></script>
 `;
 
 // Remove viewport antigo (será substituído) e injeta antes de </head>

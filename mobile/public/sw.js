@@ -1,12 +1,13 @@
 /**
- * Service Worker minimalista da Bee PWA.
+ * Service Worker da Bee PWA (Expo Web build).
  *
  * Estratégia:
- * - Pre-cache do shell (HTML + chunks principais)
+ * - skipWaiting + clients.claim → ativa imediatamente e substitui qualquer SW antigo
+ * - Limpa TODOS os caches antigos (de versões anteriores e do Vite antigo)
  * - Network-first pra API (sempre fresca)
- * - Cache-first pra assets estáticos (icones, manifest, bundle JS)
+ * - Cache-first pra shell estática
  */
-const CACHE_NAME = "bee-pwa-v1";
+const CACHE_NAME = "bee-pwa-v2";
 const SHELL = [
   "/",
   "/manifest.json",
@@ -19,15 +20,23 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL).catch(() => {})),
   );
+  // Toma controle imediato sem esperar reload
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
+    (async () => {
+      // Apaga TUDO de cache (inclui SW antigo do Vite, qualquer versão anterior)
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+      await self.clients.claim();
+      // Forca reload de todas as abas pra puxar PWA nova
+      const clients = await self.clients.matchAll({ type: "window" });
+      for (const client of clients) {
+        try { client.navigate(client.url); } catch (_) {}
+      }
+    })(),
   );
 });
 
@@ -35,10 +44,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   // Nunca cachear API (sempre rede)
-  if (url.pathname.startsWith("/api/")) {
-    return; // deixa o browser cuidar
-  }
-
+  if (url.pathname.startsWith("/api/")) return;
   // Method != GET → deixa passar
   if (event.request.method !== "GET") return;
 
@@ -47,7 +53,6 @@ self.addEventListener("fetch", (event) => {
       if (cached) return cached;
       return fetch(event.request)
         .then((response) => {
-          // So cacheia 200 OK
           if (response.ok && response.type !== "opaque") {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
