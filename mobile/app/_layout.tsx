@@ -1,6 +1,10 @@
+/* eslint-disable no-console */
+console.warn("[BEE-TRACE] 1. _layout top");
 import "@mobile/lib/i18n";
+console.warn("[BEE-TRACE] 2. i18n loaded");
 import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
+console.warn("[BEE-TRACE] 3. expo-router Stack loaded");
 
 // Root ErrorBoundary do Expo Router — captura erros não tratados em qualquer
 // rota/componente filho e mostra UI amigável em vez de crashar a app.
@@ -23,13 +27,18 @@ import { useUIStore } from "../stores/uiStore";
 import { getThemeColors } from "../lib/theme";
 import { applyAppLanguage } from "../lib/i18n";
 import { initSentry, identifySentryUser } from "../lib/sentry";
+console.warn("[BEE-TRACE] 4. before bee imports");
 import { BeePetIndicator } from "../components/BeePetIndicator";
+console.warn("[BEE-TRACE] 5. BeePetIndicator loaded");
 import { useBeePetSync } from "../features/casa-da-bee/engine/petSync";
+console.warn("[BEE-TRACE] 6. useBeePetSync loaded");
 import { ensureSkiaWeb } from "../lib/setupSkiaWeb";
+console.warn("[BEE-TRACE] 7. ensureSkiaWeb loaded — all imports done");
 
 // Inicializa Sentry o mais cedo possível (antes de qualquer side-effect).
 // Gate por env EXPO_PUBLIC_SENTRY_DSN — desligado quando ausente.
 initSentry();
+console.warn("[BEE-TRACE] 8. initSentry done");
 
 // Componente interno: só monta o sync do Bee Pet quando usuário está logado.
 // Precisa estar dentro do QueryClientProvider (usa useQuery).
@@ -41,10 +50,12 @@ function BeeRootOverlay({ isLoggedIn }: { isLoggedIn: boolean }) {
 }
 
 export default function RootLayout() {
+  console.warn("[BEE-TRACE] 9. RootLayout function called");
   const { initialize, isLoading, token } = useAuthStore();
   const { initializePreferences, isPreferencesReady, themeMode } = useUIStore();
   const colors = getThemeColors(themeMode);
   const [skiaReady, setSkiaReady] = useState(false);
+  console.warn("[BEE-TRACE] 10. hooks ok, isLoading=" + isLoading + " isPrefsReady=" + isPreferencesReady + " skiaReady=" + skiaReady);
 
   // No web: aguarda canvaskit.wasm carregar antes de renderizar Stack.
   // No nativo: ensureSkiaWeb resolve imediatamente.
