@@ -61,7 +61,8 @@
       "backgroundColor": "#FFF8D6"
     },
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/pwa"
     },
     "extra": {
       "router": {},

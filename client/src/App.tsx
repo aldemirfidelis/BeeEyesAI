@@ -7,6 +7,7 @@ import Home from "@/pages/Home";
 import Admin from "@/pages/Admin";
 import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/not-found";
+import { IosInstallPrompt } from "@/components/IosInstallPrompt";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <Router />
+        <IosInstallPrompt />
       </TooltipProvider>
     </QueryClientProvider>
   );

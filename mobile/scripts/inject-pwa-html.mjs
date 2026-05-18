@@ -18,8 +18,8 @@ if (!existsSync(htmlPath)) {
 
 const original = readFileSync(htmlPath, "utf-8");
 
-// PWA servida na raiz (subistitui o Vite antigo)
-const BASE = "";
+// PWA servida em /pwa (Vite client antigo continua em /)
+const BASE = "/pwa";
 const PWA_HEAD = `
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
