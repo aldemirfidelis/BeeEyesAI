@@ -31,6 +31,7 @@ import CommunityPostCard from "@/components/CommunityPostCard";
 import { AdMobSmartAdCard } from "@/components/AdMobSmartAdCard";
 import { ResearchResultCard, ResearchLoadingState, ResearchSourceBadge } from "@/components/ResearchResultCard";
 import { WorkoutSuggestionCard, type WorkoutSuggestionPlan } from "@/components/WorkoutSuggestionCard";
+import { CasaDaBeeFab } from "@/components/CasaDaBeeFab";
 import type { Message, User, FeedPost, ConnectionSuggestion, Friend, SearchUser, FriendProfile, Community, CommunityPost, DMConversation, DMMessage, NewsItem, ResearchResult, ResearchMeta } from "@/features/home/types";
 import {
   generateBeeAdIntroMessage,
@@ -2482,6 +2483,7 @@ export default function Home() {
           {feedbackToast.text}
         </div>
       ) : null}
+      {mobileTab === "chat" ? <CasaDaBeeFab /> : null}
     </div>
   );
 }

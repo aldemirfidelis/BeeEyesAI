@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
 
 /**
  * Botão discreto que leva pra Casa da Bee Skia.
- * Aparece logo abaixo do header em todas as páginas do web normal (Vite),
- * exceto na própria casa-da-bee-skia e em /pwa.
+ * Renderizado pelo Home.tsx apenas quando logado e na aba chat.
  *
  * Aparência: pílula pequena top-right com casinha + Bee em SVG.
- * Posicionado pra não sobrepor a barra inferior de navegação.
+ * Posicionado abaixo do header pra não sobrepor a nav inferior.
  */
 export function CasaDaBeeFab() {
-  const [location] = useLocation();
   const [hovered, setHovered] = useState(false);
   const [bobAnim, setBobAnim] = useState(0);
 
@@ -19,16 +16,11 @@ export function CasaDaBeeFab() {
     return () => clearInterval(interval);
   }, []);
 
-  // Esconde na própria página da casa
-  if (location.startsWith("/casa-da-bee")) return null;
-  // Esconde na pwa (não vai bater aqui, mas safety)
-  if (location.startsWith("/pwa")) return null;
-
   const beeOffsetY = bobAnim % 2 === 0 ? 0 : -1.5;
 
   return (
     <a
-      href="/casa-da-bee-skia"
+      href="/casa-da-bee"
       style={{ ...styles.fab, transform: hovered ? "scale(1.05)" : "scale(1)" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
