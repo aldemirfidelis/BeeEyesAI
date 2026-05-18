@@ -1,5 +1,5 @@
 import "@mobile/lib/i18n";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 
 // Root ErrorBoundary do Expo Router — captura erros não tratados em qualquer
@@ -23,15 +23,34 @@ import { useUIStore } from "../stores/uiStore";
 import { getThemeColors } from "../lib/theme";
 import { applyAppLanguage } from "../lib/i18n";
 import { initSentry, identifySentryUser } from "../lib/sentry";
+import { BeePetIndicator } from "../components/BeePetIndicator";
+import { useBeePetSync } from "../features/casa-da-bee/engine/petSync";
+import { ensureSkiaWeb } from "../lib/setupSkiaWeb";
 
 // Inicializa Sentry o mais cedo possível (antes de qualquer side-effect).
 // Gate por env EXPO_PUBLIC_SENTRY_DSN — desligado quando ausente.
 initSentry();
 
+// Componente interno: só monta o sync do Bee Pet quando usuário está logado.
+// Precisa estar dentro do QueryClientProvider (usa useQuery).
+function BeeRootOverlay({ isLoggedIn }: { isLoggedIn: boolean }) {
+  // Hook sempre é chamado (regra de hooks), mas a sync interna é gated pelo auth
+  useBeePetSync();
+  if (!isLoggedIn) return null;
+  return <BeePetIndicator />;
+}
+
 export default function RootLayout() {
   const { initialize, isLoading, token } = useAuthStore();
   const { initializePreferences, isPreferencesReady, themeMode } = useUIStore();
   const colors = getThemeColors(themeMode);
+  const [skiaReady, setSkiaReady] = useState(false);
+
+  // No web: aguarda canvaskit.wasm carregar antes de renderizar Stack.
+  // No nativo: ensureSkiaWeb resolve imediatamente.
+  useEffect(() => {
+    ensureSkiaWeb().then(() => setSkiaReady(true));
+  }, []);
 
   // Inicialização única: canais Android + listener de tap
   useEffect(() => {
@@ -77,7 +96,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style={themeMode === "dark" ? "light" : "dark"} />
-          {isLoading || !isPreferencesReady ? (
+          {isLoading || !isPreferencesReady || !skiaReady ? (
             <View
               style={{
                 flex: 1,
@@ -89,7 +108,10 @@ export default function RootLayout() {
               <ActivityIndicator size="large" color={colors.primaryDark} />
             </View>
           ) : (
-            <Stack screenOptions={{ headerShown: false }} />
+            <>
+              <Stack screenOptions={{ headerShown: false }} />
+              <BeeRootOverlay isLoggedIn={!!token} />
+            </>
           )}
         </QueryClientProvider>
       </SafeAreaProvider>

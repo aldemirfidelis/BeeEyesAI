@@ -18,7 +18,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
-import { api } from "@mobile/lib/api";
+import { api, resolveAssetUrl } from "@mobile/lib/api";
 import { useAuthStore } from "@mobile/stores/authStore";
 import { useUIStore } from "@mobile/stores/uiStore";
 import { FeedPost, ConnectionSuggestion, displayNameOf, timeAgo } from "@mobile/lib/social";
@@ -830,7 +830,7 @@ function PostCard({
       </View>
 
       <Text style={styles.postContent}>{currentContent}</Text>
-      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postImage} resizeMode="contain" /> : null}
+      {post.imageUrl ? <Image source={{ uri: resolveAssetUrl(post.imageUrl)! }} style={styles.postImage} resizeMode="contain" /> : null}
 
       {post.aiComment ? (
         <View style={styles.aiCommentBox}>

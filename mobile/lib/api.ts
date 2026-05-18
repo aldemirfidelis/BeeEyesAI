@@ -62,6 +62,12 @@ api.interceptors.response.use(
 
 export const API_URL_RAW = API_URL;
 
+export function resolveAssetUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (/^(https?:|data:|file:|blob:)/i.test(url)) return url;
+  return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) {
     return error.message;

@@ -7,6 +7,7 @@ import { NewsDigestMeta } from "../lib/social";
 import { createBeeHouseTask, updateBeeHouseTask } from "../services/beeHouseService";
 import type { ResearchResult } from "../components/ResearchResultCard";
 import type { Message } from "../stores/chatStore";
+import { reactToChatMessage } from "../features/casa-da-bee/engine/chatReaction";
 
 function cleanAIText(text: string): string {
   return text
@@ -26,6 +27,8 @@ export function useChat() {
 
   async function sendMessage(content: string, repliedTo?: Pick<Message, "id" | "role" | "content" | "createdAt"> | null) {
     if (!content.trim()) return;
+    // Bee reage ao chat (sentiment basico via palavras-chave)
+    reactToChatMessage(content);
     const replyPayload = repliedTo
       ? {
           repliedToMessageId: repliedTo.id,

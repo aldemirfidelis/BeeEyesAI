@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Casa da Bee</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@700;800&display=swap");
+
+    html,
+    body,
+    #game,
+    #ui-root {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+
+    html,
+    body {
+      background: #1c2318;
+    }
+
+    body {
+      font-family: "Fredoka", system-ui, sans-serif;
+    }
+
+    #game,
+    #ui-root {
+      position: fixed;
+      inset: 0;
+    }
+
+    #game {
+      z-index: 1;
+      background: #1c2318;
+    }
+
+    #ui-root {
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    .bee-ui {
+      position: fixed;
+      inset: 0;
+      color: #2a2014;
+      font-family: "Fredoka", system-ui, sans-serif;
+      pointer-events: none;
+    }
+
+    .bee-hud {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      width: min(360px, calc(100vw - 24px));
+      display: grid;
+      gap: 8px;
+    }
+
+    .bee-panel,
+    .bee-dialog {
+      background: rgba(255, 248, 214, 0.94);
+      border: 2px solid rgba(87, 61, 28, 0.75);
+      box-shadow: 0 8px 0 rgba(56, 37, 20, 0.2), 0 16px 36px rgba(35, 24, 13, 0.28);
+    }
+
+    .bee-panel {
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .bee-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .bee-metric {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .bee-label {
+      color: #7b5e24;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .bee-value {
+      overflow: hidden;
+      color: #2a2014;
+      font-size: 16px;
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bee-hearts {
+      display: flex;
+      gap: 3px;
+      min-height: 18px;
+    }
+
+    .bee-heart {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #5b3a24;
+      border-radius: 50%;
+      background: #f1d796;
+      box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+    }
+
+    .bee-heart.full {
+      background: #e65050;
+    }
+
+    .bee-heart.half {
+      background: linear-gradient(90deg, #e65050 0 50%, #f1d796 50% 100%);
+    }
+
+    .bee-quest {
+      color: #4d3920;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.22;
+    }
+
+    .bee-dialog {
+      position: absolute;
+      right: max(14px, env(safe-area-inset-right));
+      bottom: calc(max(14px, env(safe-area-inset-bottom)) + 4px);
+      left: max(14px, env(safe-area-inset-left));
+      min-height: 124px;
+      border-radius: 8px;
+      padding: 14px;
+      pointer-events: auto;
+    }
+
+    .bee-dialog-speaker {
+      margin-bottom: 6px;
+      color: #7a4f18;
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .bee-dialog-message {
+      max-width: 780px;
+      color: #2c2114;
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.28;
+    }
+
+    .bee-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+
+    .bee-button {
+      min-width: 42px;
+      min-height: 42px;
+      border: 2px solid rgba(78, 52, 24, 0.72);
+      border-radius: 8px;
+      background: #ffd95b;
+      color: #2a2014;
+      box-shadow: 0 4px 0 rgba(87, 61, 28, 0.4);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 900;
+      pointer-events: auto;
+    }
+
+    .bee-button:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 rgba(87, 61, 28, 0.4);
+    }
+
+    .bee-toast {
+      position: absolute;
+      left: 50%;
+      bottom: calc(max(154px, env(safe-area-inset-bottom)) + 8px);
+      max-width: min(420px, calc(100vw - 32px));
+      transform: translateX(-50%);
+      border-radius: 8px;
+      background: rgba(46, 35, 18, 0.88);
+      color: #fff4c2;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    @media (min-width: 780px) {
+      .bee-dialog {
+        left: 50%;
+        width: min(720px, calc(100vw - 48px));
+        transform: translateX(-50%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="ui-root"></div>
+  <script src="/casa-da-bee/vendor/react.production.min.js"></script>
+  <script src="/casa-da-bee/vendor/react-dom.production.min.js"></script>
+  <script src="/casa-da-bee/vendor/phaser.min.js"></script>
+  <script src="/casa-da-bee/game/main.js"></script>
+</body>
+</html>

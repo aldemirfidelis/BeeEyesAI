@@ -1,4 +1,6 @@
-import { Router } from "express";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import express, { Router } from "express";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { asyncHandler } from "../api/async-handler";
@@ -68,10 +70,73 @@ const purchaseSchema = z.object({
   id: z.string().trim().min(1).max(80),
 });
 
+const taskRewardSchema = z.object({
+  rewardPollen: z.number().int().min(0).max(100).default(10),
+  rewardXp: z.number().int().min(0).max(100).default(15),
+  bridgeTarget: z.enum(["search", "train", "calendar", "study", "sleep"]).optional(),
+});
+
+const beeHouseGameRoot = resolve(process.cwd(), "mobile", "casa da bee");
+const beeHouseGameHtmlPath = resolve(beeHouseGameRoot, "casa-da-bee-fase1.html");
+const beeHousePhaserPath = resolve(process.cwd(), "node_modules", "phaser", "dist", "phaser.min.js");
+const beeHouseGridEnginePath = resolve(process.cwd(), "node_modules", "grid-engine", "dist", "GridEngine.esm.min.js");
+const beeHouseReactPath = resolve(process.cwd(), "node_modules", "react", "umd", "react.production.min.js");
+const beeHouseReactDomPath = resolve(process.cwd(), "node_modules", "react-dom", "umd", "react-dom.production.min.js");
+
 let catalogSeeded = false;
 
 export function createBeeHouseRouter() {
   const router = Router();
+
+  router.get("/casa-da-bee/vendor/phaser.min.js", (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.sendFile(beeHousePhaserPath);
+  });
+
+  router.get("/casa-da-bee/vendor/grid-engine.esm.min.js", (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.sendFile(beeHouseGridEnginePath);
+  });
+
+  router.get("/casa-da-bee/vendor/react.production.min.js", (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.sendFile(beeHouseReactPath);
+  });
+
+  router.get("/casa-da-bee/vendor/react-dom.production.min.js", (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.sendFile(beeHouseReactDomPath);
+  });
+
+  router.use("/casa-da-bee/game", express.static(resolve(beeHouseGameRoot, "game"), {
+    etag: true,
+    maxAge: process.env.NODE_ENV === "production" ? "1h" : 0,
+  }));
+
+  router.get("/casa-da-bee", asyncHandler(async (_req, res) => {
+    const html = await readFile(beeHouseGameHtmlPath, "utf8");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader(
+      "Content-Security-Policy",
+      [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: https:",
+        "connect-src 'self' http: https: ws: wss:",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join("; "),
+    );
+    res.status(200).send(html);
+  }));
 
   router.get("/api/bee-house/bootstrap", requireAuth, asyncHandler(async (req, res) => {
     const snapshot = await ensureBeeHouse(req.userId!);
@@ -131,6 +196,15 @@ export function createBeeHouseRouter() {
 
     await updateBeeProfileState(req.userId!, nextState);
     return sendOk(res, task);
+  }));
+
+  router.post("/api/bee-house/tasks/:id/reward", requireAuth, asyncHandler(async (req, res) => {
+    const current = await getOwnedTask(req.userId!, req.params.id);
+    if (!current) throw notFound("Tarefa da Bee nao encontrada");
+
+    const body = taskRewardSchema.parse(req.body);
+    const result = await claimTaskReward(req.userId!, current, body);
+    return sendOk(res, result);
   }));
 
   router.post("/api/bee-house/layouts", requireAuth, asyncHandler(async (req, res) => {
@@ -453,9 +527,9 @@ async function getBeeHouseSnapshot(userId: string) {
     userOutfits,
     activeTask,
     bridge: {
-      unityGameObject: "BeeHouseBridge",
-      receiveTaskMethod: "ApplyTaskStatus",
-      receiveSnapshotMethod: "ApplyHouseSnapshot",
+      webViewGlobal: "beeBridge",
+      receiveStateMethod: "setState",
+      postMessageTarget: "ReactNativeWebView.postMessage",
     },
   };
 }
@@ -494,6 +568,96 @@ async function updateBeeProfileState(userId: string, state: string) {
   await db.update(beeProfiles)
     .set({ currentState: state, updatedAt: new Date() })
     .where(eq(beeProfiles.userId, userId));
+}
+
+async function claimTaskReward(
+  userId: string,
+  current: typeof beeAiTasks.$inferSelect,
+  reward: z.infer<typeof taskRewardSchema>,
+) {
+  const payload = current.payload ?? {};
+  const alreadyClaimed = Boolean(payload.bridgeRewardClaimedAt);
+  if (alreadyClaimed) {
+    return {
+      task: current,
+      profile: await getBeeProfile(userId),
+      reward: { pollen: 0, xp: 0, alreadyClaimed: true },
+    };
+  }
+
+  const profile = await getBeeProfile(userId);
+  if (!profile) throw notFound("Perfil da Bee nao encontrado");
+
+  const nextProgress = applyLevelProgress(profile.level, profile.xp, reward.rewardXp);
+  const nextPayload = {
+    ...payload,
+    bridgeTarget: reward.bridgeTarget,
+    bridgeRewardPollen: reward.rewardPollen,
+    bridgeRewardXp: reward.rewardXp,
+    bridgeRewardClaimedAt: new Date().toISOString(),
+  };
+
+  const [updatedProfile] = await db.update(beeProfiles)
+    .set({
+      pollen: profile.pollen + reward.rewardPollen,
+      xp: nextProgress.xp,
+      level: nextProgress.level,
+      currentState: "happy",
+      updatedAt: new Date(),
+    })
+    .where(eq(beeProfiles.userId, userId))
+    .returning();
+
+  const [task] = await db.update(beeAiTasks).set({
+    status: "completed",
+    beeState: "happy",
+    speechText: speechForTaskStatus("completed", current.taskType as BeeHouseTaskType),
+    progress: 100,
+    payload: nextPayload,
+    completedAt: current.completedAt ?? new Date(),
+    updatedAt: new Date(),
+  }).where(and(eq(beeAiTasks.id, current.id), eq(beeAiTasks.userId, userId))).returning();
+
+  const transactions = [];
+  if (reward.rewardPollen > 0) {
+    transactions.push({
+      userId,
+      currency: "pollen",
+      amount: reward.rewardPollen,
+      reason: "ai_task_completed",
+      referenceType: "bee_ai_task",
+      referenceId: current.id,
+      metadata: { bridgeTarget: reward.bridgeTarget },
+    });
+  }
+  if (reward.rewardXp > 0) {
+    transactions.push({
+      userId,
+      currency: "xp",
+      amount: reward.rewardXp,
+      reason: "ai_task_completed",
+      referenceType: "bee_ai_task",
+      referenceId: current.id,
+      metadata: { bridgeTarget: reward.bridgeTarget },
+    });
+  }
+  if (transactions.length > 0) await db.insert(beeCurrencyTransactions).values(transactions);
+
+  return {
+    task,
+    profile: updatedProfile,
+    reward: { pollen: reward.rewardPollen, xp: reward.rewardXp, alreadyClaimed: false },
+  };
+}
+
+function applyLevelProgress(level: number, xp: number, rewardXp: number) {
+  let nextLevel = Math.max(1, level);
+  let nextXp = Math.max(0, xp) + rewardXp;
+  while (nextXp >= nextLevel * 100) {
+    nextXp -= nextLevel * 100;
+    nextLevel += 1;
+  }
+  return { level: nextLevel, xp: nextXp };
 }
 
 function progressForStatus(status: BeeHouseTaskStatus) {

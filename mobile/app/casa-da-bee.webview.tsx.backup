@@ -1,0 +1,283 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { router } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { FONTS, getThemeColors } from "@mobile/lib/theme";
+import { useUIStore } from "@mobile/stores/uiStore";
+import {
+  buildBeeHouseBridgeTask,
+  claimBeeHouseTaskReward,
+  getBeeHouseBootstrap,
+  getBeeHouseGameUrl,
+  type BeeHouseBridgeTarget,
+} from "@mobile/services/beeHouseService";
+
+type CasaDaBeeWebMessage =
+  | { type: "game_ready" }
+  | { type: "task_ack"; id?: string | null; target?: BeeHouseBridgeTarget; status?: string }
+  | { type: "task_done"; id?: string | null; target?: BeeHouseBridgeTarget; status?: string; reward?: number; xp?: number };
+
+export default function CasaDaBeeScreen() {
+  const themeMode = useUIStore((state) => state.themeMode);
+  const colors = getThemeColors(themeMode);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const webViewRef = useRef<WebView>(null);
+  const injectedTaskIdRef = useRef<string | null>(null);
+  const [gameReady, setGameReady] = useState(false);
+  const [bridgeStatus, setBridgeStatus] = useState("Carregando jogo Phaser");
+  const gameUrl = useMemo(() => getBeeHouseGameUrl(), []);
+
+  const query = useQuery({
+    queryKey: ["bee-house-bootstrap"],
+    queryFn: getBeeHouseBootstrap,
+    staleTime: 20000,
+  });
+
+  const sendToGame = useCallback((payload: unknown) => {
+    webViewRef.current?.injectJavaScript(buildBridgeScript(payload));
+  }, []);
+
+  const sendSnapshotToGame = useCallback(() => {
+    if (!query.data) return;
+    sendToGame({ type: "house_snapshot", snapshot: query.data });
+  }, [query.data, sendToGame]);
+
+  useEffect(() => {
+    if (!gameReady || !query.data) return;
+    sendSnapshotToGame();
+  }, [gameReady, query.data, sendSnapshotToGame]);
+
+  useEffect(() => {
+    const task = query.data?.activeTask;
+    if (!gameReady || !task) return;
+    if (task.status === "completed" || task.status === "failed" || task.status === "idle") return;
+    if (injectedTaskIdRef.current === task.id) return;
+
+    injectedTaskIdRef.current = task.id;
+    setBridgeStatus("Enviando tarefa para a Bee");
+    sendToGame(buildBeeHouseBridgeTask(task));
+  }, [gameReady, query.data?.activeTask, sendToGame]);
+
+  const handleWebMessage = useCallback(async (event: WebViewMessageEvent) => {
+    let message: CasaDaBeeWebMessage;
+    try {
+      message = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
+
+    if (message.type === "game_ready") {
+      setGameReady(true);
+      setBridgeStatus("Ponte WebView pronta");
+      sendSnapshotToGame();
+      return;
+    }
+
+    if (message.type === "task_ack") {
+      setBridgeStatus("Bee trabalhando na casa");
+      return;
+    }
+
+    if (message.type !== "task_done") return;
+
+    const taskId = message.id ?? query.data?.activeTask?.id;
+    if (!taskId) {
+      await query.refetch();
+      return;
+    }
+
+    try {
+      setBridgeStatus("Creditando recompensa");
+      await claimBeeHouseTaskReward(taskId, {
+        rewardPollen: Number.isFinite(message.reward) ? Number(message.reward) : 10,
+        rewardXp: Number.isFinite(message.xp) ? Number(message.xp) : 15,
+        bridgeTarget: message.target,
+      });
+      injectedTaskIdRef.current = null;
+      setBridgeStatus("Recompensa salva");
+      await query.refetch();
+    } catch {
+      setBridgeStatus("Nao consegui salvar a recompensa");
+    }
+  }, [query, sendSnapshotToGame]);
+
+  const profile = query.data?.profile as { pollen?: number; xp?: number; level?: number; currentState?: string } | undefined;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => router.back()} activeOpacity={0.75}>
+          <Feather name="arrow-left" size={20} color={colors.foreground} />
+        </TouchableOpacity>
+        <View style={styles.headerCopy}>
+          <Text style={styles.title}>Casa da Bee</Text>
+          <Text style={styles.subtitle}>{bridgeStatus}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => {
+            injectedTaskIdRef.current = null;
+            query.refetch();
+            sendSnapshotToGame();
+          }}
+          activeOpacity={0.75}
+        >
+          <Feather name="refresh-cw" size={18} color={colors.muted} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.metricsBar}>
+        <Metric label="Nivel" value={String(profile?.level ?? 1)} colors={colors} />
+        <Metric label="Polen" value={String(profile?.pollen ?? 0)} colors={colors} />
+        <Metric label="XP" value={String(profile?.xp ?? 0)} colors={colors} />
+        <Metric label="Estado" value={profile?.currentState ?? "idle"} colors={colors} />
+      </View>
+
+      <View style={styles.webShell}>
+        <WebView
+          ref={webViewRef}
+          source={{ uri: gameUrl }}
+          style={styles.webView}
+          originWhitelist={["*"]}
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState
+          mixedContentMode="compatibility"
+          onMessage={handleWebMessage}
+          onLoadEnd={() => {
+            setGameReady(true);
+            setBridgeStatus("Ponte WebView pronta");
+            sendSnapshotToGame();
+          }}
+          onError={() => setBridgeStatus("Falha ao carregar a Casa da Bee")}
+          renderLoading={() => (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator color={colors.primaryDark} />
+            </View>
+          )}
+        />
+
+        {(query.isLoading || query.isError) && (
+          <View style={styles.syncOverlay} pointerEvents={query.isError ? "auto" : "none"}>
+            {query.isLoading ? (
+              <>
+                <ActivityIndicator color={colors.primaryDark} />
+                <Text style={styles.syncText}>Sincronizando perfil da Bee...</Text>
+              </>
+            ) : (
+              <>
+                <Feather name="alert-circle" size={20} color={colors.destructive} />
+                <Text style={styles.syncText}>Nao consegui sincronizar a casa.</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={() => query.refetch()} activeOpacity={0.8}>
+                  <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function buildBridgeScript(payload: unknown) {
+  return `
+    (function () {
+      var payload = ${JSON.stringify(payload)};
+      function send() {
+        if (window.beeBridge && typeof window.beeBridge.setState === "function") {
+          window.beeBridge.setState(payload);
+        } else {
+          setTimeout(send, 120);
+        }
+      }
+      send();
+    })();
+    true;
+  `;
+}
+
+function Metric({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: ReturnType<typeof getThemeColors>;
+}) {
+  return (
+    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+      <Text style={{ color: colors.muted, fontFamily: FONTS.sans, fontSize: 10, fontWeight: "800" }}>{label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.foreground, fontFamily: FONTS.sans, fontSize: 12, fontWeight: "900" }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function makeStyles(colors: ReturnType<typeof getThemeColors>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    headerCopy: { flex: 1, minWidth: 0 },
+    iconButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.secondary,
+    },
+    title: { color: colors.foreground, fontFamily: FONTS.display, fontSize: 21, fontWeight: "900" },
+    subtitle: { color: colors.muted, fontFamily: FONTS.sans, fontSize: 11, marginTop: 1 },
+    metricsBar: {
+      flexDirection: "row",
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    webShell: { flex: 1, backgroundColor: "#160f04" },
+    webView: { flex: 1, backgroundColor: "#160f04" },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    syncOverlay: {
+      position: "absolute",
+      left: 14,
+      right: 14,
+      bottom: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    syncText: { color: colors.foreground, fontFamily: FONTS.sans, fontSize: 12, fontWeight: "800" },
+    retryButton: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 },
+    retryButtonText: { color: "#1A1A1A", fontFamily: FONTS.sans, fontSize: 11, fontWeight: "900" },
+  });
+}

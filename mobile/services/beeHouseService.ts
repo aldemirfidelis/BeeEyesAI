@@ -1,5 +1,4 @@
-import { NativeModules } from "react-native";
-import { api } from "@mobile/lib/api";
+import { API_URL_RAW, api } from "@mobile/lib/api";
 import {
   inferBeeHouseTaskType,
   type BeeHouseTaskStatus,
@@ -34,25 +33,44 @@ export interface BeeHouseSnapshot {
   userOutfits: Array<Record<string, unknown>>;
   activeTask: BeeHouseTask | null;
   bridge: {
-    unityGameObject: string;
-    receiveTaskMethod: string;
-    receiveSnapshotMethod: string;
+    webViewGlobal?: string;
+    receiveStateMethod?: string;
+    postMessageTarget?: string;
+    unityGameObject?: string;
+    receiveTaskMethod?: string;
+    receiveSnapshotMethod?: string;
   };
 }
 
-type BeeHouseUnityModule = {
-  isAvailable?: () => Promise<boolean> | boolean;
-  openHouse?: (payload: string) => Promise<boolean> | boolean;
-  sendTask?: (payload: string) => Promise<boolean> | boolean;
-};
+export type BeeHouseBridgeTarget = "search" | "train" | "calendar" | "study" | "sleep";
 
-function getUnityModule(): BeeHouseUnityModule | null {
-  return (NativeModules.BeeHouseUnity as BeeHouseUnityModule | undefined) ?? null;
+export interface BeeHouseBridgeTaskPayload {
+  type: "ai_task";
+  id: string;
+  taskId: string;
+  target: BeeHouseBridgeTarget;
+  status: "start";
+  reward: number;
+  speechText?: string | null;
+}
+
+export interface BeeHouseRewardResult {
+  task: BeeHouseTask;
+  profile: Record<string, unknown> | null;
+  reward: {
+    pollen: number;
+    xp: number;
+    alreadyClaimed: boolean;
+  };
 }
 
 export async function getBeeHouseBootstrap() {
   const { data } = await api.get<BeeHouseSnapshot>("/api/bee-house/bootstrap");
   return data;
+}
+
+export function getBeeHouseGameUrl() {
+  return `${API_URL_RAW}/casa-da-bee`;
 }
 
 export async function createBeeHouseTask(input: {
@@ -81,24 +99,41 @@ export async function updateBeeHouseTask(taskId: string, patch: {
   payload?: Record<string, unknown>;
 }) {
   const { data } = await api.patch<BeeHouseTask>(`/api/bee-house/tasks/${taskId}`, patch);
-  const unity = getUnityModule();
-  if (unity?.sendTask) {
-    await Promise.resolve(unity.sendTask(JSON.stringify(data))).catch(() => {});
-  }
   return data;
 }
 
-export async function openBeeHouseUnity(snapshot: BeeHouseSnapshot) {
-  const unity = getUnityModule();
-  if (!unity?.openHouse) {
-    return false;
-  }
-
-  return await Promise.resolve(unity.openHouse(JSON.stringify(snapshot)));
+export async function claimBeeHouseTaskReward(taskId: string, reward: {
+  rewardPollen: number;
+  rewardXp?: number;
+  bridgeTarget?: BeeHouseBridgeTarget;
+}) {
+  const { data } = await api.post<BeeHouseRewardResult>(`/api/bee-house/tasks/${taskId}/reward`, reward);
+  return data;
 }
 
-export async function isBeeHouseUnityAvailable() {
-  const unity = getUnityModule();
-  if (!unity?.isAvailable) return false;
-  return await Promise.resolve(unity.isAvailable()).catch(() => false);
+export function buildBeeHouseBridgeTask(task: BeeHouseTask): BeeHouseBridgeTaskPayload {
+  return {
+    type: "ai_task",
+    id: task.id,
+    taskId: task.id,
+    target: toBeeHouseBridgeTarget(task),
+    status: "start",
+    reward: rewardForTaskType(task.taskType),
+    speechText: task.speechText,
+  };
+}
+
+function toBeeHouseBridgeTarget(task: BeeHouseTask): BeeHouseBridgeTarget {
+  if (task.targetStation === "fitness" || task.taskType === "fitness") return "train";
+  if (task.targetStation === "calendar" || task.taskType === "calendar") return "calendar";
+  if (task.targetStation === "library" || task.taskType === "study") return "study";
+  if (task.targetStation === "bed") return "sleep";
+  return "search";
+}
+
+function rewardForTaskType(taskType: BeeHouseTaskType) {
+  if (taskType === "fitness" || taskType === "study") return 14;
+  if (taskType === "calendar" || taskType === "shopping") return 12;
+  if (taskType === "research") return 15;
+  return 10;
 }

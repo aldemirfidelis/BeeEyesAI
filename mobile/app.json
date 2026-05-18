@@ -50,8 +50,19 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/icon.png",
+      "name": "Bee",
+      "shortName": "Bee",
+      "description": "Sua melhor amiga com IA",
+      "themeColor": "#FFD940",
+      "backgroundColor": "#FFF8D6"
+    },
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/app"
     },
     "extra": {
       "router": {},

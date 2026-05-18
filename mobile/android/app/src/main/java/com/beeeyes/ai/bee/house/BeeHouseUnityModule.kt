@@ -29,7 +29,7 @@ class BeeHouseUnityModule(
     }
 
     pendingHouseSnapshot = payload
-    val activity = currentActivity
+    val activity = reactContext.currentActivity
     if (activity == null) {
       promise.reject("NO_ACTIVITY", "Nao ha Activity ativa para abrir a Casa da Bee.")
       return
