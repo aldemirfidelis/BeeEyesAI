@@ -48,8 +48,27 @@ export default function RootLayout() {
 
   // No web: aguarda canvaskit.wasm carregar antes de renderizar Stack.
   // No nativo: ensureSkiaWeb resolve imediatamente.
+  // Mesmo se falhar, libera renderizacao depois de 5s (fallback).
   useEffect(() => {
-    ensureSkiaWeb().then(() => setSkiaReady(true));
+    let done = false;
+    ensureSkiaWeb()
+      .then(() => {
+        done = true;
+        setSkiaReady(true);
+      })
+      .catch((err) => {
+        console.warn("[Bee] ensureSkiaWeb falhou:", err);
+        done = true;
+        setSkiaReady(true);
+      });
+    // Fallback: forca render apos 5s mesmo se Skia nao terminou
+    const fallback = setTimeout(() => {
+      if (!done) {
+        console.warn("[Bee] Skia loading timeout, forcando render");
+        setSkiaReady(true);
+      }
+    }, 5000);
+    return () => clearTimeout(fallback);
   }, []);
 
   // Inicialização única: canais Android + listener de tap

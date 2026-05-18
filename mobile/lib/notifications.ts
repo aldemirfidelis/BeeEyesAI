@@ -4,16 +4,23 @@ import { router } from "expo-router";
 import { api } from "./api";
 
 // ── Foreground handler ────────────────────────────────────────────────────────
-// Mostra banner mesmo com o app aberto em primeiro plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// expo-notifications nao tem suporte web. Pular o handler no browser pra
+// evitar erro de inicializacao do bundle.
+if (Platform.OS !== "web") {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    // ignora
+  }
+}
 
 // ── Canal IDs ─────────────────────────────────────────────────────────────────
 export const CHANNEL = {
@@ -109,6 +116,7 @@ export async function registerPushToken(): Promise<void> {
 // Registra categorias de ação para os alarmes da Bee.
 // Deve ser chamado uma vez na inicialização do app.
 export async function setupAlarmNotificationCategory(): Promise<void> {
+  if (Platform.OS === "web") return;
   try {
     await Notifications.setNotificationCategoryAsync("bee-alarm-actions", [
       {
@@ -133,6 +141,7 @@ export async function setupAlarmNotificationCategory(): Promise<void> {
 let tapListenerRef: Notifications.EventSubscription | null = null;
 
 export function setupNotificationTapListener(): () => void {
+  if (Platform.OS === "web") return () => {};
   // Remove listener anterior se existir (evita duplicatas em hot reload)
   if (tapListenerRef) {
     tapListenerRef.remove();
