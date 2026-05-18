@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
 /**
- * FAB flutuante que leva pra Casa da Bee Skia.
- * Aparece em todas as páginas do web normal (Vite), exceto na própria
- * casa-da-bee-skia (pra não duplicar).
+ * Botão discreto que leva pra Casa da Bee Skia.
+ * Aparece logo abaixo do header em todas as páginas do web normal (Vite),
+ * exceto na própria casa-da-bee-skia e em /pwa.
  *
- * Aparência: botão amarelo no canto inferior direito com casinha + Bee
- * desenhados em SVG (semelhante ao handle da gaveta do mobile).
+ * Aparência: pílula pequena top-right com casinha + Bee em SVG.
+ * Posicionado pra não sobrepor a barra inferior de navegação.
  */
 export function CasaDaBeeFab() {
   const [location] = useLocation();
@@ -35,7 +35,7 @@ export function CasaDaBeeFab() {
       aria-label="Entrar na Casa da Bee"
       title="Entrar na Casa da Bee"
     >
-      <svg width="50" height="50" viewBox="0 0 100 100" style={styles.svg}>
+      <svg width="32" height="32" viewBox="0 0 100 100" style={styles.svg}>
         {/* Telhado */}
         <path d="M 10 42 L 50 10 L 90 42 Z" fill="#7a4f18" />
         <path d="M 10 42 L 50 10 L 90 42 Z" fill="#5b3a24" opacity="0.3" />
@@ -87,23 +87,23 @@ export function CasaDaBeeFab() {
 const styles: Record<string, React.CSSProperties> = {
   fab: {
     position: "fixed",
-    bottom: 24,
-    right: 24,
+    top: 84,
+    right: 12,
     display: "flex",
     alignItems: "center",
-    gap: 10,
-    padding: "8px 16px 8px 8px",
-    borderRadius: 32,
-    background: "rgba(255, 248, 214, 0.96)",
-    border: "2px solid rgba(87, 61, 28, 0.65)",
+    gap: 6,
+    padding: "4px 10px 4px 4px",
+    borderRadius: 24,
+    background: "rgba(255, 248, 214, 0.92)",
+    border: "1.5px solid rgba(87, 61, 28, 0.55)",
     color: "#2a2014",
     textDecoration: "none",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    fontWeight: 900,
-    fontSize: 13,
+    fontWeight: 800,
+    fontSize: 11,
     cursor: "pointer",
-    boxShadow: "0 6px 18px rgba(35, 24, 9, 0.25)",
-    zIndex: 998,
+    boxShadow: "0 3px 10px rgba(35, 24, 9, 0.18)",
+    zIndex: 50,
     transition: "transform 0.18s ease-out",
   },
   svg: {

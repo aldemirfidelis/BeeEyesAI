@@ -28,7 +28,8 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
         "connect-src 'self' https: wss: blob:",
         "font-src 'self' data: https://fonts.gstatic.com",
         "media-src 'self' blob: data:",
-        "frame-src https://accounts.google.com",
+        // 'self' permite que /casa-da-bee-skia (Vite) embede /pwa via iframe
+        "frame-src 'self' https://accounts.google.com",
         // 'self' permite que /casa-da-bee-skia embede /pwa via iframe
         "frame-ancestors 'self'",
         "base-uri 'self'",
