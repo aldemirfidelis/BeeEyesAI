@@ -11,6 +11,9 @@ RUN npm run build
 
 # Stage 2: build PWA (mobile/dist via expo export -p web)
 FROM node:20-alpine AS pwa-builder
+WORKDIR /app
+# Mobile usa @shared/* (tsconfig paths) → ../shared resolve a /app/shared
+COPY shared ./shared
 WORKDIR /app/mobile
 # Copia configs do mobile pra resolver deps
 COPY mobile/package*.json ./
