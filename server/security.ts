@@ -3,7 +3,9 @@ import type { NextFunction, Request, Response } from "express";
 export function applySecurityHeaders(_req: Request, res: Response, next: NextFunction) {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
+  // SAMEORIGIN: permite que /casa-da-bee-skia (Vite) embede /pwa (Expo)
+  // em iframe. Sites cross-origin continuam bloqueados (clickjacking).
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   // PWA usa camera (compositor de posts), geolocation (clima), haptics
   res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
 
@@ -27,7 +29,8 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
         "font-src 'self' data: https://fonts.gstatic.com",
         "media-src 'self' blob: data:",
         "frame-src https://accounts.google.com",
-        "frame-ancestors 'none'",
+        // 'self' permite que /casa-da-bee-skia embede /pwa via iframe
+        "frame-ancestors 'self'",
         "base-uri 'self'",
         "form-action 'self'",
         "manifest-src 'self'",

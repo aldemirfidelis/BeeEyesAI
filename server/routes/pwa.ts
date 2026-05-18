@@ -48,6 +48,7 @@ export function createPwaRouter() {
         }
       },
       index: false,
+      redirect: false,
     }),
   );
 
