@@ -37,7 +37,7 @@ interface Props {
   handleTopRatio?: number;
 }
 
-export function BeeHouseDrawer({ children, handleTopRatio = 0.42 }: Props) {
+export function BeeHouseDrawer({ children, handleTopRatio = 0.28 }: Props) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pendingPollen = useBeePetStore((s) => s.pendingPollen);
